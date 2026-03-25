@@ -78,7 +78,11 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>lib\SDL3\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -95,7 +99,11 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>lib\SDL3\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -110,7 +118,11 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>lib\SDL3\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -128,7 +140,11 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>lib\SDL3\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\</AdditionalIncludeDirectories>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -137,7 +153,28 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="lib\bob\Matrix4.cpp" />
+    <ClCompile Include="src\C_Input.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\Renderers\RayCastingRenderer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="lib\bob\AVX512_MaskedOp.h" />
+    <ClInclude Include="lib\bob\float32x16.h" />
+    <ClInclude Include="lib\bob\float32x8.h" />
+    <ClInclude Include="lib\bob\int32x16.h" />
+    <ClInclude Include="lib\bob\Mask16.h" />
+    <ClInclude Include="lib\bob\Matrix4.h" />
+    <ClInclude Include="lib\bob\SSE_Vec4.h" />
+    <ClInclude Include="lib\bob\Timer.h" />
+    <ClInclude Include="lib\bob\Vec2.h" />
+    <ClInclude Include="lib\bob\Vec3.h" />
+    <ClInclude Include="lib\bob\VectorPack.h" />
+    <ClInclude Include="src\C_Input.h" />
+    <ClInclude Include="src\GameSettings.h" />
+    <ClInclude Include="src\Renderers\RayCastingRenderer.h" />
+    <ClInclude Include="src\Renderers\RendererBase.h" />
+    <ClInclude Include="src\Vec.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -4,10 +4,34 @@
 #include <d3dcompiler.h>
 #include <iostream>
 #include <sstream>
-
+#include "C_Input.h"
+#include "Renderers\RayCastingRenderer.h"
+#include "GameSettings.h"
+#include <bob/Matrix4.h>
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "SDL3.lib")
+#define StatCount()
+
+void* operator new(size_t n)
+{
+    StatCount(statsman.memory.allocsByNew++);
+#ifdef __AVX512F__
+    constexpr size_t alignmentRequirement = 64;
+#elif __AVX__
+    constexpr size_t alignmentRequirement = 32;
+#else 
+    constexpr size_t alignmentRequirement = 16;
+#endif
+
+    return _aligned_malloc(n, alignmentRequirement);
+}
+
+void operator delete(void* block)
+{
+    StatCount(statsman.memory.freesByDelete++);
+    return _aligned_free(block);
+}
 
 // Simple shaders
 const char* g_VS = R"(
@@ -66,11 +90,22 @@ ID3DBlob* CompileShader(const char* source, const char* entry, const char* targe
     return blob;
 }
 
+std::string vec2str(Vec4f v, int componentsToPrint = 4)
+{
+    std::string ret;
+    for (int i = 0; i < componentsToPrint; ++i)
+    {
+        ret += std::to_string(v[i]) + " ";
+    }
+    ret.pop_back();
+    return ret;
+}
 int main(int argc, char* argv[]) 
 {
     try
     {
         if (!SDL_Init(SDL_INIT_VIDEO)) RAISE_ERROR("SDL_Init failed");
+        C_Input::getInstance();
 
         int w = 2560;
         int h = 1440;
@@ -129,7 +164,7 @@ int main(int argc, char* argv[])
         texDesc.Height = h;
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
-        texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; //TODO: HUGE floats, change to less pcie bandwith crushing format
         texDesc.SampleDesc.Count = 1;
         texDesc.Usage = D3D11_USAGE_DYNAMIC;
         texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -168,35 +203,69 @@ int main(int argc, char* argv[])
         uint64_t frameCounter = 0;
         uint64_t ticksOnStart = SDL_GetTicks();
 
+        std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RayCastingRenderer>();
         constexpr double PIXELS_PER_DOUBLING = 250;
         constexpr double MIDPOINT_NITS = 20;
+
+        GameSettings gs;
+        gs.camPos = { -7.482602, -85.107704, 75.298897, 0.000000 };
+        gs.camAng = { -6.293743, 0.000000, -0.652987, 0.000000 };
+        gs.graphicsOutputFormat = texDesc.Format;
         while (running) {
             frameCounter++;
-            while (SDL_PollEvent(&e)) if (e.type == SDL_EVENT_QUIT) running = false;
+            C_Input& inp = C_Input::getInstance();
+            inp.beginNewFrame();
+            while (SDL_PollEvent(&e))
+            {
+                inp.handleEvent(e);
+
+                if (gs.mouseCaptured && e.type == SDL_EVENT_MOUSE_MOTION)
+                {
+                    gs.camAng.x -= e.motion.xrel * 1e-3;
+                    gs.camAng.z -= e.motion.yrel * 1e-3;
+                }
+
+                if (e.type == SDL_EVENT_QUIT) {
+                    running = false; break;
+                }
+            }
 
             D3D11_MAPPED_SUBRESOURCE mapped;
             if (FAILED(context->Map(cpuTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
                 RAISE_ERROR("Map(cpuTexture) failed");
 
-            float* pixels = (float*)mapped.pData;
-            for (int y = 0; y < h; ++y) {
-                for (int x = 0; x < w; ++x) {
-                    
-                    double xp = x / double(w);
-                    double doublings = (x - double(w) / 2) / PIXELS_PER_DOUBLING;
-                    double nits = MIDPOINT_NITS * pow(2, doublings);
-                    float r = nits / 80;
-                    float g = r;
-                    float b = r;
-                    float a = 1;
-                    //int ind = x + y * (mapped.RowPitch / (4*sizeof(float)));
-                    int ind = (y * w + x)*4;
-                    pixels[ind + 0] = r;
-                    pixels[ind + 1] = g;
-                    pixels[ind + 2] = b;
-                    pixels[ind + 3] = a;
-                }
+            //TODO: change coordinate system, so Y = up/down, Z = into the screen, X = left/right
+            Matrix4 rotation = Matrix4::rotationXYZ(gs.camAng);
+            Vec4f newRayForward = Vec4f(rotation[1][0], rotation[1][1], rotation[1][2], 0);
+            Vec4f newRayRight = Vec4f(rotation[0][0], rotation[0][1], rotation[0][2], 0);
+            Vec4f newRayDown = Vec4f(rotation[2][0], rotation[2][1], rotation[2][2], 0);
+            gs.viewMatrix = rotation;
+            gs.forward = newRayForward;
+            gs.right = newRayRight;
+            gs.down = newRayDown;
+
+            Vec4f camAdd = { 0,0,0,0 };
+            if (inp.isButtonHeld(SDL_SCANCODE_W)) camAdd += newRayForward;
+            if (inp.isButtonHeld(SDL_SCANCODE_S)) camAdd -= newRayForward;
+            if (inp.isButtonHeld(SDL_SCANCODE_A)) camAdd -= newRayRight;
+            if (inp.isButtonHeld(SDL_SCANCODE_D)) camAdd += newRayRight;
+            if (inp.isButtonHeld(SDL_SCANCODE_Z)) camAdd += Vec4f(0, 0, 1);
+            if (inp.isButtonHeld(SDL_SCANCODE_X)) camAdd -= Vec4f(0, 0, 1);
+            if (float len = camAdd.len())
+            {
+                camAdd = camAdd / len * gs.flySpeed;
             }
+            gs.camPos += camAdd;
+
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_LCTRL))
+            {
+                gs.mouseCaptured ^= 1;
+                SDL_SetWindowRelativeMouseMode(window, gs.mouseCaptured);
+            }
+
+            std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
+            gs.graphicsOutputBuffer = mapped.pData;
+            currentRenderer->renderFrame(gs);
             context->Unmap(cpuTexture, 0);
 
             context->OMSetRenderTargets(1, &rtv, nullptr);
