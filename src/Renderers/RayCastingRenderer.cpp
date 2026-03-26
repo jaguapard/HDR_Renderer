@@ -2,9 +2,34 @@
 #include <optional>
 #include "../Vec.h"
 #include "../GameSettings.h"
+#include "../AssetLoader.h"
+#include "../Threadpool.h"
 
 void RayCastingRenderer::loadScene(std::string path, std::string mode)
 {
+	AssetLoader ldr;
+	std::vector<AssetLoader::ImportedModel> loadedModels;
+	if (mode == "obj") { loadedModels = ldr.loadObj(path, "H:\\Sponza goodies\\Old Sponza 2026.bmdl"); }
+	else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
+	else throw std::runtime_error("Unsupported mode for RayCastingRenderer::loadScene: " + mode);
+
+	//TODO: load textures
+	for (int i = 0; i < loadedModels.size(); ++i)
+	{
+		std::vector<Triangle> tris;
+		for (auto& it : loadedModels[i].triangles)
+		{
+			auto& t = tris.emplace_back();
+			for (int k = 0; k < 3; ++k)
+			{
+				t.tv[k].space = { it.vertices[k][0], it.vertices[k][1], it.vertices[k][2], 0 };
+				t.tv[k].diffuse = { it.u[k], it.v[k], 0,0 };
+			}
+		}
+		Model m;
+		m.triangles = tris;
+		this->sceneModels.emplace_back(m);
+	}
 }
 
 //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
@@ -104,30 +129,53 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	float widthToHeightRatio = double(bufW) / bufH;
 	Vec4f* pixels = (Vec4f*)settings.graphicsOutputBuffer;
 
-	float minT = INFINITY;
+	std::vector<task_id> tasks;
 	for (int y = 0; y < bufH; ++y)
 	{
-		for (int x = 0; x < bufW; ++x)
-		{
-			float progressX = x / float(bufH);
-			float progressY = 1 - y / float(bufH);
-			Vec4f rayDir = forward * settings.cameraPlane_zDist + down * (progressY - 0.5) + right * (progressX - widthToHeightRatio * 0.5);
-			bool hit = false;
-			for (int i = 0; i < 6; ++i)
+		tasks.emplace_back(settings.threadpool->addTask([&, y]() {
+			for (int x = 0; x < bufW; ++x)
 			{
-				float t = rayTriangleIntersectionT(camPos, rayDir, vertices[i*3], vertices[i*3+1], vertices[i*3+2]);
-				if (t < minT)
-				{
-					float intensity = std::min(1.f / t, 1.f);
-					pixels[y * bufW + x] = colors[i];
-					hit = true;
-				}
-			}
+				float progressX = x / float(bufH);
+				float progressY = 1 - y / float(bufH);
+				Vec4f rayDir = forward * settings.cameraPlane_zDist + down * (progressY - 0.5) + right * (progressX - widthToHeightRatio * 0.5);
 
-			if (!hit)
-			{
-				pixels[y * bufW + x] = { 0,0,0,1 };
+				float minT = INFINITY;
+				bool hit = false;
+
+				size_t triangleCounter = 0;
+				for (auto& model : this->sceneModels)
+				{
+					for (auto& triangle : model.triangles)
+					{
+						//if (triangleCounter++ % 128 != 0) continue;
+						float t = rayTriangleIntersectionT(camPos, rayDir, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
+						if (t < minT)
+						{
+							minT = t;
+						}
+					}
+				}
+
+				if (minT != INFINITY)
+				{
+					float distScalar = minT / 1000;
+					float intensity = std::max(0.1f, 1 - distScalar);
+					pixels[y * bufW + x] = { intensity,intensity,intensity,1 };
+				}
+				else pixels[y * bufW + x] = { 0,0,0,1 };
+				/*
+				for (int i = 0; i < 6; ++i)
+				{
+					float t = rayTriangleIntersectionT(camPos, rayDir, vertices[i*3], vertices[i*3+1], vertices[i*3+2]);
+					if (t < minT)
+					{
+						float intensity = std::min(1.f / t, 1.f);
+						pixels[y * bufW + x] = colors[i];
+						hit = true;
+					}
+				}*/
 			}
-		}
+		}));
 	}
+	settings.threadpool->waitForMultipleTasks(tasks);
 }

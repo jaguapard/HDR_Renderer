@@ -5,6 +5,7 @@
 #undef min
 #undef max
 
+class Threadpool;
 struct GameSettings
 {
 	Vec4f camPos, camAng, forward, down, right;
@@ -14,4 +15,6 @@ struct GameSettings
 	D3D11_TEXTURE2D_DESC outputTextureParams;
 	bool mouseCaptured = false;
 	float flySpeed = 15;
+
+	Threadpool* threadpool = nullptr;
 };

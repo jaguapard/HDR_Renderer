@@ -8,6 +8,8 @@
 #include "Renderers\RayCastingRenderer.h"
 #include "GameSettings.h"
 #include <bob/Matrix4.h>
+#include "Threadpool.h"
+
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "SDL3.lib")
@@ -100,6 +102,9 @@ std::string vec2str(Vec4f v, int componentsToPrint = 4)
     ret.pop_back();
     return ret;
 }
+
+Threadpool threadpool;
+
 int main(int argc, char* argv[]) 
 {
     try
@@ -160,8 +165,8 @@ int main(int argc, char* argv[])
 
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
-        texDesc.Width = w/10;
-        texDesc.Height = h/10;
+        texDesc.Width = w/40;
+        texDesc.Height = h/40;
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
         texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; //TODO: HUGE floats, change to less pcie bandwith crushing format
@@ -200,10 +205,12 @@ int main(int argc, char* argv[])
         // Main loop
         bool running = true;
         SDL_Event e;
-        uint64_t frameCounter = 0;
+        uint64_t frameCounter = 0, oldFrameCounter = 0;
         uint64_t ticksOnStart = SDL_GetTicks();
 
         std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RayCastingRenderer>();
+        //currentRenderer->loadScene("scenes/old_sponza.bmdl", "bmdl");
+        currentRenderer->loadScene("scenes/Sponza/old_sponza.bmdl", "bmdl");
         constexpr double PIXELS_PER_DOUBLING = 250;
         constexpr double MIDPOINT_NITS = 20;
 
@@ -213,6 +220,7 @@ int main(int argc, char* argv[])
         gs.camPos = { 20,20,-100 };
         gs.camAng = { 0,0,0 };
         gs.outputTextureParams = texDesc;
+        gs.threadpool = &threadpool;
         while (running) {
             frameCounter++;
             C_Input& inp = C_Input::getInstance();
@@ -295,13 +303,16 @@ int main(int argc, char* argv[])
             if (FAILED(swapChain->Present(0, 0)))
                 RAISE_ERROR("swapChain->Present failed");
 
-            if (frameCounter % 100 == 0)
+            uint64_t ticksOnEnd = SDL_GetTicks();
+            if (ticksOnEnd - ticksOnStart >= 1000)
             {
-                uint64_t ticksOnEnd = SDL_GetTicks();
                 uint64_t delta = ticksOnEnd - ticksOnStart;
                 ticksOnStart = ticksOnEnd;
-                double fps = 100/(delta / (1000.0));
+
+                double fps = (frameCounter-oldFrameCounter) / (delta / (1000.0));
                 std::cout << fps << " FPS\n";
+                oldFrameCounter = frameCounter;
+                
             }
         }
 

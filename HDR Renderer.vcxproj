@@ -78,7 +78,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\;lib\assimp\include</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -99,7 +99,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\;lib\assimp\include</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -118,7 +118,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\;lib\assimp\include</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -127,7 +127,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>lib\SDL3\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>lib\SDL3\lib\x64;lib\assimp\bin\x64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -140,7 +140,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdclatest</LanguageStandard_C>
-      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>lib\;lib\SDL3\include\;lib\assimp\include</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions512</EnableEnhancedInstructionSet>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -149,14 +149,16 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>lib\SDL3\lib\x64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>lib\SDL3\lib\x64;lib\assimp\bin\x64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="lib\bob\Matrix4.cpp" />
+    <ClCompile Include="src\AssetLoader.cpp" />
     <ClCompile Include="src\C_Input.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Renderers\RayCastingRenderer.cpp" />
+    <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\bob\AVX512_MaskedOp.h" />
@@ -170,10 +172,13 @@
     <ClInclude Include="lib\bob\Vec2.h" />
     <ClInclude Include="lib\bob\Vec3.h" />
     <ClInclude Include="lib\bob\VectorPack.h" />
+    <ClInclude Include="src\AssetLoader.h" />
     <ClInclude Include="src\C_Input.h" />
     <ClInclude Include="src\GameSettings.h" />
+    <ClInclude Include="src\helpers.h" />
     <ClInclude Include="src\Renderers\RayCastingRenderer.h" />
     <ClInclude Include="src\Renderers\RendererBase.h" />
+    <ClInclude Include="src\Threadpool.h" />
     <ClInclude Include="src\Vec.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
