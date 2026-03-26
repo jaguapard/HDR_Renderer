@@ -50,7 +50,7 @@ float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f 
 }
 void RayCastingRenderer::renderFrame(const GameSettings& settings)
 {
-	int bufW = 2560, bufH = 1440;
+	int bufW = settings.outputTextureParams.Width, bufH = settings.outputTextureParams.Height;
 	//coordinate check
 	/*	first:	second:
 		___		

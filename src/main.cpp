@@ -160,8 +160,8 @@ int main(int argc, char* argv[])
 
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
-        texDesc.Width = w;
-        texDesc.Height = h;
+        texDesc.Width = w/10;
+        texDesc.Height = h/10;
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
         texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; //TODO: HUGE floats, change to less pcie bandwith crushing format
@@ -212,7 +212,7 @@ int main(int argc, char* argv[])
         //gs.camAng = { -6.293743, 0.000000, -0.652987, 0.000000 };
         gs.camPos = { 20,20,-100 };
         gs.camAng = { 0,0,0 };
-        gs.graphicsOutputFormat = texDesc.Format;
+        gs.outputTextureParams = texDesc;
         while (running) {
             frameCounter++;
             C_Input& inp = C_Input::getInstance();
@@ -276,7 +276,7 @@ int main(int argc, char* argv[])
                 SDL_SetWindowRelativeMouseMode(window, gs.mouseCaptured);
             }
 
-            std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
+            //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
             gs.graphicsOutputBuffer = mapped.pData;
             currentRenderer->renderFrame(gs);
             context->Unmap(cpuTexture, 0);
@@ -292,7 +292,7 @@ int main(int argc, char* argv[])
             context->PSSetSamplers(0, 1, &sampler);
 
             context->Draw(3, 0);
-            if (FAILED(swapChain->Present(1, 0)))
+            if (FAILED(swapChain->Present(0, 0)))
                 RAISE_ERROR("swapChain->Present failed");
 
             if (frameCounter % 100 == 0)

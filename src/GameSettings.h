@@ -11,7 +11,7 @@ struct GameSettings
 	Matrix4 viewMatrix;
 	float cameraPlane_zDist = 1;
 	void* graphicsOutputBuffer;
-	DXGI_FORMAT graphicsOutputFormat;
+	D3D11_TEXTURE2D_DESC outputTextureParams;
 	bool mouseCaptured = false;
 	float flySpeed = 15;
 };
