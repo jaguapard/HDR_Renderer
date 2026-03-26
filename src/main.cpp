@@ -208,8 +208,10 @@ int main(int argc, char* argv[])
         constexpr double MIDPOINT_NITS = 20;
 
         GameSettings gs;
-        gs.camPos = { -7.482602, -85.107704, 75.298897, 0.000000 };
-        gs.camAng = { -6.293743, 0.000000, -0.652987, 0.000000 };
+        //gs.camPos = { -7.482602, -85.107704, 75.298897, 0.000000 };
+        //gs.camAng = { -6.293743, 0.000000, -0.652987, 0.000000 };
+        gs.camPos = { 20,20,-100 };
+        gs.camAng = { 0,0,0 };
         gs.graphicsOutputFormat = texDesc.Format;
         while (running) {
             frameCounter++;
@@ -236,9 +238,20 @@ int main(int argc, char* argv[])
 
             //TODO: change coordinate system, so Y = up/down, Z = into the screen, X = left/right
             Matrix4 rotation = Matrix4::rotationXYZ(gs.camAng);
+            /*
+            Vec4f newRayForward = rotation * Vec4f(0, 0, 1, 0);
+            Vec4f newRayRight = rotation * Vec4f(1, 0, 0, 0);
+            Vec4f newRayDown = rotation * Vec4f(0, 1, 0, 0);*/
+
+            /*
             Vec4f newRayForward = Vec4f(rotation[1][0], rotation[1][1], rotation[1][2], 0);
             Vec4f newRayRight = Vec4f(rotation[0][0], rotation[0][1], rotation[0][2], 0);
-            Vec4f newRayDown = Vec4f(rotation[2][0], rotation[2][1], rotation[2][2], 0);
+            Vec4f newRayDown = Vec4f(rotation[2][0], rotation[2][1], rotation[2][2], 0);*/
+
+            Vec4f newRayForward = Vec4f(rotation[2][0], rotation[2][1], rotation[2][2], 0);
+            Vec4f newRayRight = Vec4f(rotation[0][0], rotation[0][1], rotation[0][2], 0);
+            Vec4f newRayDown = Vec4f(-rotation[1][0], -rotation[1][1], -rotation[1][2], 0);
+
             gs.viewMatrix = rotation;
             gs.forward = newRayForward;
             gs.right = newRayRight;

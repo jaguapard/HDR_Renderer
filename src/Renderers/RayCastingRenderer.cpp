@@ -58,18 +58,31 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 		 \ |	| \
 		  \|	|__\
 	*/
+	float size = 20;
+	//first 2 show direction of X, second 2 - Y, last 2 - Z. Ideally first goes right, second down, third away from camera
+	//expected result - red-green bar goes right, blue-yellow down, magenta-white away from the screen
+	float d = 10;
 	Vec4f vertices[] = {
-		{-10, 5, 10},
-		{10, 5, 10},
-		{10, -5, 10},
+		{0, 0, 0},
+		{size, 0, 0},
+		{size, 0, size/d},
+		{size, 0, size/d},
+		{0, 0, size/d},
+		{0, 0, 0},
 
-		{10, -5, 10},
-		{-10, -5, 10},
-		{-10, 5, 10},
+		{0,0,0},
+		{0,size,0},
+		{size/d,size,0},
+		{size/d,size,0},
+		{size/d,0,0},
+		{0,0,0},
 
-		{-10, 5, 10},
-		{10, 5, 10},
-		{-10, 5, 30},
+		{0,0,0},
+		{0,0,size},
+		{size/d,0,size},
+		{size/d,0,size},
+		{size/d,0,0},
+		{0,0,0},
 	};
 
 	Vec4f colors[] = {
@@ -77,15 +90,21 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 		{0,1,0,1},
 		{0,0,1,1},
 		{1,1,0,1},
+		{1,0,1,1},
+		{1,1,1,1},
 	};
 
 	Vec4f forward = settings.forward;
 	Vec4f right = settings.right;
 	Vec4f down = settings.down;
 	Vec4f camPos = settings.camPos;
+
+	//camPos = { 0,0, -20 };
+	
 	float widthToHeightRatio = double(bufW) / bufH;
 	Vec4f* pixels = (Vec4f*)settings.graphicsOutputBuffer;
 
+	float minT = INFINITY;
 	for (int y = 0; y < bufH; ++y)
 	{
 		for (int x = 0; x < bufW; ++x)
@@ -94,10 +113,10 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			float progressY = 1 - y / float(bufH);
 			Vec4f rayDir = forward * settings.cameraPlane_zDist + down * (progressY - 0.5) + right * (progressX - widthToHeightRatio * 0.5);
 			bool hit = false;
-			for (int i = 0; i < 3; ++i)
+			for (int i = 0; i < 6; ++i)
 			{
 				float t = rayTriangleIntersectionT(camPos, rayDir, vertices[i*3], vertices[i*3+1], vertices[i*3+2]);
-				if (t != INFINITY)
+				if (t < minT)
 				{
 					float intensity = std::min(1.f / t, 1.f);
 					pixels[y * bufW + x] = colors[i];
