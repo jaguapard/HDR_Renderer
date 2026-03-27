@@ -5,7 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include "C_Input.h"
-#include "Renderers\RayCastingRenderer.h"
+#include "Renderers\RayCasting\RayCastingRenderer.h"
 #include "GameSettings.h"
 #include <bob/Matrix4.h>
 #include "Threadpool.h"
@@ -165,8 +165,8 @@ int main(int argc, char* argv[])
 
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
-        texDesc.Width = w/40;
-        texDesc.Height = h/40;
+        texDesc.Width = w/10;
+        texDesc.Height = h/10;
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
         texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; //TODO: HUGE floats, change to less pcie bandwith crushing format
@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
         GameSettings gs;
         //gs.camPos = { -7.482602, -85.107704, 75.298897, 0.000000 };
         //gs.camAng = { -6.293743, 0.000000, -0.652987, 0.000000 };
-        gs.camPos = { 20,20,-100 };
+        gs.camPos = { 20,-20,-100 };
         gs.camAng = { 0,0,0 };
         gs.outputTextureParams = texDesc;
         gs.threadpool = &threadpool;
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 
                 if (gs.mouseCaptured && e.type == SDL_EVENT_MOUSE_MOTION)
                 {
-                    gs.camAng.x -= e.motion.xrel * 1e-3;
+                    gs.camAng.y += e.motion.xrel * 1e-3;
                     gs.camAng.z -= e.motion.yrel * 1e-3;
                 }
 
@@ -270,8 +270,8 @@ int main(int argc, char* argv[])
             if (inp.isButtonHeld(SDL_SCANCODE_S)) camAdd -= newRayForward;
             if (inp.isButtonHeld(SDL_SCANCODE_A)) camAdd -= newRayRight;
             if (inp.isButtonHeld(SDL_SCANCODE_D)) camAdd += newRayRight;
-            if (inp.isButtonHeld(SDL_SCANCODE_Z)) camAdd += Vec4f(0, 0, 1);
-            if (inp.isButtonHeld(SDL_SCANCODE_X)) camAdd -= Vec4f(0, 0, 1);
+            if (inp.isButtonHeld(SDL_SCANCODE_Z)) camAdd -= Vec4f(0, 1, 0);
+            if (inp.isButtonHeld(SDL_SCANCODE_X)) camAdd += Vec4f(0, 1, 0);
             if (float len = camAdd.len())
             {
                 camAdd = camAdd / len * gs.flySpeed;

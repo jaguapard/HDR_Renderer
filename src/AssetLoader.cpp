@@ -162,7 +162,7 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadBmdl(std::string path)
 			for (int i = 0; i < 3; ++i)
 			{
 				t.vertices[i][0] = triangleData[i * 5];
-				t.vertices[i][1] = triangleData[i * 5+1];
+				t.vertices[i][1] = triangleData[i * 5+1] * -1;
 				t.vertices[i][2] = triangleData[i * 5+2];
 				t.u[i] = triangleData[i * 5 + 3];
 				t.v[i] = triangleData[i * 5 + 4];
