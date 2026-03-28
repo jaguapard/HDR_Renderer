@@ -1,5 +1,5 @@
 #include "Matrix4.h"
-
+using namespace bob;
 
 Matrix4::Matrix4(const std::initializer_list<bob::_SSE_Vec4_float> lst)
 {
@@ -98,6 +98,19 @@ VectorPack16 Matrix4::operator*(const VectorPack16& v) const
 	return ret;
 }
 */
+
+Vec4_f32x16 Matrix4::operator*(const Vec4_f32x16& v) const
+{
+	Vec4_f32x16 ret = 0;
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = 0; j < 4; ++j)
+		{
+			ret[i] += v[j] * (*this)[i][j];
+		}
+	}
+	return ret;
+}
 
 Matrix4 Matrix4::transposed() const
 {

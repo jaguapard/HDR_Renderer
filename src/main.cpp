@@ -6,6 +6,7 @@
 #include <sstream>
 #include "C_Input.h"
 #include "Renderers\RayCasting\RayCastingRenderer.h"
+#include "Renderers\Rasterizing\RasterizingRenderer.h"
 #include "GameSettings.h"
 #include <bob/Matrix4.h>
 #include "Threadpool.h"
@@ -165,8 +166,8 @@ int main(int argc, char* argv[])
 
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
-        texDesc.Width = w/10;
-        texDesc.Height = h/10;
+        texDesc.Width = w;
+        texDesc.Height = h;
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
         texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; //TODO: HUGE floats, change to less pcie bandwith crushing format
@@ -208,7 +209,7 @@ int main(int argc, char* argv[])
         uint64_t frameCounter = 0, oldFrameCounter = 0;
         uint64_t ticksOnStart = SDL_GetTicks();
 
-        std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RayCastingRenderer>();
+        std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RasterizingRenderer>();
         //currentRenderer->loadScene("scenes/old_sponza.bmdl", "bmdl");
         currentRenderer->loadScene("scenes/Sponza/old_sponza.bmdl", "bmdl");
         constexpr double PIXELS_PER_DOUBLING = 250;

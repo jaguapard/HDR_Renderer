@@ -157,6 +157,8 @@
     <ClCompile Include="src\AssetLoader.cpp" />
     <ClCompile Include="src\C_Input.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp" />
+    <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp" />
     <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp" />
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
@@ -176,6 +178,8 @@
     <ClInclude Include="src\C_Input.h" />
     <ClInclude Include="src\GameSettings.h" />
     <ClInclude Include="src\helpers.h" />
+    <ClInclude Include="src\Renderers\Rasterizing\CoordinateTransformer.h" />
+    <ClInclude Include="src\Renderers\Rasterizing\RasterizingRenderer.h" />
     <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h" />
     <ClInclude Include="src\Renderers\RendererBase.h" />
     <ClInclude Include="src\Threadpool.h" />

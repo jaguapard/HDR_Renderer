@@ -34,7 +34,7 @@ namespace bob
 		VectorPack(const PackType& pack); //broadcast a single pack to all values
 		VectorPack(const PackType& x, const PackType& y, const PackType& z, const PackType& w);
 		//VectorPack<PackType>(const __m256& pack);
-		VectorPack(const std::initializer_list<bob::_SSE_Vec4_float>& list);
+		//VectorPack(const std::initializer_list<bob::_SSE_Vec4_float>& list);
 
 		VectorPack(const VectorPack<PackType>& other);
 		//VectorPack<PackType>& operator=(const VectorPack<PackType>& other);
@@ -134,6 +134,7 @@ namespace bob
 	template<typename PackType>
 	inline VectorPack<PackType>::VectorPack(const PackType& x, const PackType& y, const PackType& z, const PackType& w) :x(x), y(y), z(z), w(w) {}
 
+	/*
 	template <typename PackType>
 	inline VectorPack<PackType>::VectorPack(const std::initializer_list<bob::_SSE_Vec4_float>& list)
 	{
@@ -145,7 +146,7 @@ namespace bob
 			z.f[i] = (std::begin(list) + i)->z;
 			w.f[i] = (std::begin(list) + i)->w;
 		}
-	}
+	}*/
 
 	template<typename PackType>
 	inline VectorPack<PackType>::VectorPack(const VectorPack<PackType>& other) : x(other.x), y(other.y), z(other.z), w(other.w){}

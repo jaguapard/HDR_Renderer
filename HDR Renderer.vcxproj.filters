@@ -30,10 +30,22 @@
     <ClCompile Include="src\C_Input.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderers\RayCastingRenderer.cpp">
+    <ClCompile Include="lib\bob\Matrix4.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="lib\bob\Matrix4.cpp">
+    <ClCompile Include="src\AssetLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Threadpool.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -68,9 +80,6 @@
     <ClInclude Include="src\C_Input.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderers\RayCastingRenderer.h">
-      <Filter>Header Files\Renderers</Filter>
-    </ClInclude>
     <ClInclude Include="src\Renderers\RendererBase.h">
       <Filter>Header Files\Renderers</Filter>
     </ClInclude>
@@ -84,6 +93,24 @@
       <Filter>Header Files\lib\bob</Filter>
     </ClInclude>
     <ClInclude Include="src\GameSettings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\AssetLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Threadpool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\Rasterizing\RasterizingRenderer.h">
+      <Filter>Header Files\Renderers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\Rasterizing\CoordinateTransformer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

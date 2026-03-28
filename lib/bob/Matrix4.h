@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <cstring>
+#include "VectorPack.h"
 
 class alignas(64) Matrix4
 {
@@ -29,6 +30,7 @@ public:
 
 	Vec4 operator*(const Vec4 v) const;
 	//VectorPack16 operator*(const VectorPack16& v) const;
+	bob::Vec4_f32x16 operator*(const bob::Vec4_f32x16& v) const;
 
 	Matrix4 transposed() const;
 	Vec4 multiplyByTransposed(const Vec4 v) const; //result = A^T * x (multiply transposed matrix by column vector v)
