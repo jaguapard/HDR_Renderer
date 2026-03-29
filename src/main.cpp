@@ -14,6 +14,7 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "SDL3.lib")
+#pragma comment(lib, "SDL3_image.lib")
 #define StatCount()
 
 void* operator new(size_t n)
@@ -166,8 +167,13 @@ int main(int argc, char* argv[])
 
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
+#ifdef NDEBUG
         texDesc.Width = w;
         texDesc.Height = h;
+#else
+        texDesc.Width = w/10;
+        texDesc.Height = h/10;
+#endif
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
         texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; //TODO: HUGE floats, change to less pcie bandwith crushing format

@@ -3,6 +3,7 @@
 #include <map>
 #include "CoordinateTransformer.h"
 #include <array>
+#include "TextureManager.h"
 
 namespace Rasterizing
 {
@@ -96,4 +97,5 @@ private:
 	std::vector<float> zBuffer;
 
 	CoordinateTransformer ctr;
+	Rasterizing::TextureManager textureManager;
 };

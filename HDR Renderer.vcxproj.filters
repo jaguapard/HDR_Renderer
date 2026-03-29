@@ -48,6 +48,12 @@
     <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Renderers\Rasterizing\ColorPixelBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\Rasterizing\TextureManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\bob\SSE_Vec4.h">
@@ -111,6 +117,12 @@
       <Filter>Header Files\Renderers</Filter>
     </ClInclude>
     <ClInclude Include="src\Renderers\Rasterizing\CoordinateTransformer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\Rasterizing\ColorPixelBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\Rasterizing\TextureManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

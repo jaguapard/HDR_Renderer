@@ -59,7 +59,7 @@ void RasterizingRenderer::loadScene(std::string path, std::string mode)
 	for (int i = 0; i < loadedModels.size(); ++i)
 	{
 		Model& m = this->sceneModels.emplace_back();
-
+		if (loadedModels[i].diffuseMapPath) m.diffuseMapIndex = this->textureManager.addTextureByPath(*loadedModels[i].diffuseMapPath);
 		//Need to track the ownership of indices from global vertice stores. I.e. mapping of
 		std::vector<int> modelXyzIndices, modelUvIndices;
 		for (auto& it : loadedModels[i].triangles)
@@ -303,7 +303,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 			//since render job store resize does 16 overprovisioning on resize, it's OK not to mask these stores. Some architectures have awful compress store unaligned performance
 			for (int i = 0; i < 3; ++i)
 			{
-				_mm512_storeu_ps(myRjStore.x[i].data()+rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].x));
+				_mm512_storeu_ps(myRjStore.x[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].x));
 				_mm512_storeu_ps(myRjStore.y[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].y));
 				_mm512_storeu_ps(myRjStore.z[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].z));
 				_mm512_storeu_ps(myRjStore.u[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, u[i]));
@@ -354,20 +354,6 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	float my_xMin = 0;
 	float my_xMax = this->currGs->outputTextureParams.Width - 1;
 	int w = this->currGs->outputTextureParams.Width;
-	/*
-	for (int y = my_yMin; y < my_yMax; ++y)
-	{
-		for (int x = my_xMin; x < my_xMax; ++x)
-		{
-
-			int pxInd = y * w + x;
-				float* pp = (float*)this->currGs->graphicsOutputBuffer + pxInd * 4;
-				*pp = 1;
-				*(pp + 1) = 1;
-				*(pp + 2) = 1;
-	
-		}
-	}*/
 
 	for (auto& fromThread : this->renderJobsFromThreads)
 	{
@@ -381,13 +367,14 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 			float xEnd = std::min(my_xMax, fromThread.maxX[jobIndex]);
 			float yBeg = std::max(my_yMin, fromThread.minY[jobIndex]);
 			float yEnd = std::min(my_yMax, fromThread.maxY[jobIndex]);
+			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[fromThread.modelIndex[jobIndex]].diffuseMapIndex);
 
 			for (float y = yBeg; y <= yEnd; ++y)
 			{
 				size_t yInt = y;
-				for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16)
+				size_t xInt = xBeg;
+				for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
 				{
-					size_t xInt = x[0];
 					Vec4_f32x16 r = Vec4_f32x16(x, y, 0.0, 0.0);
 					Vec4f v1_screen = Vec4f(fromThread.x[0][jobIndex], fromThread.y[0][jobIndex], 0, 0);
 					Vec4f v2_screen = Vec4f(fromThread.x[1][jobIndex], fromThread.y[1][jobIndex], 0, 0);
@@ -408,34 +395,23 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 
 					Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
 					//Vec4_f32x16 texturePixels = texture.gatherPixels512(uvCorrected.x, uvCorrected.y, visiblePointsMask);
-					Vec4_f32x16 texturePixels = Vec4f(1, 1, 1, 1);
+					Vec4_f32x16 texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, visiblePointsMask);
 					Mask16 opaquePixelsMask = visiblePointsMask & (texturePixels.a > 0.0f);
 					if (!opaquePixelsMask) continue;
 
 					_mm512_mask_storeu_ps(this->zBuffer.data() + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
-					//_mm512_mask_storeu_ps((float*)this->currGs->graphicsOutputBuffer + (yInt * w + xInt) * 4, opaquePixelsMask, texturePixels.r);
-					float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
+					/*float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
 					float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
-					
-					float* pp = (float*)this->currGs->graphicsOutputBuffer;
-					pp += (yInt * w + xInt) * 4;
-					for (int i = 0; i < 16; ++i)
-					{
-						if (__mmask16(opaquePixelsMask) & (1 << i))
-						{
-							int ii = i * 4;
-							*(pp + ii) = distIntensity[i];
-							*(pp + ii + 1) = distIntensity[i];
-							*(pp + ii + 2) = distIntensity[i];
-							*(pp + ii + 3) = 1;
-						}
-					}
+					texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;*/
+
 					//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
-					//SDL wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
+					//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
 					//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
 					//Second - 4-7, third - 8-11, fourth - 12-15
-					/*
 					constexpr int DC = 0xDEADDEAD; //garbage value
+					//duplicate each opaquePixelsMask bit 4 times, i.e: 0123 -> 0000111122223333, 16 bits -> 64
+					__m512i expanded = _mm512_maskz_mov_epi32(opaquePixelsMask, _mm512_set1_epi32(-1));
+					__mmask64 duplicated = _mm512_cmpneq_epi8_mask(expanded, _mm512_set1_epi32(0));
 					for (int i = 0; i < 16; i += 4)
 					{
 						__m512i rg_ind = _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19, DC, DC));
@@ -446,8 +422,8 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						float32x16 xxba = _mm512_permutex2var_ps(texturePixels.z, ba_ind, _mm512_set1_ps(1));
 						float32x16 rgba = _mm512_mask_mov_ps(rgxx, 0b1100110011001100, xxba);
 						int storeInd = (yInt * w + xInt + i) * 4;
-						_mm512_mask_storeu_ps((float*)this->currGs->graphicsOutputBuffer + storeInd, opaquePixelsMask, rgba);
-					}*/
+						_mm512_mask_storeu_ps((float*)this->currGs->graphicsOutputBuffer + storeInd, duplicated >> (i * 4), rgba);
+					}
 				}
 			}
 		}
