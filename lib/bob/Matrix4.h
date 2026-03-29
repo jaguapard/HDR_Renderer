@@ -23,10 +23,10 @@ public:
 	Matrix4(const std::initializer_list<bob::_SSE_Vec4_float> lst);
 	Matrix4(__m512 m);
 
-	Matrix4 operator*(const float other) const;
-	Matrix4 operator-(const Matrix4& other) const;
-	Matrix4 operator+(const Matrix4& other) const;
-	Matrix4 operator*(const Matrix4& other) const; //result = this * other
+	__forceinline Matrix4 operator*(const float other) const;
+	__forceinline Matrix4 operator-(const Matrix4& other) const;
+	__forceinline Matrix4 operator+(const Matrix4& other) const;
+	__forceinline Matrix4 operator*(const Matrix4& other) const; //result = this * other
 
 	Vec4 operator*(const Vec4 v) const;
 	//VectorPack16 operator*(const VectorPack16& v) const;
