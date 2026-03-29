@@ -16,7 +16,7 @@ namespace bob
 			__m256 ymm;
 		};
 
-		float32x8() = default;
+		float32x8() {};
 		float32x8(const float x);
 		float32x8(const __m256& m);
 		float32x8(const float* p);

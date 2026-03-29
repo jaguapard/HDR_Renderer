@@ -17,66 +17,79 @@ namespace bob
 		Mask16& operator|=(const Mask16& other);
 		Mask16& operator^=(const Mask16& other);
 
-		static Mask16 allOnes();
+		//static Mask16 allOnes();
+		bool allOnes() const;
+		bool allZeros() const;
 		operator __mmask16() const;
 		explicit operator bool() const;
 	};
 
-	inline Mask16::Mask16(const __mmask16& m)
+	__forceinline Mask16::Mask16(const __mmask16& m)
 	{
 		mask = m;
 	}
 
-	inline Mask16 Mask16::operator&(const Mask16& other) const
+	__forceinline Mask16 Mask16::operator&(const Mask16& other) const
 	{
 		return _kand_mask16(mask, other.mask);
 	}
 
-	inline Mask16 Mask16::operator|(const Mask16& other) const
+	__forceinline Mask16 Mask16::operator|(const Mask16& other) const
 	{
 		return _kor_mask16(mask, other.mask);
 	}
 
-	inline Mask16 Mask16::operator^(const Mask16& other) const
+	__forceinline Mask16 Mask16::operator^(const Mask16& other) const
 	{
 		return _kxor_mask16(mask, other.mask);
 	}
 
-	inline Mask16 Mask16::operator~() const
+	__forceinline Mask16 Mask16::operator~() const
 	{
 		return _knot_mask16(*this);
 	}
 
-	inline Mask16& Mask16::operator&=(const Mask16& other)
+	__forceinline Mask16& Mask16::operator&=(const Mask16& other)
 	{
 		*this = *this & other;
 		return *this;
 	}
 
-	inline Mask16& Mask16::operator|=(const Mask16& other)
+	__forceinline Mask16& Mask16::operator|=(const Mask16& other)
 	{
 		*this = *this | other;
 		return *this;
 	}
 
-	inline Mask16& Mask16::operator^=(const Mask16& other)
+	__forceinline Mask16& Mask16::operator^=(const Mask16& other)
 	{
 		*this = *this ^ other;
 		return *this;
 	}
 
-	inline Mask16::operator __mmask16() const
+	__forceinline bool Mask16::allOnes() const
+	{
+		return *this == 0xFFFF;
+	}
+
+	__forceinline bool Mask16::allZeros() const
+	{
+		return *this == 0;
+	}
+
+	__forceinline Mask16::operator __mmask16() const
 	{
 		return mask;
 	}
 
-	inline Mask16::operator bool() const
+	__forceinline Mask16::operator bool() const
 	{
 		return !_ktestz_mask16_u8(mask, mask);
 	}
 
-	inline Mask16 Mask16::allOnes()
+	/*
+	__forceinline Mask16 Mask16::allOnes()
 	{
 		return 0xFFFF;
-	}
+	}*/
 }
