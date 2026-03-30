@@ -119,6 +119,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getThreadCount();
 	this->renderJobsFromThreads.resize(threadCount);
+	this->renderJobForwardNetwork.resize(threadCount);
 
 	std::vector<task_id> transformTasks, drawTasks;
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
@@ -281,6 +282,7 @@ struct Vertex
 void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 {
 	uint64_t ticksBegin = SDL_GetTicksNS();
+	this->renderJobForwardNetwork[threadIndex].clear();
 	assert(this->original_verticeStore.x.size() == this->original_verticeStore.y.size() && this->original_verticeStore.y.size() == this->original_verticeStore.z.size() && this->original_verticeStore.u.size() == this->original_verticeStore.v.size());
 
 	float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / this->currGs->outputTextureParams.Height;
@@ -518,6 +520,21 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 	}
 	assert(seenTris == trisInSlices);*/
 	this->renderJobsFromThreads[threadIndex].resize(rjRealSize, false);
+
+	int maxThread = this->currGs->threadpool->getThreadCount() - 1;
+	this->renderJobForwardNetwork[threadIndex].resize(maxThread+1);
+	for (int i = 0; i < rjRealSize; ++i)
+	{
+		int firstThread = this->renderJobsFromThreads[threadIndex].firstThread[i];
+		int lastThread = this->renderJobsFromThreads[threadIndex].lastThread[i];
+		if (firstThread > maxThread || lastThread < 0) continue;
+		firstThread = std::clamp(firstThread, 0, maxThread);
+		lastThread = std::clamp(lastThread, 0, maxThread);
+		for (int j = firstThread; j <= lastThread; ++j)
+		{
+			this->renderJobForwardNetwork[threadIndex][j].push_back(i);
+		}
+	}
 	uint64_t ticksEnd = SDL_GetTicksNS();
 	if (Statsman::ENABLED) MyStatsman.time.transformMs = (ticksEnd-ticksBegin)/1e6;
 }
@@ -535,20 +552,18 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 {
 	auto ticksBegin = SDL_GetTicksNS();
 	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, this->currGs->outputTextureParams.Height);
+	int threadCount = this->currGs->threadpool->getThreadCount();
 	float my_yMin = floor(d_low);
 	float my_yMax = std::min<float>(floor(d_high), this->currGs->outputTextureParams.Height - 1);
 	float my_xMin = 0;
 	float my_xMax = this->currGs->outputTextureParams.Width - 1;
 	int w = this->currGs->outputTextureParams.Width;
 
-	for (auto& creatorThreadJobStore : this->renderJobsFromThreads)
+	for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 	{
-		size_t jobCount = creatorThreadJobStore.size();
-		for (size_t jobIndex = 0; jobIndex < jobCount; ++jobIndex)
+		const RenderJob_Store& creatorThreadJobStore = this->renderJobsFromThreads[senderThreadIndex];
+		for (int jobIndex : this->renderJobForwardNetwork[senderThreadIndex][threadIndex])
 		{
-			//NOTE: this logic caused trouble before (threads skipped jobs too eagerly), flipping signs helped. Keep a look for it failing
-			if (creatorThreadJobStore.firstThread[jobIndex] > threadIndex && creatorThreadJobStore.lastThread[jobIndex] < threadIndex) continue;
-
 			float xBeg = std::max(my_xMin, creatorThreadJobStore.minX[jobIndex]);
 			float xEnd = std::min(my_xMax, creatorThreadJobStore.maxX[jobIndex]);
 			float yBeg = std::max(my_yMin, creatorThreadJobStore.minY[jobIndex]);
