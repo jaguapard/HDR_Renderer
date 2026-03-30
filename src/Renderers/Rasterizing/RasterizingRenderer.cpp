@@ -57,6 +57,7 @@ void RasterizingRenderer::loadScene(std::string path, std::string mode)
 
 	//uint32_t vertCount = 0, uvCount = 0;
 	//TODO: load textures
+	size_t loadedTriangles = 0, discardedTriangles = 0;
 	for (int i = 0; i < loadedModels.size(); ++i)
 	{
 		Model& m = this->sceneModels.emplace_back();
@@ -65,6 +66,15 @@ void RasterizingRenderer::loadScene(std::string path, std::string mode)
 		std::vector<int> modelXyzIndices, modelUvIndices;
 		for (auto& it : loadedModels[i].triangles)
 		{
+			Vec4f v1 = { it.vertices[0][0], it.vertices[0][1], it.vertices[0][2], 0 };
+			Vec4f v2 = { it.vertices[1][0], it.vertices[1][1], it.vertices[1][2], 0 };
+			Vec4f v3 = { it.vertices[2][0], it.vertices[2][1], it.vertices[2][2], 0 };
+			Vec4f dv21 = v2 - v1;
+			Vec4f dv32 = v3 - v2;
+			if (dv21.lenSq() * dv32.lenSq() == 0) //degenerate triangles
+			{
+				++discardedTriangles; continue;
+			}
 			for (int k = 0; k < 3; ++k)
 			{
 				uint32_t vertInd = this->original_verticeStore.insert(
@@ -77,8 +87,11 @@ void RasterizingRenderer::loadScene(std::string path, std::string mode)
 			}
 			//this->original_triangleStore.modelInd.push_back(i);
 		}
-		
+		std::cout << "Loaded " << m.triangleStore.size() << " triangles out of " << loadedModels[i].triangles.size() << " (" << discardedTriangles << " discarded) from " << path << "\n";
 	}
+
+	
+
 
 	int a = 0;
 	//assert(originalX.size() == originalY.size() && originalY.size() == originalZ.size());
