@@ -260,7 +260,6 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 	assert(this->original_verticeStore.x.size() == this->original_verticeStore.y.size() && this->original_verticeStore.y.size() == this->original_verticeStore.z.size() && this->original_verticeStore.u.size() == this->original_verticeStore.v.size());
 
 	float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / this->currGs->outputTextureParams.Height;
-	float clipZ_scalar = this->currGs->cameraPlane_zDist;
 	float32x16 clippingZ = this->currGs->cameraPlane_zDist;
 	size_t rjRealSize = 0;
 	size_t seenTris = 0;
@@ -315,58 +314,73 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 			}
 
 			VertexPack16 clipOutput[6];
-			for (int i = 0; i < 3; ++i) clipOutput[i] = transformedVertices[i];
-			if (behindPlaneCount > 0) //TODO: probably wrecks winding. Also, may need to be vectorized, but it's very annoying, and seems like this code is called rarely anyway (only for stuff at edges of the camera)
+			if (behindPlaneCount > 0)
 			{
-				//for (int i = 0; i < 3; ++i) clipOutput[i] = transformedVertices[i];
-				for (int laneIndex = 0; laneIndex < 16; ++laneIndex)
+				//if behind plane count == 0: block is skipped, triangle is fully ahead of clipping plane
+				//if behind plane count == 3: triangle discarded completely
+				//if behind plane count == 1: this triangle becomes 2 new triangles (required creating a new one, second can be adjusted in-place)
+				//if behind plane count == 2: this triangle becomes 1 new triangle (can be adjusted in-place)
+				//If clipping is needed, there is at least 1 vertice in front and 1 vertice behind the plane
+
+				//only these 6 tuples are possible if we got into this branch
+				//	is vertex behind plane?	behindPlaneCount
+				//	vertex0	vertex1	vertex2	one	two
+				//	0		0		1		1	0		
+				//	0		1		0		1	0
+				//	1		0		0		1	0
+				// 
+				//	0		1		1		0	1
+				//	1		0		1		0	1
+				//	1		1		0		0	1
+				/* TODO: can use this values instead of recalculating in the loop
+				float32x16 z0 = transformedVertices[0].space.z;
+				float32x16 z1 = transformedVertices[1].space.z;
+				float32x16 z2 = transformedVertices[2].space.z;
+				float32x16 alpha1 = (clippingZ - z0) / (z1 - z0);
+				float32x16 alpha2 = (clippingZ - z0) / (z2 - z0);
+				float32x16 alpha3 = (clippingZ - z1) / (z2 - z1);
+				VertexPack16 lerp01 = VertexPack16::lerpVertices(transformedVertices[0], transformedVertices[1], alpha1);
+				VertexPack16 lerp02 = VertexPack16::lerpVertices(transformedVertices[0], transformedVertices[2], alpha2);
+				VertexPack16 lerp12 = VertexPack16::lerpVertices(transformedVertices[1], transformedVertices[2], alpha3);*/
+
+				//TODO: this network can be adjusted to preserve input windings, it currently doesn't but we don't care for now.
+
+				for (int i = 0; i < 3; ++i) clipOutput[i] = transformedVertices[i];
+				for (int frontVertex = 0; frontVertex < 3; ++frontVertex)
 				{
-					int currBehindCount = behindPlaneCount[laneIndex];
-					if (currBehindCount == 0 || currBehindCount == 3) continue;
-					if (currBehindCount == 2) //interpolate behind vertices to front one
-					{
-						int frontIndex;
-						for (int i = 0; i < 3; ++i)
-							if ((behindPlaneMasks[i].mask & (1 << laneIndex)) == 0)
-								frontIndex = i;
-						int nextIndex = frontIndex == 2 ? 0 : frontIndex + 1;
-						int prevIndex = frontIndex == 0 ? 2 : frontIndex - 1;
-						//from prev to front
-
-						Vertex front(transformedVertices[frontIndex], laneIndex);
-						Vertex prev(transformedVertices[prevIndex], laneIndex);
-						Vertex next(transformedVertices[nextIndex], laneIndex);
-						Vertex::lerpToPlane(prev, front, clipZ_scalar).writeToPack(clipOutput[prevIndex], laneIndex);
-						Vertex::lerpToPlane(next, front, clipZ_scalar).writeToPack(clipOutput[nextIndex], laneIndex);
-					}
-					else //interpolate front vertices to behind
-					{
-						int behindIndex;
-						for (int i = 0; i < 3; ++i)
-							if ((behindPlaneMasks[i].mask) & (1 << laneIndex))
-								behindIndex = i;
-						int nextIndex = behindIndex == 2 ? 0 : behindIndex + 1;
-						int prevIndex = behindIndex == 0 ? 2 : behindIndex - 1;
-
-						Vertex behind(transformedVertices[behindIndex], laneIndex);
-						Vertex prev(transformedVertices[prevIndex], laneIndex);
-						Vertex next(transformedVertices[nextIndex], laneIndex);
-
-						Vertex::lerpToPlane(next, behind, clipZ_scalar).writeToPack(clipOutput[behindIndex], laneIndex).writeToPack(clipOutput[5], laneIndex);
-						Vertex::lerpToPlane(prev, behind, clipZ_scalar).writeToPack(clipOutput[4], laneIndex);
-						Vertex(transformedVertices[prevIndex], laneIndex).writeToPack(clipOutput[3], laneIndex);
-					}
+					//these are behind
+					int prevVertex = frontVertex == 0 ? 2 : frontVertex - 1;
+					int nextVertex = frontVertex == 2 ? 0 : frontVertex + 1;
+					Mask16 caseMask = ~behindPlaneMasks[frontVertex] & behindPlaneMasks[prevVertex] & behindPlaneMasks[nextVertex];
+					clipOutput[0] = VertexPack16::maskMove(clipOutput[0], VertexPack16::lerpToClippingZ(transformedVertices[prevVertex], transformedVertices[frontVertex], clippingZ), caseMask);
+					clipOutput[1] = VertexPack16::maskMove(clipOutput[1], transformedVertices[frontVertex], caseMask);
+					clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(transformedVertices[frontVertex], transformedVertices[nextVertex], clippingZ), caseMask);
 				}
-				
+
+				for (int behindVertex = 0; behindVertex < 3; ++behindVertex)
+				{
+					//these are ahead
+					int prevVertex = behindVertex == 0 ? 2 : behindVertex - 1;
+					int nextVertex = behindVertex == 2 ? 0 : behindVertex + 1;
+					Mask16 caseMask = behindPlaneMasks[behindVertex] & ~behindPlaneMasks[prevVertex] & ~behindPlaneMasks[nextVertex];
+					clipOutput[0] = VertexPack16::maskMove(clipOutput[0], transformedVertices[nextVertex], caseMask);
+					clipOutput[1] = VertexPack16::maskMove(clipOutput[1], transformedVertices[prevVertex], caseMask);
+					clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(transformedVertices[nextVertex], transformedVertices[behindVertex], clippingZ), caseMask);
+					clipOutput[3] = VertexPack16::maskMove(clipOutput[3], transformedVertices[prevVertex], caseMask);
+					clipOutput[4] = VertexPack16::maskMove(clipOutput[4], VertexPack16::lerpToClippingZ(transformedVertices[prevVertex], transformedVertices[behindVertex], clippingZ), caseMask);
+					clipOutput[5] = VertexPack16::maskMove(clipOutput[5], VertexPack16::lerpToClippingZ(transformedVertices[nextVertex], transformedVertices[behindVertex], clippingZ), caseMask);
+				}
+
+				for (int k = 0; k < 3; ++k) transformedVertices[k] = clipOutput[k];
 			}
 
-			for (int i = 0; i < 3; ++i) transformedVertices[i] = clipOutput[i];
+			//this stage needs to run again for new triangle created by clipping in 1 vertex behind plane case
 			Mask16 oldActiveTriangles = activeTrianglesMask;
 			for (int stageTrianglesProcessed = 0; stageTrianglesProcessed < 2; ++stageTrianglesProcessed)
 			{
 				if (stageTrianglesProcessed == 1) //put it here since some of the continues may jump back to the beginning of the loop (like all triangles with 0 area)
 				{
-					if (behindPlaneCount == 1) //load new triangles if they are created by clipping stage
+					if (behindPlaneCount == 1) //load new triangle if there is new
 					{
 						for (int i = 0; i < 3; ++i)
 						{
@@ -385,10 +399,8 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.y)) > 5000.f) & activeTrianglesMask) == 0));
 					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.z)) > 5000.f) & activeTrianglesMask) == 0));
 				}
-				//if (slice.modelIndex == 0 && currModelTriangleIndex == 14224) __debugbreak();
 				for (int i = 0; i < 3; ++i)
 				{
-					for (int k = 0; k < 16; ++k) if (activeTrianglesMask.mask & (1 << k)) assert(transformedVertices[i].space.z[k] > 0);
 					float32x16 zInv = fovMult / transformedVertices[i].space.z;
 					transformedVertices[i].u *= zInv;
 					transformedVertices[i].v *= zInv;
