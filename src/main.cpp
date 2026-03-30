@@ -221,15 +221,15 @@ int main(int argc, char* argv[])
 
         std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RasterizingRenderer>();
         
-        //currentRenderer->loadScene("scenes/Sponza/old_sponza.bmdl", "bmdl");
-        std::string paths[] = {
+        currentRenderer->loadScene("scenes/Sponza/old_sponza.bmdl", "bmdl");
+        /*std::string paths[] = {
                 "H:/Sponza goodies/main1_sponza/new_sponza.bmdl",
                 "H:/Sponza goodies/pkg_a_curtains/curtains.bmdl",
                 "H:/Sponza goodies/pkg_c1_trees/tree.bmdl",
                 "H:/Sponza goodies/pkg_b_ivy/ivy.bmdl",
-        };
+        };*/
 
-        for (auto& it : paths) currentRenderer->loadScene(it, "bmdl");
+        //for (auto& it : paths) currentRenderer->loadScene(it, "bmdl");
         constexpr double PIXELS_PER_DOUBLING = 250;
         constexpr double MIDPOINT_NITS = 20;
 
