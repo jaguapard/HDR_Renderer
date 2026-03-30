@@ -88,7 +88,7 @@ private:
 	const GameSettings* currGs;
 	std::vector<std::vector<Rasterizing::ModelSlice>> modelSlicesForThreads;
 	std::vector<Rasterizing::RenderJob_Store> renderJobsFromThreads;
-	std::vector<std::vector<std::vector<int>>> renderJobForwardNetwork;
+	std::vector<std::vector<std::vector<Rasterizing::SequentialRange>>> renderJobForwardNetwork;
 
 	std::vector<std::vector<Rasterizing::ModelSlice>> makeModelSliceList() const;
 	void doTransformationsAndClipping(int threadIndex);
