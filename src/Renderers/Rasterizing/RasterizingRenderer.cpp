@@ -506,19 +506,19 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	float my_xMax = this->currGs->outputTextureParams.Width - 1;
 	int w = this->currGs->outputTextureParams.Width;
 
-	for (auto& fromThread : this->renderJobsFromThreads)
+	for (auto& creatorThreadJobStore : this->renderJobsFromThreads)
 	{
-		size_t jobCount = fromThread.size();
+		size_t jobCount = creatorThreadJobStore.size();
 		for (size_t jobIndex = 0; jobIndex < jobCount; ++jobIndex)
 		{
 			//NOTE: this logic caused trouble before (threads skipped jobs too eagerly), flipping signs helped. Keep a look for it failing
-			if (fromThread.firstThread[jobIndex] > threadIndex && fromThread.lastThread[jobIndex] < threadIndex) continue;
+			if (creatorThreadJobStore.firstThread[jobIndex] > threadIndex && creatorThreadJobStore.lastThread[jobIndex] < threadIndex) continue;
 
-			float xBeg = std::max(my_xMin, fromThread.minX[jobIndex]);
-			float xEnd = std::min(my_xMax, fromThread.maxX[jobIndex]);
-			float yBeg = std::max(my_yMin, fromThread.minY[jobIndex]);
-			float yEnd = std::min(my_yMax, fromThread.maxY[jobIndex]);
-			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[fromThread.modelIndex[jobIndex]].diffuseMapIndex);
+			float xBeg = std::max(my_xMin, creatorThreadJobStore.minX[jobIndex]);
+			float xEnd = std::min(my_xMax, creatorThreadJobStore.maxX[jobIndex]);
+			float yBeg = std::max(my_yMin, creatorThreadJobStore.minY[jobIndex]);
+			float yEnd = std::min(my_yMax, creatorThreadJobStore.maxY[jobIndex]);
+			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[creatorThreadJobStore.modelIndex[jobIndex]].diffuseMapIndex);
 
 			for (float y = yBeg; y <= yEnd; ++y)
 			{
@@ -527,15 +527,15 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 				for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
 				{
 					Vec4_f32x16 r = Vec4_f32x16(x, y, 0.0, 0.0);
-					Vec4f v1_screen = Vec4f(fromThread.x[0][jobIndex], fromThread.y[0][jobIndex], 0, 0);
-					Vec4f v2_screen = Vec4f(fromThread.x[1][jobIndex], fromThread.y[1][jobIndex], 0, 0);
-					Vec4f v3_screen = Vec4f(fromThread.x[2][jobIndex], fromThread.y[2][jobIndex], 0, 0);
-					auto [alpha, beta, gamma] = calculateBarycentricCoordinates(r, v1_screen, v2_screen, v3_screen, fromThread.rcpSignedArea[jobIndex]);
+					Vec4f v1_screen = Vec4f(creatorThreadJobStore.x[0][jobIndex], creatorThreadJobStore.y[0][jobIndex], 0, 0);
+					Vec4f v2_screen = Vec4f(creatorThreadJobStore.x[1][jobIndex], creatorThreadJobStore.y[1][jobIndex], 0, 0);
+					Vec4f v3_screen = Vec4f(creatorThreadJobStore.x[2][jobIndex], creatorThreadJobStore.y[2][jobIndex], 0, 0);
+					auto [alpha, beta, gamma] = calculateBarycentricCoordinates(r, v1_screen, v2_screen, v3_screen, creatorThreadJobStore.rcpSignedArea[jobIndex]);
 
 					Mask16 pointsInsideTriangleMask = xBoundsMask & (alpha >= 0.0) & (beta >= 0.0) & (gamma >= 0.0);
 					if (!pointsInsideTriangleMask) continue;
 
-					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(fromThread.u[0][jobIndex], fromThread.v[0][jobIndex], fromThread.z[0][jobIndex], 0.f) * alpha + Vec4_f32x16(fromThread.u[1][jobIndex], fromThread.v[1][jobIndex], fromThread.z[1][jobIndex], 0.f) * beta + Vec4_f32x16(fromThread.u[2][jobIndex], fromThread.v[2][jobIndex], fromThread.z[2][jobIndex], 0.f) * gamma;
+					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(creatorThreadJobStore.u[0][jobIndex], creatorThreadJobStore.v[0][jobIndex], creatorThreadJobStore.z[0][jobIndex], 0.f) * alpha + Vec4_f32x16(creatorThreadJobStore.u[1][jobIndex], creatorThreadJobStore.v[1][jobIndex], creatorThreadJobStore.z[1][jobIndex], 0.f) * beta + Vec4_f32x16(creatorThreadJobStore.u[2][jobIndex], creatorThreadJobStore.v[2][jobIndex], creatorThreadJobStore.z[2][jobIndex], 0.f) * gamma;
 
 					//float32x16 currDepthValues = this->zBuffer.getPixels16(xInt, yInt);
 					float32x16 currDepthValues = this->zBuffer.data() + yInt * w + xInt;
