@@ -45,6 +45,7 @@ void RasterizingRenderer::loadScene(std::string path, std::string mode)
 		{
 			uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, vertices[k].y, vertices[k].z, 0.5, 0.5);
 			m.triangleStore.vertInd[k].push_back(vertInd);
+			m.diffuseMapIndex = 0;
 		}
 		return;
 	}
@@ -186,16 +187,81 @@ std::vector<std::vector<Rasterizing::ModelSlice>> RasterizingRenderer::makeModel
 	return ret;
 }
 
-float32x16 inverse_lerp(float32x16 from, float32x16 to, float32x16 value)
+#include "../../helpers.h"
+
+struct VertexPack16
 {
-	return (value - from) / (to - from);
-}
+	Vec4_f32x16 space;
+	float32x16 u, v;
+	//VertexPack16(float32x16 x, )
+	VertexPack16() {};
+	static __forceinline VertexPack16 lerpVertices(const VertexPack16& from, const VertexPack16& to, const float32x16& alpha)
+	{
+		VertexPack16 ret;
+		ret.space.x = lerp(from.space.x, to.space.x, alpha);
+		ret.space.y = lerp(from.space.y, to.space.y, alpha);
+		ret.space.z = lerp(from.space.z, to.space.z, alpha);
+		ret.u = lerp(from.u, to.u, alpha);
+		ret.v = lerp(from.v, to.v, alpha);
+		return ret;
+	}
+
+	static __forceinline VertexPack16 maskMove(const VertexPack16& zero, const VertexPack16& one, Mask16 mask)
+	{
+		VertexPack16 ret;
+		ret.space.x = _mm512_mask_mov_ps(zero.space.x, mask, one.space.x);
+		ret.space.y = _mm512_mask_mov_ps(zero.space.y, mask, one.space.y);
+		ret.space.z = _mm512_mask_mov_ps(zero.space.z, mask, one.space.z);
+		ret.u = _mm512_mask_mov_ps(zero.u, mask, one.u);
+		ret.v = _mm512_mask_mov_ps(zero.v, mask, one.v);
+		return ret;
+	}
+
+	static __forceinline VertexPack16 lerpToClippingZ(const VertexPack16& from, const VertexPack16& to, const float32x16& clippingZ)
+	{
+		float32x16 alpha = (clippingZ - from.space.z) / (to.space.z - from.space.z);
+		return VertexPack16::lerpVertices(from, to, alpha);
+	}
+};
+
+struct Vertex
+{
+	float x, y, z, u, v;
+	Vertex() {};
+	Vertex(const VertexPack16& pack, int i) { x = pack.space.x[i]; y = pack.space.y[i]; z = pack.space.z[i], u = pack.u[i], v = pack.v[i]; }
+	static Vertex lerpVertices(const Vertex& from, const Vertex& to, float alpha) {
+		Vertex ret;
+		ret.x = lerp(from.x, to.x, alpha);
+		ret.y = lerp(from.y, to.y, alpha);
+		ret.z = lerp(from.z, to.z, alpha);
+		ret.u = lerp(from.u, to.u, alpha);
+		ret.v = lerp(from.v, to.v, alpha);
+		return ret;
+	}
+	static Vertex lerpToPlane(const Vertex& from, const Vertex& to, float clippingZ)
+	{
+		float alpha = (clippingZ - from.z) / (to.z - from.z);
+		assert(alpha >= 0 && alpha <= 1);
+		return Vertex::lerpVertices(from, to, alpha);
+	}
+	const Vertex& writeToPack(VertexPack16& pack, int i) const
+	{
+		pack.space.x[i] = x;
+		pack.space.y[i] = y;
+		pack.space.z[i] = z;
+		pack.u[i] = u;
+		pack.v[i] = v;
+		return *this;
+	}
+};
+
 void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 {
 	assert(this->original_verticeStore.x.size() == this->original_verticeStore.y.size() && this->original_verticeStore.y.size() == this->original_verticeStore.z.size() && this->original_verticeStore.u.size() == this->original_verticeStore.v.size());
 
 	float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / this->currGs->outputTextureParams.Height;
-	float clippingZ = this->currGs->cameraPlane_zDist;
+	float clipZ_scalar = this->currGs->cameraPlane_zDist;
+	float32x16 clippingZ = this->currGs->cameraPlane_zDist;
 	size_t rjRealSize = 0;
 	size_t seenTris = 0;
 	for (auto& slice : this->modelSlicesForThreads[threadIndex])
@@ -209,7 +275,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 		{
 			int32x16 triangleIndices = int32x16::sequence() + currModelTriangleIndex;
 			Mask16 inBoundsTrianglesMask = triangleIndices < slice.modelTriangleIndexEnd;
-			Vec4_f32x16 transformedVertices[3];
+			VertexPack16 transformedVertices[3];
 
 			int32x16 behindPlaneCount = 0;
 			Mask16 behindPlaneMasks[3];
@@ -227,15 +293,12 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				Mask16 vertexBehindClippingPlane = rotatedTranslated.z < clippingZ;
 				behindPlaneMasks[i] = vertexBehindClippingPlane;
 				behindPlaneCount = _mm512_mask_add_epi32(behindPlaneCount, vertexBehindClippingPlane, behindPlaneCount, int32x16(1));
-				transformedVertices[i] = rotatedTranslated;
+				transformedVertices[i].space = rotatedTranslated;
 				verticeIndicesCache[i] = verticeIndices;
 			}
-			Mask16 allBehindMask = behindPlaneCount == 3;
-			if (behindPlaneCount > 0) continue; //TODO: remove this after implementing plane clipping
-			//if (!(behindPlaneCount != 3)) continue; //if all vertices behind the plane, continue
+			if (!(behindPlaneCount != 3)) continue; //if all triangles have all vertices behind clipping plane, skip them
 
-			
-
+			Mask16 activeTrianglesMask = inBoundsTrianglesMask & behindPlaneCount != 3;
 			//backface culling
 			/*
 			if (currFrameGameSettings.backfaceCullingEnabled && !model.noBackfaceCulling)
@@ -244,86 +307,162 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 			if (rotated.tv[0].spaceCoords.dot(normal) >= 0) return 0;
 			}
 			*/
-
-
-			Mask16 activeTrianglesMask = inBoundsTrianglesMask & (behindPlaneCount == 0); //TODO: change this after implementing clipping to behindPlaneCount != 3
-			float32x16 u[3], v[3];
-			for (int i = 0; i < 3; ++i)
-			{
-				u[i] = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.u.data(), 4);
-				v[i] = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.v.data(), 4);
-			}
-
-			//TODO: implement clipping by camera plane!
-			if (behindPlaneCount > 0) //skip clipping attempts for non-plane-bordering triangles
-			{
-				//if 0 vertices behind - don't touch them
-				//if 1 - this triangle turns into two
-				//if 2 - can change the original triangle
-
-
-			}
 			
-			float32x16 fovMult = 1;
-			float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
 			for (int i = 0; i < 3; ++i)
 			{
-				float32x16 zInv = fovMult / transformedVertices[i].z;
-				u[i] *= zInv;
-				v[i] *= zInv;
-				Vec4_f32x16 screenSpaceVertice = this->ctr.screenSpaceToPixels(transformedVertices[i] * zInv);
-				screenSpaceVertice.z = zInv;
-				transformedVertices[i] = screenSpaceVertice;
-				minX = _mm512_min_ps(minX, screenSpaceVertice.x);
-				minY = _mm512_min_ps(minY, screenSpaceVertice.y);
-				maxX = _mm512_max_ps(maxX, screenSpaceVertice.x);
-				maxY = _mm512_max_ps(maxY, screenSpaceVertice.y);
+				transformedVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.u.data(), 4);
+				transformedVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.v.data(), 4);
 			}
 
-			const Vec4_f32x16& r1 = transformedVertices[0];
-			const Vec4_f32x16& r2 = transformedVertices[1];
-			const Vec4_f32x16& r3 = transformedVertices[2];
-			//now transformedVertices hold screen coordinates (in pixels) and UVs are Z divided
-			float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
-			Mask16 zeroSignedAreaMask = signedArea == 0.f;
-			activeTrianglesMask &= ~zeroSignedAreaMask;
-			if (!activeTrianglesMask) continue;
-
-			float32x16 rcpSignedArea = float32x16(1) / signedArea;
-			int jobsToAdd = std::popcount(__mmask16(activeTrianglesMask));
-			auto& myRjStore = this->renderJobsFromThreads[threadIndex];
-			myRjStore.resize(rjRealSize + jobsToAdd);
-
-			minX = _mm512_floor_ps(minX);
-			minY = _mm512_floor_ps(minY);
-			maxX = _mm512_ceil_ps(maxX);
-			maxY = _mm512_ceil_ps(maxY);
-			int32x16 firstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
-			int32x16 lastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
-			//since render job store resize does 16 overprovisioning on resize, it's OK not to mask these stores. Some architectures have awful compress store unaligned performance
-			for (int i = 0; i < 3; ++i)
+			VertexPack16 clipOutput[6];
+			for (int i = 0; i < 3; ++i) clipOutput[i] = transformedVertices[i];
+			if (behindPlaneCount > 0) //TODO: probably wrecks winding. Also, may need to be vectorized, but it's very annoying, and seems like this code is called rarely anyway (only for stuff at edges of the camera)
 			{
-				_mm512_storeu_ps(myRjStore.x[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].x));
-				_mm512_storeu_ps(myRjStore.y[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].y));
-				_mm512_storeu_ps(myRjStore.z[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].z));
-				_mm512_storeu_ps(myRjStore.u[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, u[i]));
-				_mm512_storeu_ps(myRjStore.v[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, v[i]));
-			}
-			_mm512_storeu_epi32(myRjStore.modelIndex.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, int32x16(slice.modelIndex)));
-			_mm512_storeu_epi32(myRjStore.firstThread.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, firstThread));
-			_mm512_storeu_epi32(myRjStore.lastThread.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, lastThread));
-			_mm512_storeu_ps(myRjStore.minX.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, minX));
-			_mm512_storeu_ps(myRjStore.maxX.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxX));
-			_mm512_storeu_ps(myRjStore.minY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, minY));
-			_mm512_storeu_ps(myRjStore.maxY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxY));
-			_mm512_storeu_ps(myRjStore.rcpSignedArea.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, rcpSignedArea));
+				//for (int i = 0; i < 3; ++i) clipOutput[i] = transformedVertices[i];
+				for (int laneIndex = 0; laneIndex < 16; ++laneIndex)
+				{
+					int currBehindCount = behindPlaneCount[laneIndex];
+					if (currBehindCount == 0 || currBehindCount == 3) continue;
+					if (currBehindCount == 2) //interpolate behind vertices to front one
+					{
+						int frontIndex;
+						for (int i = 0; i < 3; ++i)
+							if ((behindPlaneMasks[i].mask & (1 << laneIndex)) == 0)
+								frontIndex = i;
+						int nextIndex = frontIndex == 2 ? 0 : frontIndex + 1;
+						int prevIndex = frontIndex == 0 ? 2 : frontIndex - 1;
+						//from prev to front
 
-			for (int i = 0; i < jobsToAdd; ++i)
-			{
-				int ind = rjRealSize + i;
-				assert(myRjStore.rcpSignedArea[ind] != 0);
+						Vertex front(transformedVertices[frontIndex], laneIndex);
+						Vertex prev(transformedVertices[prevIndex], laneIndex);
+						Vertex next(transformedVertices[nextIndex], laneIndex);
+						Vertex::lerpToPlane(prev, front, clipZ_scalar).writeToPack(clipOutput[prevIndex], laneIndex);
+						Vertex::lerpToPlane(next, front, clipZ_scalar).writeToPack(clipOutput[nextIndex], laneIndex);
+					}
+					else //interpolate front vertices to behind
+					{
+						int behindIndex;
+						for (int i = 0; i < 3; ++i)
+							if ((behindPlaneMasks[i].mask) & (1 << laneIndex))
+								behindIndex = i;
+						int nextIndex = behindIndex == 2 ? 0 : behindIndex + 1;
+						int prevIndex = behindIndex == 0 ? 2 : behindIndex - 1;
+
+						Vertex behind(transformedVertices[behindIndex], laneIndex);
+						Vertex prev(transformedVertices[prevIndex], laneIndex);
+						Vertex next(transformedVertices[nextIndex], laneIndex);
+
+						Vertex::lerpToPlane(next, behind, clipZ_scalar).writeToPack(clipOutput[behindIndex], laneIndex).writeToPack(clipOutput[5], laneIndex);
+						Vertex::lerpToPlane(prev, behind, clipZ_scalar).writeToPack(clipOutput[4], laneIndex);
+						Vertex(transformedVertices[prevIndex], laneIndex).writeToPack(clipOutput[3], laneIndex);
+					}
+				}
+				
 			}
-			rjRealSize += jobsToAdd;
+
+			for (int i = 0; i < 3; ++i) transformedVertices[i] = clipOutput[i];
+			Mask16 oldActiveTriangles = activeTrianglesMask;
+			for (int stageTrianglesProcessed = 0; stageTrianglesProcessed < 2; ++stageTrianglesProcessed)
+			{
+				if (stageTrianglesProcessed == 1) //put it here since some of the continues may jump back to the beginning of the loop (like all triangles with 0 area)
+				{
+					if (behindPlaneCount == 1) //load new triangles if they are created by clipping stage
+					{
+						for (int i = 0; i < 3; ++i)
+						{
+							transformedVertices[i] = clipOutput[i+3];
+						}
+						activeTrianglesMask = oldActiveTriangles & (behindPlaneCount == 1);
+					}
+					else break;
+				}
+
+				float32x16 fovMult = 1;
+				float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
+				for (int j = 0; j < 3; ++j)
+				{
+					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.x)) > 5000.f) & activeTrianglesMask) == 0));
+					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.y)) > 5000.f) & activeTrianglesMask) == 0));
+					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.z)) > 5000.f) & activeTrianglesMask) == 0));
+				}
+				//if (slice.modelIndex == 0 && currModelTriangleIndex == 14224) __debugbreak();
+				for (int i = 0; i < 3; ++i)
+				{
+					for (int k = 0; k < 16; ++k) if (activeTrianglesMask.mask & (1 << k)) assert(transformedVertices[i].space.z[k] > 0);
+					float32x16 zInv = fovMult / transformedVertices[i].space.z;
+					transformedVertices[i].u *= zInv;
+					transformedVertices[i].v *= zInv;
+					
+					for (int i = 0; i < 16; ++i)
+					{
+						
+						/*for (int j = 0; j < 3; ++j)
+						{
+							//assert(0xFFFF == (float32x16(_mm512_abs_ps(transformedVertices[j].w)) < 5000.f));
+							assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.x)) < 5000.f).allOnes());
+							assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.y)) < 5000.f).allOnes());
+							assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.z)) < 5000.f).allOnes());
+						}*/
+					}
+					Vec4_f32x16 screenSpaceVertice = this->ctr.screenSpaceToPixels(transformedVertices[i].space * zInv);
+					screenSpaceVertice.z = zInv;
+					transformedVertices[i].space = screenSpaceVertice;
+					minX = _mm512_min_ps(minX, screenSpaceVertice.x);
+					minY = _mm512_min_ps(minY, screenSpaceVertice.y);
+					maxX = _mm512_max_ps(maxX, screenSpaceVertice.x);
+					maxY = _mm512_max_ps(maxY, screenSpaceVertice.y);
+				}
+
+				const Vec4_f32x16& r1 = transformedVertices[0].space;
+				const Vec4_f32x16& r2 = transformedVertices[1].space;
+				const Vec4_f32x16& r3 = transformedVertices[2].space;
+				//now transformedVertices hold screen coordinates (in pixels) and UVs are Z divided
+				float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
+				Mask16 zeroSignedAreaMask = signedArea == 0.f;
+				activeTrianglesMask &= ~zeroSignedAreaMask;
+				if (!activeTrianglesMask) continue;
+
+				float32x16 rcpSignedArea = float32x16(1) / signedArea;
+				int jobsToAdd = std::popcount(__mmask16(activeTrianglesMask));
+				auto& myRjStore = this->renderJobsFromThreads[threadIndex];
+				myRjStore.resize(rjRealSize + jobsToAdd);
+
+				minX = _mm512_floor_ps(minX);
+				minY = _mm512_floor_ps(minY);
+				maxX = _mm512_ceil_ps(maxX);
+				maxY = _mm512_ceil_ps(maxY);
+				for (int i = 0; i < 16; ++i)
+				{
+					if (!(activeTrianglesMask.mask & (1 << i))) continue;
+					//assert(std::abs(maxX[i]) < 5000);
+				}
+				int32x16 firstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
+				int32x16 lastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
+				//since render job store resize does 16 overprovisioning on resize, it's OK not to mask these stores. Some architectures have awful compress store unaligned performance
+				for (int i = 0; i < 3; ++i)
+				{
+					_mm512_storeu_ps(myRjStore.x[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].space.x));
+					_mm512_storeu_ps(myRjStore.y[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].space.y));
+					_mm512_storeu_ps(myRjStore.z[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].space.z));
+					_mm512_storeu_ps(myRjStore.u[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].u));
+					_mm512_storeu_ps(myRjStore.v[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].v));
+				}
+				_mm512_storeu_epi32(myRjStore.modelIndex.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, int32x16(slice.modelIndex)));
+				_mm512_storeu_epi32(myRjStore.firstThread.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, firstThread));
+				_mm512_storeu_epi32(myRjStore.lastThread.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, lastThread));
+				_mm512_storeu_ps(myRjStore.minX.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, minX));
+				_mm512_storeu_ps(myRjStore.maxX.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxX));
+				_mm512_storeu_ps(myRjStore.minY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, minY));
+				_mm512_storeu_ps(myRjStore.maxY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxY));
+				_mm512_storeu_ps(myRjStore.rcpSignedArea.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, rcpSignedArea));
+
+				for (int i = 0; i < jobsToAdd; ++i)
+				{
+					int ind = rjRealSize + i;
+					assert(myRjStore.rcpSignedArea[ind] != 0);
+				}
+				rjRealSize += jobsToAdd;
+			}
 		}
 	}
 

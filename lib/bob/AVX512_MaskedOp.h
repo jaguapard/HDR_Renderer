@@ -19,7 +19,7 @@ namespace bob
 			BLEND, //blends the two input operands based on mask, then unconditionally performs operation, useful for ternary-like operations
 		};
 
-		const MaskT mask = MaskT::allOnes(); //mask for masked operations, unused in unmasked operations
+		const MaskT mask = 0xFFFF; //mask for masked operations, unused in unmasked operations
 		const ValT src; //operand for merge-masking mode only, else unused
 		const ValT a; //mandatory operand, used as right hand side for operations
 		const ValT b; //mandatory operand in blend mode, else unused
