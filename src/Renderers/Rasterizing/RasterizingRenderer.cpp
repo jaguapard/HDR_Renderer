@@ -538,7 +538,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(creatorThreadJobStore.u[0][jobIndex], creatorThreadJobStore.v[0][jobIndex], creatorThreadJobStore.z[0][jobIndex], 0.f) * alpha + Vec4_f32x16(creatorThreadJobStore.u[1][jobIndex], creatorThreadJobStore.v[1][jobIndex], creatorThreadJobStore.z[1][jobIndex], 0.f) * beta + Vec4_f32x16(creatorThreadJobStore.u[2][jobIndex], creatorThreadJobStore.v[2][jobIndex], creatorThreadJobStore.z[2][jobIndex], 0.f) * gamma;
 
 					//float32x16 currDepthValues = this->zBuffer.getPixels16(xInt, yInt);
-					float32x16 currDepthValues = this->zBuffer.data() + yInt * w + xInt;
+					float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, this->zBuffer.data() + yInt * w + xInt);
 					//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
 					//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
 					Mask16 visiblePointsMask = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;

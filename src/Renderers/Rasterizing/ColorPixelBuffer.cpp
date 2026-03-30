@@ -103,22 +103,18 @@ Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x,
     int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), gatherMask, pixelsIndices, this->packedColors.get(), 4);
 
     int32x16 r = gathered & 1023;
-    /*
     int32x16 g = _mm512_srli_epi32(gathered, 10);
     g &= 2047;
     int32x16 b = _mm512_srli_epi32(gathered, 21);
     b &= 1023;
-    int32x16 a = _mm512_srli_epi32(gathered, 31);*/
-    int32x16 g = (gathered >> 10) & 2047;
-    int32x16 b = (gathered >> 21) & 1023;
 
     float32x16 fr = _mm512_cvtepu32_ps(r);
     float32x16 fg = _mm512_cvtepu32_ps(g);
     float32x16 fb = _mm512_cvtepu32_ps(b);
     float32x16 fa = _mm512_maskz_mov_ps(gathered < 0, float32x16(1)); //if uppermost bit is 1 (i.e. sign bit is 1, i.e negative), then alpha is 1
-    fr *= 1.f/1023;
-    fg *= 1.f/2047;
-    fb *= 1.f/1023;
+    fr *= 1.f / 1023;
+    fg *= 1.f / 2047;
+    fb *= 1.f / 1023;
     return { fr * fr, fg * fg, fb * fb, fa };
     /*
     Vec4_f32x16 ret = { ,_mm512_cvtepu32_ps(g), _mm512_cvtepu32_ps(b), _mm512_cvtepu32_ps(a) };

@@ -10,11 +10,13 @@
 #include "GameSettings.h"
 #include <bob/Matrix4.h>
 #include "Threadpool.h"
+#include "OSD.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "SDL3.lib")
 #pragma comment(lib, "SDL3_image.lib")
+#pragma comment(lib, "SDL3_ttf.lib")
 #define StatCount()
 
 void* operator new(size_t n)
@@ -113,7 +115,7 @@ int main(int argc, char* argv[])
     {
         if (!SDL_Init(SDL_INIT_VIDEO)) RAISE_ERROR("SDL_Init failed");
         C_Input::getInstance();
-
+     
         int w = 2560;
         int h = 1440;
         SDL_Window* window = SDL_CreateWindow("SDL3 + D3D11 Pixel Display", w, h, 0);
@@ -125,6 +127,8 @@ int main(int argc, char* argv[])
         void* rawHwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
         HWND hwnd = reinterpret_cast<HWND>(rawHwnd);
         if (!hwnd) RAISE_ERROR("Failed to obtain HWND from SDL3 window properties");
+
+        TTF_Init();
 
         DXGI_SWAP_CHAIN_DESC scd = {};
         scd.BufferCount = 2;
@@ -228,7 +232,10 @@ int main(int argc, char* argv[])
         gs.camAng = { 0,0,0 };
         gs.outputTextureParams = texDesc;
         gs.threadpool = &threadpool;
+        OSD osd;
+
         while (running) {
+            osd.registerFrameBegin();
             frameCounter++;
             C_Input& inp = C_Input::getInstance();
             inp.beginNewFrame();
@@ -294,7 +301,9 @@ int main(int argc, char* argv[])
             //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
             gs.graphicsOutputBuffer = mapped.pData;
             currentRenderer->renderFrame(gs);
-            context->Unmap(cpuTexture, 0);
+            std::cout << osd.composeString() << "\n";
+            osd.registerFrameDone();
+            context->Unmap(cpuTexture, 0);            
 
             context->OMSetRenderTargets(1, &rtv, nullptr);
             float clear[4] = { 0,0,0,1 };
@@ -311,6 +320,7 @@ int main(int argc, char* argv[])
                 RAISE_ERROR("swapChain->Present failed");
 
             uint64_t ticksOnEnd = SDL_GetTicks();
+            /*
             if (ticksOnEnd - ticksOnStart >= 1000)
             {
                 uint64_t delta = ticksOnEnd - ticksOnStart;
@@ -320,7 +330,7 @@ int main(int argc, char* argv[])
                 std::cout << fps << " FPS\n";
                 oldFrameCounter = frameCounter;
                 
-            }
+            }*/
         }
 
         // Cleanup
