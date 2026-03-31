@@ -25,7 +25,7 @@ public:
 		PercentileInfo(uint64_t frameNumber, std::deque<double> frameTimesMs); //copy is intentional, since constructor will garble the data
 		std::string toString();
 
-		double fps_inst = 0, fps_avg = 0, fps_1pct_low = 0, fps_point1pct_low = 0;
+		std::optional<double> fps_inst, fps_avg, fps_1pct_low_by_count, fps_1pct_low_by_time, fps_point1pct_low_by_count, fps_point1pct_low_by_time;
 		uint64_t frameNumber;
 	};
 

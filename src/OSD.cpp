@@ -115,17 +115,42 @@ OSD::PercentileInfo::PercentileInfo(uint64_t frameNumber, std::deque<double> fra
 
 	std::sort(frameTimesMs.rbegin(), frameTimesMs.rend());
 	int n = frameTimesMs.size();
-	if (frameTimesMs.size() >= 100) fps_1pct_low = 1000.0 / frameTimesMs[n / 100 - 1];
-	if (frameTimesMs.size() >= 1000) fps_point1pct_low = 1000.0 / frameTimesMs[n / 1000 - 1];
+	if (frameTimesMs.size() >= 100) fps_1pct_low_by_count = 1000.0 / frameTimesMs[n / 100 - 1];
+	if (frameTimesMs.size() >= 1000) fps_point1pct_low_by_count = 1000.0 / frameTimesMs[n / 1000 - 1];
+
+	double acc = 0;
+	for (auto& ms : frameTimesMs)
+	{
+		acc += ms;
+		if (!fps_1pct_low_by_time && acc >= totalTime / 100) fps_1pct_low_by_time = 1000/ms;
+		if (!fps_point1pct_low_by_time && acc >= totalTime / 1000) fps_point1pct_low_by_time = 1000/ms;
+	}
 }
 
 std::string OSD::PercentileInfo::toString()
 {
 	std::stringstream text;
-	text << "Frame " << frameNumber << "\n" <<
-		fps_inst << " FPS inst\n" <<
-		(fps_avg ? std::to_string(fps_avg) : "n/a") << " FPS avg\n" <<
-		"1% low: " << (fps_1pct_low ? std::to_string(fps_1pct_low) : "n/a") << "\n" <<
-		"0.1% low: " << (fps_point1pct_low ? std::to_string(fps_point1pct_low) : "n/a") << "\n";
+	text << "Frame " << frameNumber << "\n";
+
+	if (fps_inst) text << *fps_inst << " FPS inst\n" << 1000/fps_inst.value() << " ms";
+	else text << "n/a FPS inst";
+	text << "\n\n";
+	
+	if (fps_avg) text << *fps_avg;
+	else text << "n/a";
+	text << " FPS avg\n";
+
+	text << "1% low: ";
+	if (fps_1pct_low_by_count) text << *fps_1pct_low_by_count << " (by count), ";
+	else text << "n/a (by count), ";
+	if (fps_1pct_low_by_time) text << *fps_1pct_low_by_time << " (by time)";
+	else text << "n/a (by time)";
+
+	text << "\n0.1% low: ";
+	if (fps_point1pct_low_by_count) text << *fps_point1pct_low_by_count << " (by count), ";
+	else text << "n/a (by count), ";
+	if (fps_point1pct_low_by_time) text << *fps_point1pct_low_by_time << " (by time)";
+	else text << "n/a (by time)";
+	text << "\n\n";
 	return text.str();
 }
