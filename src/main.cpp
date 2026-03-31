@@ -310,6 +310,7 @@ int main(int argc, char* argv[])
                 SDL_SetWindowRelativeMouseMode(window, gs.mouseCaptured);
             }
 
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_O)) gs.osdEnabled ^= 1;
             //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
             gs.graphicsOutputBuffer = mapped.pData;
             currentRenderer->renderFrame(gs);
@@ -320,89 +321,38 @@ int main(int argc, char* argv[])
             //std::cout << osd.composeString(additionalInfo) << "\n";
             osd.registerFrameDone();
 
-            auto osdSurface = osd.draw(additionalInfo);
-            int osdW = osdSurface->w;
-            int osdH = osdSurface->h;
-            const float* osdPixels = (float*)(osdSurface->pixels);
-            float* output = (float*)gs.graphicsOutputBuffer;
-
-            for (int y = 0; y < std::min<int>(osdH, texDesc.Height); ++y)
+            if (gs.osdEnabled) //VERY slow, impacts FPS a lot, disabled by default
             {
-                for (int x = 0; x < std::min<int>(osdW, texDesc.Width); ++x)
+                auto osdSurface = osd.draw(additionalInfo);
+                int osdW = osdSurface->w;
+                int osdH = osdSurface->h;
+                const float* osdPixels = (float*)(osdSurface->pixels);
+                float* output = (float*)gs.graphicsOutputBuffer;
+                //just abruptly cuts off OSD if it's too big. TODO: scale this?
+                for (int y = 0; y < std::min<int>(osdH, texDesc.Height); ++y)
                 {
-                    int osdInd = (y * osdW + x) * 4;
-                    float r = osdPixels[osdInd];
-                    float g = osdPixels[osdInd + 1];
-                    float b = osdPixels[osdInd + 2];
-                    float a = osdPixels[osdInd + 3];
-                    //if (a != 1) __debugbreak();
-                    //if (r >= 0 && g >= 0 && b >= 0 && a >= 1)
-                    //if (a >= 1)
-                    if (r > 0 || g > 0 || b > 0)
+                    for (int x = 0; x < std::min<int>(osdW, texDesc.Width); ++x)
                     {
-                        int outInd = (y * texDesc.Width + x) * 4;
-                        output[outInd] = r;
-                        output[outInd+1] = g;
-                        output[outInd+2] = b;
-                        output[outInd+3] = a;
-                        
-                        /*
-                        int outInd2 = (y * texDesc.Width + x+1) * 4;
-                        int outInd3 = (y * texDesc.Width + x-1) * 4;
-                        int outInd4 = ((y+1) * texDesc.Width + x) * 4;
-                        int outInd5 = ((y-1) * texDesc.Width + x) * 4;
-                        for (int i = 0; i < 3; ++i)
+                        int osdInd = (y * osdW + x) * 4;
+                        float r = osdPixels[osdInd];
+                        float g = osdPixels[osdInd + 1];
+                        float b = osdPixels[osdInd + 2];
+                        float a = osdPixels[osdInd + 3];
+                        //if (a != 1) __debugbreak();
+                        //if (r >= 0 && g >= 0 && b >= 0 && a >= 1)
+                        //if (a >= 1)
+                        if (r > 0 || g > 0 || b > 0)
                         {
-                            output[outInd2+i] = output[outInd3+i] = output[outInd4+i] = output[outInd5 + i] = 0;
-                        }*/
-                    }
-                    /*
-                    for (int i = 0; i < 4; ++i)
-                    {
-                        float osdPixel = osdPixels[ + i];
-                        if (i == 3)
-                        {
-                            if ()
+                            int outInd = (y * texDesc.Width + x) * 4;
+                            output[outInd] = r;
+                            output[outInd + 1] = g;
+                            output[outInd + 2] = b;
+                            output[outInd + 3] = a;
                         }
-                        //if (i != 3 || osdPixel >=1)
-                        //output + i] = osdPixel;
-                    }*/
+                    }
                 }
             }
-            /*
-            for (int y = 0; y < osdH; ++y)
-            {
-                for (int x = 0; x < osdW; ++x)
-                {
-                    int osdInd = y * osdW + x;
-                    uint32_t uint = fgPixels[osdInd];
-                    uint32_t a = uint >> 24;
-                    uint32_t r = uint & 0xFF;
-                    uint32_t g = (uint >> 8) & 0xFF;
-                    uint32_t b = (uint >> 16) & 0xFF;
-                    //float f = (uint & 0x00FFFFFF) > 0x6FFFFFFF ? 1 : 0;
-                    float f = (uint == 0x00FFFFFF) ? 1 : 0;
-                    int ind = y * w + x;
-                    if (a > 0)
-                    {
-                        if (a == 0xFF)
-                        {
-                            output[ind * 4] = r / 255.0;
-                            output[ind * 4 + 1] = g / 255.0;
-                            output[ind * 4 + 2] = b / 255.0;
-                            output[ind * 4 + 3] = 1;
-                        }
-                        else
-                        {
-                            output[ind * 4] = 0;
-                            output[ind * 4 + 1] = 0;
-                            output[ind * 4 + 2] = 0;
-                            output[ind * 4 + 3] = 1;
-                        }
-                    }
-                    
-                }
-            }*/
+            else std::cout << osd.composeString() << "\n";
 
             context->Unmap(cpuTexture, 0);            
 

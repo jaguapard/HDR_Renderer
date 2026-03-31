@@ -14,6 +14,7 @@ struct GameSettings
 	void* graphicsOutputBuffer;
 	D3D11_TEXTURE2D_DESC outputTextureParams;
 	bool mouseCaptured = false;
+	bool osdEnabled = false;
 	float flySpeed = 15;
 
 	Threadpool* threadpool = nullptr;
