@@ -18,7 +18,7 @@ public:
 	void registerFrameDone(bool remember = true);
 
 	std::string composeString(const std::vector<std::pair<std::string, std::string>>& additionalInfo = {});
-	std::pair<Smart_Surface, Smart_Surface> draw(const std::vector<std::pair<std::string, std::string>>& additionalInfo = {});
+	Smart_Surface draw(const std::vector<std::pair<std::string, std::string>>& additionalInfo = {});
 
 	struct PercentileInfo
 	{

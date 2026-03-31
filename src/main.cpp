@@ -109,6 +109,7 @@ std::string vec2str(Vec4f v, int componentsToPrint = 4)
 
 Threadpool threadpool;
 
+
 int main(int argc, char* argv[]) 
 {
     try
@@ -171,12 +172,14 @@ int main(int argc, char* argv[])
 
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
+
+        constexpr int DOWNSCALE_MULT = 10;
 #ifdef NDEBUG
         texDesc.Width = w;
         texDesc.Height = h;
 #else
-        texDesc.Width = w/10;
-        texDesc.Height = h/10;
+        texDesc.Width = w/DOWNSCALE_MULT;
+        texDesc.Height = h/DOWNSCALE_MULT;
 #endif
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
@@ -317,11 +320,56 @@ int main(int argc, char* argv[])
             //std::cout << osd.composeString(additionalInfo) << "\n";
             osd.registerFrameDone();
 
-            auto [fg, bg] = osd.draw(additionalInfo);
-            int osdW = fg->w;
-            int osdH = fg->h;
-            const uint32_t* fgPixels = (uint32_t*)(fg->pixels);
+            auto osdSurface = osd.draw(additionalInfo);
+            int osdW = osdSurface->w;
+            int osdH = osdSurface->h;
+            const float* osdPixels = (float*)(osdSurface->pixels);
             float* output = (float*)gs.graphicsOutputBuffer;
+
+            for (int y = 0; y < std::min<int>(osdH, texDesc.Height); ++y)
+            {
+                for (int x = 0; x < std::min<int>(osdW, texDesc.Width); ++x)
+                {
+                    int osdInd = (y * osdW + x) * 4;
+                    float r = osdPixels[osdInd];
+                    float g = osdPixels[osdInd + 1];
+                    float b = osdPixels[osdInd + 2];
+                    float a = osdPixels[osdInd + 3];
+                    //if (a != 1) __debugbreak();
+                    //if (r >= 0 && g >= 0 && b >= 0 && a >= 1)
+                    //if (a >= 1)
+                    if (r > 0 || g > 0 || b > 0)
+                    {
+                        int outInd = (y * texDesc.Width + x) * 4;
+                        output[outInd] = r;
+                        output[outInd+1] = g;
+                        output[outInd+2] = b;
+                        output[outInd+3] = a;
+                        
+                        /*
+                        int outInd2 = (y * texDesc.Width + x+1) * 4;
+                        int outInd3 = (y * texDesc.Width + x-1) * 4;
+                        int outInd4 = ((y+1) * texDesc.Width + x) * 4;
+                        int outInd5 = ((y-1) * texDesc.Width + x) * 4;
+                        for (int i = 0; i < 3; ++i)
+                        {
+                            output[outInd2+i] = output[outInd3+i] = output[outInd4+i] = output[outInd5 + i] = 0;
+                        }*/
+                    }
+                    /*
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        float osdPixel = osdPixels[ + i];
+                        if (i == 3)
+                        {
+                            if ()
+                        }
+                        //if (i != 3 || osdPixel >=1)
+                        //output + i] = osdPixel;
+                    }*/
+                }
+            }
+            /*
             for (int y = 0; y < osdH; ++y)
             {
                 for (int x = 0; x < osdW; ++x)
@@ -354,7 +402,7 @@ int main(int argc, char* argv[])
                     }
                     
                 }
-            }
+            }*/
 
             context->Unmap(cpuTexture, 0);            
 
