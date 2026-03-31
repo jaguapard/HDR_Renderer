@@ -129,19 +129,60 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadObj(std::string path, s
 	return models;
 }
 
+struct BufferedData
+{
+	std::vector<uint8_t> data;
+	size_t i;
+	std::string sourcePath;
+
+	BufferedData(std::string path)
+	{
+		FILE* f = fopen(path.c_str(), "rb");
+		if (!f) throw std::runtime_error("Failed to open " + path);
+		if (fseek(f, 0, SEEK_END)) throw std::runtime_error("fseek to end failed for " + path);
+		size_t sz = _ftelli64(f);
+		if (fseek(f, 0, SEEK_SET)) throw std::runtime_error("fseek to beg failed for " + path);
+
+		data.resize(sz);
+		i = 0;
+		if (1 != fread(data.data(), sz, 1, f)) throw std::runtime_error("Invalid number of elements read by fread from " + path);
+		fclose(f);
+		sourcePath = path;
+	}
+
+	template<typename T>
+	void read(T& value)
+	{
+		/*void readVarFromFile(T & var, std::ifstream & file, size_t sizeOverride = 0)
+		{
+			if (!sizeOverride) file.read((char*)(&var), sizeof(var));
+			else file.read((char*)(&var), sizeOverride);
+		}*/
+
+		constexpr size_t sz = sizeof(T);
+		int64_t available = data.size() - i;
+		if (available < sz) throw std::runtime_error(std::string("Attempted to read ") + std::to_string(sz) + " bytes while only " + std::to_string(available) + " are available for " + sourcePath);
+
+		memcpy(&value, data.data() + i, sz);
+		i += sz;
+	}
+
+	bool eof()
+	{
+		return i >= data.size();
+	}
+};
 std::vector<AssetLoader::ImportedModel> AssetLoader::loadBmdl(std::string path)
 {
-	std::ifstream file(path, std::ios::binary);
-	file.exceptions(file.badbit | file.failbit);
 	std::vector<ImportedModel> ret;
 	std::string parentDir = getFolderFromPath(path, true);
 
 	float triangleData[15];
-	size_t fileSize;
-	while (!file.eof())
+	BufferedData buf(path);
+	while (!buf.eof())
 	{
 		uint64_t modelSize;
-		readVarFromFile(modelSize, file);
+		buf.read(modelSize);
 		uint64_t bytesRemaining = modelSize;
 		if (modelSize % sizeof(triangleData) != 0) throw std::runtime_error("Error while loading model" + path + ": unexpected model size: " + std::to_string(modelSize) + " bytes, not mod " + std::to_string(sizeof(triangleData)));
 
@@ -149,7 +190,7 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadBmdl(std::string path)
 		char c = -1;
 		while (c != 0)
 		{
-			readVarFromFile(c, file);
+			buf.read(c);
 			textureRelPath.push_back(c);
 		}
 		std::string textureFullPath = parentDir + textureRelPath;
@@ -157,7 +198,7 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadBmdl(std::string path)
 		std::vector<ImportedTriangle> tris;
 		while (bytesRemaining > 0)
 		{
-			readVarFromFile(triangleData, file);
+			buf.read(triangleData);
 			ImportedTriangle& t = tris.emplace_back();
 			for (int i = 0; i < 3; ++i)
 			{
@@ -174,7 +215,6 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadBmdl(std::string path)
 		m.diffuseMapPath = textureFullPath;
 		m.triangles = tris;
 		ret.emplace_back(m);
-		file.peek();
 	}
 
 	return ret;
