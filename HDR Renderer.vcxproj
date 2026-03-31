@@ -24,6 +24,7 @@
     <ProjectGuid>{e922c04e-6736-4d0d-815a-c6c8fd08d7bc}</ProjectGuid>
     <RootNamespace>HDRRenderer</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>HDR_Renderer</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
