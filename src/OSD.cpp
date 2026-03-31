@@ -38,7 +38,7 @@ void OSD::registerFrameDone(bool remember)
 	}
 }
 
-void OSD::drawOn(SDL_Surface* dst, SDL_Point pixelsFromUpperLeftCorner, const std::vector<std::pair<std::string, std::string>>& additionalInfo)
+std::pair<Smart_Surface, Smart_Surface> OSD::draw(const std::vector<std::pair<std::string, std::string>>& additionalInfo)
 {
 	std::string str = composeString(additionalInfo);
 
@@ -47,12 +47,13 @@ void OSD::drawOn(SDL_Surface* dst, SDL_Point pixelsFromUpperLeftCorner, const st
 	
 
 	if (!bg || !fg) throw std::runtime_error(std::string("Failed to draw FPS info: ") + SDL_GetError());
-	SDL_Rect rect1 = { pixelsFromUpperLeftCorner.x, pixelsFromUpperLeftCorner.y, fg->w, fg->h };
-	SDL_Rect rect2 = { pixelsFromUpperLeftCorner.x, pixelsFromUpperLeftCorner.y, bg->w, bg->h };
+	return { std::move(fg),std::move(bg) };
+	//SDL_Rect rect1 = { pixelsFromUpperLeftCorner.x, pixelsFromUpperLeftCorner.y, fg->w, fg->h };
+	//SDL_Rect rect2 = { pixelsFromUpperLeftCorner.x, pixelsFromUpperLeftCorner.y, bg->w, bg->h };
 
 	//SDL_SetSurfaceBlendMode(bg.get(), SDL_BLENDMODE_BLEND);
-	SDL_BlitSurface(bg.get(), nullptr, dst, &rect1);
-	SDL_BlitSurface(fg.get(), nullptr, dst, &rect2);
+	//SDL_BlitSurface(bg.get(), nullptr, dst, &rect1);
+	//SDL_BlitSurface(fg.get(), nullptr, dst, &rect2);
 }
 
 OSD::PercentileInfo OSD::getPercentileInfo() const
