@@ -168,6 +168,7 @@
     <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\TextureManager.cpp" />
     <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp" />
+    <ClCompile Include="src\Statsman.cpp" />
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -193,6 +194,7 @@
     <ClInclude Include="src\Renderers\Rasterizing\TextureManager.h" />
     <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h" />
     <ClInclude Include="src\Renderers\RendererBase.h" />
+    <ClInclude Include="src\Statsman.h" />
     <ClInclude Include="src\Threadpool.h" />
     <ClInclude Include="src\Vec.h" />
   </ItemGroup>

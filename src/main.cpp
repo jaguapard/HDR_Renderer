@@ -11,6 +11,7 @@
 #include <bob/Matrix4.h>
 #include "Threadpool.h"
 #include "OSD.h"
+#include "Statsman.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -114,6 +115,7 @@ int main(int argc, char* argv[])
 {
     try
     {
+        Statsman::statsmenForThreads.resize(threadpool.getThreadCount());
         if (!SDL_Init(SDL_INIT_VIDEO)) RAISE_ERROR("SDL_Init failed");
         C_Input::getInstance();
      
@@ -248,6 +250,7 @@ int main(int argc, char* argv[])
         uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
 
         while (running) {
+            for (auto& it : Statsman::statsmenForThreads) it.reset();
             osd.registerFrameBegin();
             frameCounter++;
             C_Input& inp = C_Input::getInstance();

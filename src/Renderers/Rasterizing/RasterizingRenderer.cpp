@@ -7,6 +7,7 @@
 #include "../../Threadpool.h"
 #include <map>
 #include <iostream>
+#include "../../Statsman.h"
 using namespace Rasterizing;
 
 std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
@@ -270,6 +271,7 @@ struct Vertex
 
 void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 {
+	uint64_t ticksBegin = SDL_GetTicksNS();
 	assert(this->original_verticeStore.x.size() == this->original_verticeStore.y.size() && this->original_verticeStore.y.size() == this->original_verticeStore.z.size() && this->original_verticeStore.u.size() == this->original_verticeStore.v.size());
 
 	float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / this->currGs->outputTextureParams.Height;
@@ -307,6 +309,14 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				behindPlaneCount = _mm512_mask_add_epi32(behindPlaneCount, vertexBehindClippingPlane, behindPlaneCount, int32x16(1));
 				transformedVertices[i].space = rotatedTranslated;
 				verticeIndicesCache[i] = verticeIndices;
+			}
+			//StatCount(threadIndex, trianges.ver)
+			if (Statsman::ENABLED)
+			{
+				for (int i = 0; i <= 3; ++i)
+				{
+					Statsman::statsmenForThreads[threadIndex].triangles.verticesBehindNearPlane[i] += _mm512_mask_reduce_add_epi32(behindPlaneCount == i, _mm512_set1_epi32(1));
+				}
 			}
 			if (!(behindPlaneCount != 3)) continue; //if all triangles have all vertices behind clipping plane, skip them
 
@@ -499,6 +509,8 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 	}
 	assert(seenTris == trisInSlices);*/
 	this->renderJobsFromThreads[threadIndex].resize(rjRealSize, false);
+	uint64_t ticksEnd = SDL_GetTicksNS();
+	if (Statsman::ENABLED) MyStatsman.time.transformMs = (ticksEnd-ticksBegin)/1e6;
 }
 
 std::tuple<float32x16, float32x16, float32x16> calculateBarycentricCoordinates(const Vec4_f32x16& r, const Vec4f& r1, const Vec4f& r2, const Vec4f& r3, const float rcpSignedArea)
@@ -512,9 +524,10 @@ std::tuple<float32x16, float32x16, float32x16> calculateBarycentricCoordinates(c
 
 void RasterizingRenderer::drawRenderJobs(int threadIndex)
 {
+	auto ticksBegin = SDL_GetTicksNS();
 	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, this->currGs->outputTextureParams.Height);
 	float my_yMin = floor(d_low);
-	float my_yMax = std::min<float>(floor(d_high), this->currGs->outputTextureParams.Height-1);
+	float my_yMax = std::min<float>(floor(d_high), this->currGs->outputTextureParams.Height - 1);
 	float my_xMin = 0;
 	float my_xMax = this->currGs->outputTextureParams.Width - 1;
 	int w = this->currGs->outputTextureParams.Width;
@@ -544,23 +557,38 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 					Vec4f v2_screen = Vec4f(creatorThreadJobStore.x[1][jobIndex], creatorThreadJobStore.y[1][jobIndex], 0, 0);
 					Vec4f v3_screen = Vec4f(creatorThreadJobStore.x[2][jobIndex], creatorThreadJobStore.y[2][jobIndex], 0, 0);
 					auto [alpha, beta, gamma] = calculateBarycentricCoordinates(r, v1_screen, v2_screen, v3_screen, creatorThreadJobStore.rcpSignedArea[jobIndex]);
+					//StatCount(barycentric)
+					if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 					Mask16 pointsInsideTriangleMask = xBoundsMask & (alpha >= 0.0) & (beta >= 0.0) & (gamma >= 0.0);
+					if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += std::popcount(pointsInsideTriangleMask.mask);
 					if (!pointsInsideTriangleMask) continue;
 
 					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(creatorThreadJobStore.u[0][jobIndex], creatorThreadJobStore.v[0][jobIndex], creatorThreadJobStore.z[0][jobIndex], 0.f) * alpha + Vec4_f32x16(creatorThreadJobStore.u[1][jobIndex], creatorThreadJobStore.v[1][jobIndex], creatorThreadJobStore.z[1][jobIndex], 0.f) * beta + Vec4_f32x16(creatorThreadJobStore.u[2][jobIndex], creatorThreadJobStore.v[2][jobIndex], creatorThreadJobStore.z[2][jobIndex], 0.f) * gamma;
 
 					//float32x16 currDepthValues = this->zBuffer.getPixels16(xInt, yInt);
 					float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, this->zBuffer.data() + yInt * w + xInt);
+					if (Statsman::ENABLED)
+					{
+						MyStatsman.rendering.zBufferFetchLanes += 16;
+						MyStatsman.rendering.zBufferFetchAliveLanes += std::popcount(pointsInsideTriangleMask.mask);
+					}
 					//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
 					//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
 					Mask16 visiblePointsMask = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
+					if (Statsman::ENABLED) MyStatsman.rendering.visiblePoints += std::popcount(visiblePointsMask.mask);
 					if (!visiblePointsMask) continue; //if all points are occluded, then skip
 
 					Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
 					//Vec4_f32x16 texturePixels = texture.gatherPixels512(uvCorrected.x, uvCorrected.y, visiblePointsMask);
 					Vec4_f32x16 texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, visiblePointsMask);
 					Mask16 opaquePixelsMask = visiblePointsMask & (texturePixels.a > 0.0f);
+					if (Statsman::ENABLED)
+					{
+						MyStatsman.rendering.opaquePixels += std::popcount(opaquePixelsMask.mask);
+						MyStatsman.rendering.textureGatheredLanes += 16;
+						MyStatsman.rendering.textureGatherAliveLanes += std::popcount(visiblePointsMask.mask);
+					}
 					if (!opaquePixelsMask) continue;
 
 					_mm512_mask_storeu_ps(this->zBuffer.data() + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
@@ -588,10 +616,20 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						int storeInd = (yInt * w + xInt + i) * 4;
 						_mm512_mask_storeu_ps((float*)this->currGs->graphicsOutputBuffer + storeInd, duplicated >> (i * 4), rgba);
 					}
+
+					if (Statsman::ENABLED)
+					{
+						MyStatsman.rendering.zBufferWriteLanes += 16;
+						MyStatsman.rendering.zBufferWriteAliveLanes += std::popcount(opaquePixelsMask.mask);
+						MyStatsman.rendering.frameBufWriteLanes += 16;
+						MyStatsman.rendering.frameBufWriteAliveLanes += std::popcount(opaquePixelsMask.mask);
+					}
 				}
 			}
 		}
 	}
+	auto ticksEnd = SDL_GetTicksNS();
+	if (Statsman::ENABLED) MyStatsman.time.drawMs = (ticksEnd - ticksBegin) / 1e6;
 }
 
 uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, float v)
