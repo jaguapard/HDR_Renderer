@@ -314,8 +314,31 @@ int main(int argc, char* argv[])
                 {"Camera pos", vec2str(gs.camPos)},
                 {"Camera ang", vec2str(gs.camAng)},
             };
-            std::cout << osd.composeString(additionalInfo) << "\n";
+            //std::cout << osd.composeString(additionalInfo) << "\n";
             osd.registerFrameDone();
+
+            auto [fg, bg] = osd.draw(additionalInfo);
+            int osdW = fg->w;
+            int osdH = fg->h;
+            const uint32_t* fgPixels = (uint32_t*)(fg->pixels);
+            float* output = (float*)gs.graphicsOutputBuffer;
+            for (int y = 0; y < osdH; ++y)
+            {
+                for (int x = 0; x < osdW; ++x)
+                {
+                    int osdInd = y * osdW + x;
+                    uint32_t uint = fgPixels[osdInd];
+                    uint32_t a = uint >> 24;
+                    //float f = (uint & 0x00FFFFFF) > 0x6FFFFFFF ? 1 : 0;
+                    float f = (uint == 0x00FFFFFF) ? 1 : 0;
+                    int ind = y * w + x;
+                    output[ind * 4] = f;
+                    output[ind * 4+1] = f;
+                    output[ind * 4+2] = f;
+                    output[ind * 4 + 3] = a ? 0 : 1;
+                }
+            }
+
             context->Unmap(cpuTexture, 0);            
 
             context->OMSetRenderTargets(1, &rtv, nullptr);

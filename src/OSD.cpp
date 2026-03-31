@@ -45,9 +45,16 @@ std::pair<Smart_Surface, Smart_Surface> OSD::draw(const std::vector<std::pair<st
 	auto bg = Smart_Surface(TTF_RenderText_Blended_Wrapped(fontOutline.get(), str.c_str(), 0, { 0,0,0,SDL_ALPHA_OPAQUE }, 1500));
 	auto fg = Smart_Surface(TTF_RenderText_Blended_Wrapped(font.get(), str.c_str(), 0, { 255,255,255,SDL_ALPHA_OPAQUE }, 1500));
 	
+	
 
 	if (!bg || !fg) throw std::runtime_error(std::string("Failed to draw FPS info: ") + SDL_GetError());
-	return { std::move(fg),std::move(bg) };
+
+	SDL_SetSurfaceBlendMode(bg.get(), SDL_BLENDMODE_BLEND);
+	SDL_BlitSurface(fg.get(), nullptr, bg.get(), nullptr);
+
+	auto nfg = Smart_Surface(SDL_ConvertSurface(fg.get(), SDL_PIXELFORMAT_ABGR8888));
+	//return { std::move(fg),std::move(bg) };
+	return { std::move(nfg),std::move(bg) };
 	//SDL_Rect rect1 = { pixelsFromUpperLeftCorner.x, pixelsFromUpperLeftCorner.y, fg->w, fg->h };
 	//SDL_Rect rect2 = { pixelsFromUpperLeftCorner.x, pixelsFromUpperLeftCorner.y, bg->w, bg->h };
 
