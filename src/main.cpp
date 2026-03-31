@@ -236,8 +236,9 @@ int main(int argc, char* argv[])
         GameSettings gs;
         //gs.camPos = { -7.482602, -85.107704, 75.298897, 0.000000 };
         //gs.camAng = { -6.293743, 0.000000, -0.652987, 0.000000 };
-        gs.camPos = { 20,-20,-100 };
-        gs.camAng = { 0,0,0 };
+        //gs.camPos = { 20,-20,-100 };
+        gs.camPos = { 1215.152100, -42.281734, 24.533436 };
+        gs.camAng = { 0.000000, -1.588021, 0.288000 };
         gs.outputTextureParams = texDesc;
         gs.threadpool = &threadpool;
         OSD osd;
@@ -309,7 +310,11 @@ int main(int argc, char* argv[])
             //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
             gs.graphicsOutputBuffer = mapped.pData;
             currentRenderer->renderFrame(gs);
-            std::cout << osd.composeString() << "\n";
+            std::vector<std::pair<std::string, std::string>> additionalInfo = {
+                {"Camera pos", vec2str(gs.camPos)},
+                {"Camera ang", vec2str(gs.camAng)},
+            };
+            std::cout << osd.composeString(additionalInfo) << "\n";
             osd.registerFrameDone();
             context->Unmap(cpuTexture, 0);            
 
