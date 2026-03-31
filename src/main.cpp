@@ -415,7 +415,7 @@ int main(int argc, char* argv[])
     catch (const std::exception& e)
     {
         std::stringstream ss;
-        ss << e.what() << "\nSDL error reports: " << SDL_GetError() << "\n";
+        ss << e.what() << "\nSDL error reports: " << SDL_GetError() << "\n" << "strerror: " << strerror(errno) << "\n";
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", ss.str().c_str(), nullptr);
     }
 }
