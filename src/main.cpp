@@ -329,13 +329,30 @@ int main(int argc, char* argv[])
                     int osdInd = y * osdW + x;
                     uint32_t uint = fgPixels[osdInd];
                     uint32_t a = uint >> 24;
+                    uint32_t r = uint & 0xFF;
+                    uint32_t g = (uint >> 8) & 0xFF;
+                    uint32_t b = (uint >> 16) & 0xFF;
                     //float f = (uint & 0x00FFFFFF) > 0x6FFFFFFF ? 1 : 0;
                     float f = (uint == 0x00FFFFFF) ? 1 : 0;
                     int ind = y * w + x;
-                    output[ind * 4] = f;
-                    output[ind * 4+1] = f;
-                    output[ind * 4+2] = f;
-                    output[ind * 4 + 3] = a ? 0 : 1;
+                    if (a > 0)
+                    {
+                        if (a == 0xFF)
+                        {
+                            output[ind * 4] = r / 255.0;
+                            output[ind * 4 + 1] = g / 255.0;
+                            output[ind * 4 + 2] = b / 255.0;
+                            output[ind * 4 + 3] = 1;
+                        }
+                        else
+                        {
+                            output[ind * 4] = 0;
+                            output[ind * 4 + 1] = 0;
+                            output[ind * 4 + 2] = 0;
+                            output[ind * 4 + 3] = 1;
+                        }
+                    }
+                    
                 }
             }
 

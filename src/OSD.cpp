@@ -9,9 +9,9 @@
 OSD::OSD()
 {
 	std::string path = "C:/Windows/Fonts/lucon.ttf";
-	font = Smart_Font(TTF_OpenFont(path.c_str(), 16));
+	font = Smart_Font(TTF_OpenFont(path.c_str(), 22));
 	if (!font) throw std::runtime_error("Failed to open main font: " + path);
-	fontOutline = Smart_Font(TTF_OpenFont(path.c_str(), 16));
+	fontOutline = Smart_Font(TTF_OpenFont(path.c_str(), 22));
 	TTF_SetFontOutline(fontOutline.get(), 1);
 	if (!fontOutline) throw std::runtime_error("Failed to open font outline: " + path);
 }
@@ -44,6 +44,7 @@ std::pair<Smart_Surface, Smart_Surface> OSD::draw(const std::vector<std::pair<st
 
 	auto bg = Smart_Surface(TTF_RenderText_Blended_Wrapped(fontOutline.get(), str.c_str(), 0, { 0,0,0,SDL_ALPHA_OPAQUE }, 1500));
 	auto fg = Smart_Surface(TTF_RenderText_Blended_Wrapped(font.get(), str.c_str(), 0, { 255,255,255,SDL_ALPHA_OPAQUE }, 1500));
+	//TTF_RenderText_LCD_Wrapped
 	
 	
 
@@ -52,7 +53,7 @@ std::pair<Smart_Surface, Smart_Surface> OSD::draw(const std::vector<std::pair<st
 	SDL_SetSurfaceBlendMode(bg.get(), SDL_BLENDMODE_BLEND);
 	SDL_BlitSurface(fg.get(), nullptr, bg.get(), nullptr);
 
-	auto nfg = Smart_Surface(SDL_ConvertSurface(fg.get(), SDL_PIXELFORMAT_ABGR8888));
+	auto nfg = Smart_Surface(SDL_ConvertSurface(bg.get(), SDL_PIXELFORMAT_ABGR8888));
 	//return { std::move(fg),std::move(bg) };
 	return { std::move(nfg),std::move(bg) };
 	//SDL_Rect rect1 = { pixelsFromUpperLeftCorner.x, pixelsFromUpperLeftCorner.y, fg->w, fg->h };
