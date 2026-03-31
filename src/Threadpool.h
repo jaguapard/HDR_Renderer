@@ -29,6 +29,7 @@ public:
 
 	std::optional<task_id> assignedId; //DO NOT SET IT. This will be overwritten by the threadpool
 };
+class Threadpool;
 class Threadpool
 {
 public:
@@ -51,6 +52,7 @@ public:
 	~Threadpool() noexcept;
 
 	static constexpr bool SINGLE_THREAD_MODE = DEBUG_BOOL;
+	static Threadpool* instance;
 private:
 	std::recursive_mutex taskListMutex; //this mutex is used to protect accesses to all of these maps and sets
 	std::unordered_map<task_id, ThreadpoolTask> taskStore;

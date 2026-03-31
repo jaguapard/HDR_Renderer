@@ -109,7 +109,7 @@ std::string vec2str(Vec4f v, int componentsToPrint = 4)
 }
 
 Threadpool threadpool;
-
+Threadpool* Threadpool::instance = &threadpool;
 
 int main(int argc, char* argv[]) 
 {
