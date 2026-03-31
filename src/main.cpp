@@ -245,6 +245,7 @@ int main(int argc, char* argv[])
         gs.outputTextureParams = texDesc;
         gs.threadpool = &threadpool;
         OSD osd;
+        uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
 
         while (running) {
             osd.registerFrameBegin();
@@ -352,7 +353,22 @@ int main(int argc, char* argv[])
                     }
                 }
             }
-            else std::cout << osd.composeString() << "\n";
+            else
+            {
+                uint64_t currTicks = SDL_GetTicksNS();
+                if (currTicks - lastOsdInfoTicks > 1000000000)
+                {
+                    std::string text = osd.composeString(additionalInfo);
+                    std::cout << text << "\n";
+                    lastOsdInfoTicks = currTicks;
+                    //std::cout << "\033[s" << text << "\033[u";
+                    /*
+                    int nls = 0;
+                    for (auto& c : text) if (c == '\n') nls++;
+                    std::cout << text + std::string(20, ' ') << "\n";
+                    std::cout << std::string(nls+1, '\r');*/
+                }
+            }
 
             context->Unmap(cpuTexture, 0);            
 
