@@ -8,6 +8,7 @@
 #include <map>
 #include <iostream>
 #include "../../Statsman.h"
+#include "../../helpers.h"
 using namespace Rasterizing;
 
 std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
@@ -34,6 +35,7 @@ std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
 }
 void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 {
+	Uint64 ticksBegin = SDL_GetTicksNS();
 	if (false)
 	{
 		Model& m = this->sceneModels.emplace_back();
@@ -100,12 +102,8 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 	}
 
 	Threadpool::instance->waitForMultipleTasks(tasks);
-	
-
-
-	int a = 0;
-	//assert(originalX.size() == originalY.size() && originalY.size() == originalZ.size());
-	//assert(originalU.size() == originalV.size());
+	Uint64 ticksEnd = SDL_GetTicksNS();
+	std::cout << "Scene loaded in " << (ticksEnd - ticksBegin) / 1e9 << " sec.\n";
 }
 
 void RasterizingRenderer::renderFrame(const GameSettings& settings)
