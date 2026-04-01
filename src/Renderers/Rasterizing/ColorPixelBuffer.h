@@ -37,9 +37,14 @@ namespace Rasterizing
 	private:
 		void init(int w, int h);
 		std::unique_ptr<uint32_t[]> packedColors;
+		
+		struct Sizes
+		{
 		int w, h;
 		float fw, fh, rcpW, rcpH;
 		float float_maxSafeX, float_maxSafeY, rcp_maxSafeX, rcp_maxSafeY;
+		};
+		Sizes sizes;
 
 		friend class Rasterizing::TextureManager;
 	};

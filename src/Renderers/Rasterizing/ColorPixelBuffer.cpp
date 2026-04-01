@@ -88,17 +88,17 @@ Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x,
     y -= _mm512_floor_ps(y);
     //x = _mm512_fmod_ps(x, float32x16(1));
     //y = _mm512_fmod_ps(y, float32x16(1));
-    float32x16 pixelsX = x * float_maxSafeX;
-    float32x16 pixelsY = y * float_maxSafeY;
+    float32x16 pixelsX = x * this->sizes.float_maxSafeX;
+    float32x16 pixelsY = y * this->sizes.float_maxSafeY;
     //Mask16 inBoundsMask = x >= 0.f & x < 1.f & y >= 0.f & y < 1.f;
     int32x16 intX = pixelsX.trunc();
     int32x16 intY = pixelsY.trunc();
     for (int i = 0; i < 16; ++i)
     {
-        assert(intX[i] >= 0 && intX[i] < w);
-        assert(intY[i] >= 0 && intY[i] < h);
+        assert(intX[i] >= 0 && intX[i] < sizes.w);
+        assert(intY[i] >= 0 && intY[i] < sizes.h);
     }
-    int32x16 pixelsIndices = intY * w + intX;
+    int32x16 pixelsIndices = intY * sizes.w + intX;
     Mask16 gatherMask = mask;
     int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), gatherMask, pixelsIndices, this->packedColors.get(), 4);
 
@@ -135,13 +135,13 @@ void Rasterizing::ColorPixelBuffer::init(int w, int h)
 {
     int totalPixels = w * h;
     this->packedColors = std::make_unique<uint32_t[]>(totalPixels);
-    this->fw = this->w = w;
-    this->fh = this->h = h;
-    this->rcpW = double(1) / w;
-    this->rcpH = double(1) / h;
-    this->float_maxSafeX = w - 1;
-    this->float_maxSafeY = h - 1;
-    this->rcp_maxSafeX = float(1) / float_maxSafeX;
-    this->rcp_maxSafeY = float(1) / float_maxSafeY;
+    this->sizes.fw = this->sizes.w = w;
+    this->sizes.fh = this->sizes.h = h;
+    this->sizes.rcpW = double(1) / w;
+    this->sizes.rcpH = double(1) / h;
+    this->sizes.float_maxSafeX = w - 1;
+    this->sizes.float_maxSafeY = h - 1;
+    this->sizes.rcp_maxSafeX = float(1) / this->sizes.float_maxSafeX;
+    this->sizes.rcp_maxSafeY = float(1) / this->sizes.float_maxSafeY;
 
 }
