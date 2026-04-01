@@ -1,6 +1,12 @@
 #include "ColorPixelBuffer.h"
 #include <stdexcept>
 
+Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
+    packedColors(std::move(dying.packedColors)),
+    sizes(dying.sizes)
+{
+}
+
 Rasterizing::ColorPixelBuffer::ColorPixelBuffer(int w, int h)
 {
     this->init(w, h);

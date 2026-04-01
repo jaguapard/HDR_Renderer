@@ -30,6 +30,7 @@ namespace Rasterizing
 	class ColorPixelBuffer
 	{
 	public:
+		ColorPixelBuffer(ColorPixelBuffer&& dying);
 		ColorPixelBuffer(int w, int h); //initializes empty color buffer
 		ColorPixelBuffer(const SDL_Surface* s);
 		Vec4_f32x16 gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask = 0xFFFF) const;
