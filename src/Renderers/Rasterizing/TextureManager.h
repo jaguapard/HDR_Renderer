@@ -1,6 +1,7 @@
 #include <vector>
 #include <string>
 #include "ColorPixelBuffer.h"
+#include <mutex>
 namespace Rasterizing
 {
 	class TextureManager
@@ -12,5 +13,6 @@ namespace Rasterizing
 		bool handleIsValid(int h) const;
 	private:
 		std::vector<Rasterizing::ColorPixelBuffer> textures;
+		std::mutex mtx;
 	};
 }

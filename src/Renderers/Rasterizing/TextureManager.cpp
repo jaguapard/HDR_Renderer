@@ -37,7 +37,9 @@ int Rasterizing::TextureManager::addTextureByPath(std::string path)
 		//throw std::runtime_error("Unable to convert surface to ABGR128 format " + path);
 	}
 
-	this->textures.emplace_back(converted.get());
+	ColorPixelBuffer buf = converted.get();
+	std::lock_guard lck(this->mtx);
+	this->textures.emplace_back(std::move(buf));
 	return this->textures.size() - 1;	
 }
 
