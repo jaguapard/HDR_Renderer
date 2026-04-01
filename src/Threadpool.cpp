@@ -4,12 +4,13 @@
 #include <iostream>
 #include <algorithm>
 
+thread_local bool isWorkerThread = false;
 Threadpool::Threadpool(std::optional<size_t> numThreads)
 {
 	size_t threadCount = numThreads.value_or(std::max(1u, std::thread::hardware_concurrency() - 1)); //don't crowd out the main thread, unless it is impossible 
 	if (std::thread::hardware_concurrency() == 0 || SINGLE_THREAD_MODE) threadCount = 1; //hardware_concurrency can return 0
+	//threadCount = 24;
 	this->spawnThreads(threadCount);
-	//threadCount = 1;
 }
 
 task_id Threadpool::addTask(const taskfunc_t& taskFunc, std::vector<task_id> dependencies, std::optional<task_id> wantedId)
@@ -83,6 +84,7 @@ std::vector<task_id> Threadpool::reserveTaskIds(uint64_t count)
 
 void Threadpool::waitUntilTaskCompletes(task_id taskIndex)
 {
+	if (isWorkerThread) throw std::runtime_error("Thread pool worker attempted to wait on task " + std::to_string(taskIndex) + ", workers waiting on tasks is prone to deadlocks and is not supported. Define dependecies while adding a task if you want the task to start after prerequisites are complete.");
 	{
 		if (taskIndex >= lastFreeTaskId) throw std::runtime_error("Attempting to wait for non-existant task.");
 		if (isTaskFinished(taskIndex)) return;
@@ -134,6 +136,7 @@ Threadpool::~Threadpool() noexcept
 
 void Threadpool::workerRoutine(size_t workerNumber)
 {
+	isWorkerThread = true;
 	while (!this->threadpoolMarkedForTermination)
 	{
 		task_id myTaskId;
