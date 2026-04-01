@@ -57,48 +57,60 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 	std::vector<task_id> tasks;
 	for (auto& [path, mode] : scd.files)
 	{
-		tasks.push_back(Threadpool::instance->addTask([&, path, this]()
+		AssetLoader ldr;
+		std::vector<AssetLoader::ImportedModel> loadedModels;
+		if (mode == "obj") { loadedModels = ldr.loadObj(path, "H:\\Sponza goodies\\Old Sponza 2026.bmdl"); }
+		else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
+		else throw std::runtime_error("Unsupported mode for RasterizingRenderer::loadScene: " + mode);
+
+		size_t importModelCount = loadedModels.size();
+		std::vector<int> diffuseMapIndices(importModelCount, -1);
+		std::vector<task_id> textureLoadingTasks(importModelCount);
+
+		for (int i = 0; i < importModelCount; ++i)
 		{
-			AssetLoader ldr;
-			std::vector<AssetLoader::ImportedModel> loadedModels;
-			if (mode == "obj") { loadedModels = ldr.loadObj(path, "H:\\Sponza goodies\\Old Sponza 2026.bmdl"); }
-			else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
-			else throw std::runtime_error("Unsupported mode for RasterizingRenderer::loadScene: " + mode);
+			textureLoadingTasks[i] = Threadpool::instance->addTask([&, this, i]() {
+				if (loadedModels[i].diffuseMapPath) diffuseMapIndices[i] = this->textureManager.addTextureByPath(*loadedModels[i].diffuseMapPath);
+			});
+		}
 
-			std::lock_guard lck(mtx);
-			size_t loadedTriangles = 0, discardedTriangles = 0;
-			for (int i = 0; i < loadedModels.size(); ++i)
+		size_t loadedTriangles = 0;
+		size_t firstModelInd = this->sceneModels.size();
+		for (int i = 0; i < loadedModels.size(); ++i)
+		{
+			size_t discardedTriangles = 0;
+			Model& m = this->sceneModels.emplace_back();
+			for (auto& it : loadedModels[i].triangles)
 			{
-				Model& m = this->sceneModels.emplace_back();
-				if (loadedModels[i].diffuseMapPath) m.diffuseMapIndex = this->textureManager.addTextureByPath(*loadedModels[i].diffuseMapPath);
-				//Need to track the ownership of indices from global vertice stores. I.e. mapping of
-				std::vector<int> modelXyzIndices, modelUvIndices;
-				for (auto& it : loadedModels[i].triangles)
+				Vec4f v1 = { it.vertices[0][0], it.vertices[0][1], it.vertices[0][2], 0 };
+				Vec4f v2 = { it.vertices[1][0], it.vertices[1][1], it.vertices[1][2], 0 };
+				Vec4f v3 = { it.vertices[2][0], it.vertices[2][1], it.vertices[2][2], 0 };
+				Vec4f dv21 = v2 - v1;
+				Vec4f dv32 = v3 - v2;
+				if (dv21.lenSq() * dv32.lenSq() == 0) //degenerate triangles
 				{
-					Vec4f v1 = { it.vertices[0][0], it.vertices[0][1], it.vertices[0][2], 0 };
-					Vec4f v2 = { it.vertices[1][0], it.vertices[1][1], it.vertices[1][2], 0 };
-					Vec4f v3 = { it.vertices[2][0], it.vertices[2][1], it.vertices[2][2], 0 };
-					Vec4f dv21 = v2 - v1;
-					Vec4f dv32 = v3 - v2;
-					if (dv21.lenSq() * dv32.lenSq() == 0) //degenerate triangles
-					{
-						++discardedTriangles; continue;
-					}
-					for (int k = 0; k < 3; ++k)
-					{
-						uint32_t vertInd = this->original_verticeStore.insert(
-							it.vertices[k][0], it.vertices[k][1], it.vertices[k][2], it.u[k], it.v[k]
-						);
-
-						//TODO: clean from degenerate triangles (i.e 2 or 3 vertices same or all 3 collinear)?
-						//this->original_triangleStore.vertInd[k].push_back(vertInd);
-						m.triangleStore.vertInd[k].push_back(vertInd);
-					}
-					//this->original_triangleStore.modelInd.push_back(i);
+					++discardedTriangles; continue;
 				}
-				std::cout << "Loaded " << m.triangleStore.size() << " triangles out of " << loadedModels[i].triangles.size() << " (" << discardedTriangles << " discarded) from " << path << "\n";
+				for (int k = 0; k < 3; ++k)
+				{
+					uint32_t vertInd = this->original_verticeStore.insert(
+						it.vertices[k][0], it.vertices[k][1], it.vertices[k][2], it.u[k], it.v[k]
+					);
+
+					//TODO: clean from degenerate triangles (i.e 2 or 3 vertices same or all 3 collinear)?
+					m.triangleStore.vertInd[k].push_back(vertInd);
+				}
 			}
-		}));
+			std::cout << "Loaded " << m.triangleStore.size() << " triangles out of " << loadedModels[i].triangles.size() << " (" << discardedTriangles << " discarded) from " << path << "\n";
+		}
+
+		Threadpool::instance->waitForMultipleTasks(textureLoadingTasks);
+		size_t lastModelInd = this->sceneModels.size() - 1;
+		for (int i = 0; i < loadedModels.size(); ++i)
+		{
+			auto& currModel = this->sceneModels[firstModelInd + i];
+			currModel.diffuseMapIndex = diffuseMapIndices[i];
+		}
 	}
 
 	Threadpool::instance->waitForMultipleTasks(tasks);
@@ -208,8 +220,6 @@ std::vector<std::vector<Rasterizing::ModelSlice>> RasterizingRenderer::makeModel
 
 	return ret;
 }
-
-#include "../../helpers.h"
 
 struct VertexPack16
 {
