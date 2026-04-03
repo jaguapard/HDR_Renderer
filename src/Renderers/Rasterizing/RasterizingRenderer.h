@@ -66,7 +66,7 @@ namespace Rasterizing
 	struct RenderJob_Store
 	{
 		std::array<std::vector<float>, 3> x, y, z, u, v;
-		std::vector<float> minX, maxX, minY, maxY, rcpSignedArea;
+		std::vector<float> rcpSignedArea;
 		std::vector<int> modelIndex, firstThread, lastThread; //inclusive!
 		size_t size() const;
 		void clear();

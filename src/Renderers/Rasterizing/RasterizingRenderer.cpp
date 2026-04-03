@@ -491,6 +491,8 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				}
 				int32x16 firstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
 				int32x16 lastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
+
+
 				//since render job store resize does 16 overprovisioning on resize, it's OK not to mask these stores. Some architectures have awful compress store unaligned performance
 				for (int i = 0; i < 3; ++i)
 				{
@@ -503,10 +505,11 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				_mm512_storeu_epi32(myRjStore.modelIndex.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, int32x16(slice.modelIndex)));
 				_mm512_storeu_epi32(myRjStore.firstThread.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, firstThread));
 				_mm512_storeu_epi32(myRjStore.lastThread.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, lastThread));
+				/*
 				_mm512_storeu_ps(myRjStore.minX.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, minX));
 				_mm512_storeu_ps(myRjStore.maxX.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxX));
 				_mm512_storeu_ps(myRjStore.minY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, minY));
-				_mm512_storeu_ps(myRjStore.maxY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxY));
+				_mm512_storeu_ps(myRjStore.maxY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxY));*/
 				_mm512_storeu_ps(myRjStore.rcpSignedArea.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, rcpSignedArea));
 
 				for (int i = 0; i < jobsToAdd; ++i)
@@ -573,14 +576,15 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		{
 			Mask16 bounds = (int32x16::sequence() + myJobsPointerInt) < jobsCountForMe;
 			int32x16 jobIndices = _mm512_maskz_loadu_epi32(bounds, pData + myJobsPointerInt);
-			float32x16 group_xBeg = _mm512_max_ps(float32x16(my_xMin), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.minX.data(), 4));
-			float32x16 group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.maxX.data(), 4));
-			float32x16 group_yBeg = _mm512_max_ps(float32x16(my_yMin), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.minY.data(), 4));
-			float32x16 group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.maxY.data(), 4));
+			//float32x16 group_xBeg = _mm512_max_ps(float32x16(my_xMin), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.minX.data(), 4));
+			//float32x16 group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.maxX.data(), 4));
+			//float32x16 group_yBeg = _mm512_max_ps(float32x16(my_yMin), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.minY.data(), 4));
+			//float32x16 group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.maxY.data(), 4));
 			float32x16 group_rcpSignedArea = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.rcpSignedArea.data(), 4);
 			int32x16 group_modelIndex = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), bounds, jobIndices, creatorThreadJobStore.modelIndex.data(), 4);
 			VertexPack16 group_verts[3];
 
+			float32x16 group_xBeg = INFINITY, group_xEnd = -INFINITY, group_yBeg = INFINITY, group_yEnd = -INFINITY;
 			for (int i = 0; i < 3; ++i)
 			{
 				group_verts[i].space.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.x[i].data(), 4);
@@ -588,7 +592,16 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 				group_verts[i].space.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.z[i].data(), 4);
 				group_verts[i].u = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.u[i].data(), 4);
 				group_verts[i].v = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.v[i].data(), 4);
+				group_xBeg = _mm512_min_ps(group_xBeg, group_verts[i].space.x);
+				group_yBeg = _mm512_min_ps(group_yBeg, group_verts[i].space.y);
+				group_xEnd = _mm512_max_ps(group_xEnd, group_verts[i].space.x);
+				group_yEnd = _mm512_max_ps(group_yEnd, group_verts[i].space.y);
 			}
+			group_xBeg = _mm512_max_ps(float32x16(my_xMin), _mm512_floor_ps(group_xBeg));
+			group_yBeg = _mm512_max_ps(float32x16(my_yMin), _mm512_floor_ps(group_yBeg));
+			group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_ceil_ps(group_xEnd));
+			group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_ceil_ps(group_yEnd));
+
 			for (int i = 0; i < 16; ++i)
 			{
 				if ((bounds.mask & (1 << i)) == 0) continue;
@@ -743,10 +756,6 @@ void Rasterizing::RenderJob_Store::clear()
 		u[i].clear();
 		v[i].clear();
 	}
-	minX.clear();
-	minY.clear();
-	maxX.clear();
-	maxY.clear();
 	modelIndex.clear();
 	firstThread.clear();
 	lastThread.clear();
@@ -763,10 +772,6 @@ void Rasterizing::RenderJob_Store::resize(size_t ind, bool overprovision)
 		u[i].resize(ind);
 		v[i].resize(ind);
 	}
-	minX.resize(ind);
-	minY.resize(ind);
-	maxX.resize(ind);
-	maxY.resize(ind);
 	modelIndex.resize(ind);
 	firstThread.resize(ind);
 	lastThread.resize(ind);
