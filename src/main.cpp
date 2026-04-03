@@ -268,6 +268,21 @@ int main(int argc, char* argv[])
                 if (e.type == SDL_EVENT_QUIT) {
                     running = false; break;
                 }
+
+                if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
+                {
+                    RendererLoadSceneData loadSceneData;
+                    if (inp.wasCharPressedOnThisFrame('0'))
+                    {
+                        loadSceneData.files = { {"H:/Sponza goodies/main1_sponza/new_sponza.bmdl", "bmdl"},
+                        { "H:/Sponza goodies/pkg_a_curtains/curtains.bmdl", "bmdl" },
+                        { "H:/Sponza goodies/pkg_c1_trees/tree.bmdl", "bmdl" },
+                        { "H:/Sponza goodies/pkg_b_ivy/ivy.bmdl", "bmdl" } };
+                    }
+                    else loadSceneData.files = { { "scenes/Sponza/old_sponza.bmdl", "bmdl" } };
+                    currentRenderer = std::make_shared<RasterizingRenderer>();
+                    currentRenderer->loadScene(loadSceneData);
+                }
             }
 
             D3D11_MAPPED_SUBRESOURCE mapped;
