@@ -340,14 +340,13 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 			if (!(behindPlaneCount != 3)) continue; //if all triangles have all vertices behind clipping plane, skip them
 
 			Mask16 activeTrianglesMask = inBoundsTrianglesMask & behindPlaneCount != 3;
-			//backface culling
-			/*
-			if (currFrameGameSettings.backfaceCullingEnabled && !model.noBackfaceCulling)
+
+			/* 
+			if (this->currGs.backfaceCullingEnabled && !this->sceneModels[slice.modelIndex].noBackfaceCulling)
 			{
-			Vec4 normal = rotated.getNormalVector();
-			if (rotated.tv[0].spaceCoords.dot(normal) >= 0) return 0;
-			}
-			*/
+				Vec4_f32x16 normal = (transformedVertices[2].space - transformedVertices[0].space).cross3d(transformedVertices[1].space - transformedVertices[0].space);
+				activeTrianglesMask &= transformedVertices[0].space.dot3d(normal) > 0.f;
+			}*/
 			
 			for (int i = 0; i < 3; ++i)
 			{
