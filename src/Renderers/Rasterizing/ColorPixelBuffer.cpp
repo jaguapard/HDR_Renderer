@@ -121,8 +121,11 @@ Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x,
     int32x16 intY = pixelsY.trunc();
     for (int i = 0; i < 16; ++i)
     {
-        assert(intX[i] >= 0 && intX[i] < sizes.w);
-        assert(intY[i] >= 0 && intY[i] < sizes.h);
+        if (mask.mask & (1 << i))
+        {
+            assert(intX[i] >= 0 && intX[i] < sizes.w);
+            assert(intY[i] >= 0 && intY[i] < sizes.h);
+        }
     }
     int32x16 pixelsIndices = intY * sizes.w + intX;
     Mask16 gatherMask = mask;
