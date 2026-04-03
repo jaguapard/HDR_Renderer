@@ -476,7 +476,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				if (!activeTrianglesMask) continue;
 
 				float32x16 rcpSignedArea = float32x16(1) / signedArea;
-				int jobsToAdd = std::popcount(__mmask16(activeTrianglesMask));
+				int jobsToAdd = _mm_popcnt_u32(activeTrianglesMask);
 				auto& myRjStore = this->renderJobsFromThreads[threadIndex];
 				myRjStore.resize(rjRealSize + jobsToAdd);
 
@@ -634,7 +634,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 						Mask16 pointsInsideTriangleMask = xBoundsMask & (alpha >= 0.0) & (beta >= 0.0) & (gamma >= 0.0);
-						if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += std::popcount(pointsInsideTriangleMask.mask);
+						if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 						if (!pointsInsideTriangleMask) continue;
 
 						Vec4_f32x16 interpolatedDividedUv = 
@@ -647,12 +647,12 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (Statsman::ENABLED)
 						{
 							MyStatsman.rendering.zBufferFetchLanes += 16;
-							MyStatsman.rendering.zBufferFetchAliveLanes += std::popcount(pointsInsideTriangleMask.mask);
+							MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 						}
 						//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
 						//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
 						Mask16 visiblePointsMask = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
-						if (Statsman::ENABLED) MyStatsman.rendering.visiblePoints += std::popcount(visiblePointsMask.mask);
+						if (Statsman::ENABLED) MyStatsman.rendering.visiblePoints += _mm_popcnt_u32(visiblePointsMask.mask);
 						if (!visiblePointsMask) continue; //if all points are occluded, then skip
 
 						Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
@@ -661,9 +661,9 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						Mask16 opaquePixelsMask = visiblePointsMask & (texturePixels.a > 0.0f);
 						if (Statsman::ENABLED)
 						{
-							MyStatsman.rendering.opaquePixels += std::popcount(opaquePixelsMask.mask);
+							MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
 							MyStatsman.rendering.textureGatheredLanes += 16;
-							MyStatsman.rendering.textureGatherAliveLanes += std::popcount(visiblePointsMask.mask);
+							MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(visiblePointsMask.mask);
 						}
 						if (!opaquePixelsMask) continue;
 
@@ -696,9 +696,9 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (Statsman::ENABLED)
 						{
 							MyStatsman.rendering.zBufferWriteLanes += 16;
-							MyStatsman.rendering.zBufferWriteAliveLanes += std::popcount(opaquePixelsMask.mask);
+							MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
 							MyStatsman.rendering.frameBufWriteLanes += 16;
-							MyStatsman.rendering.frameBufWriteAliveLanes += std::popcount(opaquePixelsMask.mask);
+							MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
 						}
 					}
 				}
