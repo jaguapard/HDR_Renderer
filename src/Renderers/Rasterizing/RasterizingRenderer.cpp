@@ -748,6 +748,7 @@ size_t Rasterizing::RenderJob_Store::size() const
 
 void Rasterizing::RenderJob_Store::clear()
 {
+	return;
 	for (int i = 0; i < 3; ++i)
 	{
 		x[i].clear();
@@ -764,6 +765,7 @@ void Rasterizing::RenderJob_Store::clear()
 void Rasterizing::RenderJob_Store::resize(size_t ind, bool overprovision)
 {
 	if (overprovision) ind += 16;
+	if (ind < size()) return;
 	for (int i = 0; i < 3; ++i)
 	{
 		x[i].resize(ind);
