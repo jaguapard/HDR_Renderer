@@ -633,7 +633,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						calculateBarycentricCoordinates(r, verts[0].space, verts[1].space, verts[2].space, rcpSignedArea, alpha, beta, gamma);
 						if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
-						Mask16 pointsInsideTriangleMask = xBoundsMask & (alpha >= 0.0) & (beta >= 0.0) & (gamma >= 0.0);
+						Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
 						if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 						if (!pointsInsideTriangleMask) continue;
 
