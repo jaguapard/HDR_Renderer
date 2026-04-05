@@ -568,10 +568,6 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		{
 			Mask16 bounds = (int32x16::sequence() + myJobsPointerInt) < jobsCountForMe;
 			int32x16 jobIndices = _mm512_maskz_loadu_epi32(bounds, pData + myJobsPointerInt);
-			//float32x16 group_xBeg = _mm512_max_ps(float32x16(my_xMin), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.minX.data(), 4));
-			//float32x16 group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.maxX.data(), 4));
-			//float32x16 group_yBeg = _mm512_max_ps(float32x16(my_yMin), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.minY.data(), 4));
-			//float32x16 group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.maxY.data(), 4));
 			float32x16 group_rcpSignedArea = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.rcpSignedArea.data(), 4);
 			int32x16 group_modelIndex = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), bounds, jobIndices, creatorThreadJobStore.modelIndex.data(), 4);
 			VertexPack16 group_verts[3];
@@ -600,50 +596,25 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 			float32x16 group_dAlpha_dy = (group_verts[2].space.x - group_verts[1].space.x) * group_rcpSignedArea;
 			float32x16 group_dBeta_dx = (group_verts[2].space.y - group_verts[0].space.y) * group_rcpSignedArea;
 			float32x16 group_dBeta_dy = (group_verts[0].space.x - group_verts[2].space.x) * group_rcpSignedArea;
-			float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues!
-			float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues!
+			float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, can cause precision issues! (actually, doesn't do now)
+			float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //and this too
 
 			for (int i = 0; i < 16; ++i)
 			{
 				if ((bounds.mask & (1 << i)) == 0) continue;
-				int32x16 permInd = i;
-				float32x16 xBeg = _mm512_permutexvar_ps(permInd, group_xBeg);
-				float32x16 xEnd = _mm512_permutexvar_ps(permInd, group_xEnd);
-				float32x16 yBeg = _mm512_permutexvar_ps(permInd, group_yBeg);
-				float32x16 yEnd = _mm512_permutexvar_ps(permInd, group_yEnd);
-				float32x16 rcpSignedArea = _mm512_permutexvar_ps(permInd, group_rcpSignedArea);
 				const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[group_modelIndex[i]].diffuseMapIndex);
-				VertexPack16 verts[3];
-				for (int j = 0; j < 3; ++j)
-				{
-					verts[j].space.x = _mm512_permutexvar_ps(permInd, group_verts[j].space.x);
-					verts[j].space.y = _mm512_permutexvar_ps(permInd, group_verts[j].space.y);
-					verts[j].space.z = _mm512_permutexvar_ps(permInd, group_verts[j].space.z);
-					verts[j].u = _mm512_permutexvar_ps(permInd, group_verts[j].u);
-					verts[j].v = _mm512_permutexvar_ps(permInd, group_verts[j].v);
-				}
-
-				float32x16 initialAlpha = _mm512_permutexvar_ps(permInd, group_initialAlpha);
-				float32x16 initialBeta = _mm512_permutexvar_ps(permInd, group_initialBeta);
-				float32x16 initialGamma = _mm512_permutexvar_ps(permInd, group_initialGamma);
-				float32x16 dAlpha_dx = _mm512_permutexvar_ps(permInd, group_dAlpha_dx);
-				float32x16 dAlpha_dy = _mm512_permutexvar_ps(permInd, group_dAlpha_dy);
-				float32x16 dBeta_dx = _mm512_permutexvar_ps(permInd, group_dBeta_dx);
-				float32x16 dBeta_dy = _mm512_permutexvar_ps(permInd, group_dBeta_dy);
-				float32x16 dGamma_dx = _mm512_permutexvar_ps(permInd, group_dGamma_dx);
-				float32x16 dGamma_dy = _mm512_permutexvar_ps(permInd, group_dGamma_dy);
 				
-				for (float y = yBeg[0]; y <= yEnd[0]; ++y)
+				for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
 				{
 					size_t yInt = y;
-					size_t xInt = xBeg[0];
-					float32x16 dy = y - yBeg[0];
-					for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
+					size_t xInt = group_xBeg[i];
+					float32x16 dy = y - group_yBeg[i];
+					for (float32x16 x = float32x16::sequence() + group_xBeg[i]; Mask16 xBoundsMask = (x <= group_xEnd[i]); x += 16, xInt += 16)
 					{
-						float32x16 dx = x - xBeg;
-						float32x16 alpha = _mm512_fmadd_ps(dAlpha_dy, dy, _mm512_fmadd_ps(dAlpha_dx, dx, initialAlpha));
-						float32x16 beta = _mm512_fmadd_ps(dBeta_dy, dy, _mm512_fmadd_ps(dBeta_dx, dx, initialBeta));
-						float32x16 gamma = _mm512_fmadd_ps(dGamma_dy, dy, _mm512_fmadd_ps(dGamma_dx, dx, initialGamma));
+						float32x16 dx = x - group_xBeg[i];
+						float32x16 alpha = _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dx[i]), dx, _mm512_set1_ps(group_initialAlpha[i])));
+						float32x16 beta = _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dx[i]), dx, _mm512_set1_ps(group_initialBeta[i])));
+						float32x16 gamma = _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dx[i]), dx, _mm512_set1_ps(group_initialGamma[i])));
 						if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 						Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
@@ -651,9 +622,9 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (!pointsInsideTriangleMask) continue;
 
 						Vec4_f32x16 interpolatedDividedUv = 
-							Vec4_f32x16(verts[0].u, verts[0].v, verts[0].space.z, 0.f) * alpha + 
-							Vec4_f32x16(verts[1].u, verts[1].v, verts[1].space.z, 0.f) * beta +
-							Vec4_f32x16(verts[2].u, verts[2].v, verts[2].space.z, 0.f) * gamma;
+							Vec4_f32x16(group_verts[0].u[i], group_verts[0].v[i], group_verts[0].space.z[i], 0.f) * alpha +
+							Vec4_f32x16(group_verts[1].u[i], group_verts[1].v[i], group_verts[1].space.z[i], 0.f) * beta +
+							Vec4_f32x16(group_verts[2].u[i], group_verts[2].v[i], group_verts[2].space.z[i], 0.f) * gamma;
 
 						//float32x16 currDepthValues = this->zBuffer.getPixels16(xInt, yInt);
 						float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, this->zBuffer.data() + yInt * w + xInt);
