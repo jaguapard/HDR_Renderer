@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
 {
     try
     {
-        Statsman::statsmenForThreads.resize(threadpool.getThreadCount());
+        Statsman::statsmenForThreads.resize(threadpool.getThreadCount() + 1); //last one for main thread
         if (!SDL_Init(SDL_INIT_VIDEO)) RAISE_ERROR("SDL_Init failed");
         C_Input::getInstance();
      

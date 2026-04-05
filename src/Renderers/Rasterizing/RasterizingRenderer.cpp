@@ -150,8 +150,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	for (int i = 0; i < sz; ++i) pp[i] = 0;
 	uint64_t framebufCleanTicks = SDL_GetTicksNS();
 
-	Statsman::statsmenForThreads[0].time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
-	Statsman::statsmenForThreads[0].time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
+	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
+	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
 
 	threadpool->waitForMultipleTasks(transformTasks);
 
