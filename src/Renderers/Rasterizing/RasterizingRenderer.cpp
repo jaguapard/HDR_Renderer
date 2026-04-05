@@ -546,8 +546,12 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 	}
 	assert(seenTris == trisInSlices);*/
 	this->renderJobsFromThreads[threadIndex].resize(rjRealSize, false);
-	uint64_t ticksEnd = SDL_GetTicksNS();
-	if (Statsman::ENABLED) MyStatsman.time.transformMs = (ticksEnd-ticksBegin)/1e6;
+	
+	if (Statsman::ENABLED) {
+		MyStatsman.rendering.renderJobCountProducer = rjRealSize;
+		uint64_t ticksEnd = SDL_GetTicksNS();
+		MyStatsman.time.transformMs = (ticksEnd - ticksBegin) / 1e6;
+	}
 }
 
 __forceinline void calculateBarycentricCoordinates(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
@@ -567,11 +571,12 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	float my_xMin = 0;
 	float my_xMax = this->currGs->outputTextureParams.Width - 1;
 	int w = this->currGs->outputTextureParams.Width;
-
+	int totalRenderJobs = 0;
 	for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 	{
 		const RenderJob_Store& creatorThreadJobStore = this->renderJobsFromThreads[senderThreadIndex];
 		int jobsCountForMe = this->renderJobForwardNetwork[senderThreadIndex][threadIndex].size();
+		totalRenderJobs += jobsCountForMe;
 		int* pData = this->renderJobForwardNetwork[senderThreadIndex][threadIndex].data();
 		for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt += 16)
 		{
@@ -700,8 +705,12 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		
 	
 	}
-	auto ticksEnd = SDL_GetTicksNS();
-	if (Statsman::ENABLED) MyStatsman.time.drawMs = (ticksEnd - ticksBegin) / 1e6;
+
+	if (Statsman::ENABLED) {
+		MyStatsman.rendering.renderJobCountConsumer = totalRenderJobs;
+		auto ticksEnd = SDL_GetTicksNS();
+		MyStatsman.time.drawMs = (ticksEnd - ticksBegin) / 1e6;
+	}
 }
 
 uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, float v)

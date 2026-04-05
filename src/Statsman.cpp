@@ -26,6 +26,8 @@ std::pair<Statsman, Statsman::Aggregated> Statsman::aggregateAll()
 		ret.rendering.zBufferWriteAliveLanes += other.rendering.zBufferWriteAliveLanes;
 		ret.rendering.frameBufWriteLanes += other.rendering.frameBufWriteLanes;
 		ret.rendering.frameBufWriteAliveLanes += other.rendering.frameBufWriteAliveLanes;
+		ret.rendering.renderJobCountProducer += other.rendering.renderJobCountProducer;
+		ret.rendering.renderJobCountConsumer += other.rendering.renderJobCountConsumer;
 
 		if (ag.framebufCleanMsMin || other.time.frameBufferCleanMs) ag.framebufCleanMsMin = std::min(ag.framebufCleanMsMin.value_or(INFINITY), other.time.frameBufferCleanMs.value_or(INFINITY));
 		if (ag.framebufCleanMsMax || other.time.frameBufferCleanMs) ag.framebufCleanMsMax = std::max(ag.framebufCleanMsMax.value_or(-INFINITY), other.time.frameBufferCleanMs.value_or(-INFINITY));

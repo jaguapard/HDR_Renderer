@@ -109,8 +109,9 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 	{
 		ss << "\n";
 		auto [s, ag] = Statsman::aggregateAll();
-		ss << s.triangles.rendered << " triangles rendered\n";
-		ss << s.triangles.total << " total triangles\n";
+		ss << toThousandsSeparatedString(s.triangles.rendered) << " triangles rendered\n";
+		ss << toThousandsSeparatedString(s.triangles.total) << " total triangles\n";
+		ss << "Render jobs: " << toThousandsSeparatedString(s.rendering.renderJobCountProducer) << " (producer-side), " << toThousandsSeparatedString(s.rendering.renderJobCountConsumer) << " (consumer-side, " << s.rendering.renderJobCountConsumer * 100.0 / s.rendering.renderJobCountProducer << "%)\n";
 		ss << "Vertices behind near plane: ";
 		for (int i = 0; i < 4; ++i) ss << i << ": " << toThousandsSeparatedString(s.triangles.verticesBehindNearPlane[i]) << (i != 3 ? ", " : "");
 
