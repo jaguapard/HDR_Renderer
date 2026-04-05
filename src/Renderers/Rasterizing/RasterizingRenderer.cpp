@@ -750,8 +750,6 @@ void Rasterizing::RenderJob_Store::clear()
 		v[i].clear();
 	}
 	modelIndex.clear();
-	firstThread.clear();
-	lastThread.clear();
 	rcpSignedArea.clear();
 }
 void Rasterizing::RenderJob_Store::resize(size_t ind, bool overprovision)
@@ -767,7 +765,5 @@ void Rasterizing::RenderJob_Store::resize(size_t ind, bool overprovision)
 		v[i].resize(ind);
 	}
 	modelIndex.resize(ind);
-	firstThread.resize(ind);
-	lastThread.resize(ind);
 	rcpSignedArea.resize(ind);
 }

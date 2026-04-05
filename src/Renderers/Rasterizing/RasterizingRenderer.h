@@ -67,7 +67,7 @@ namespace Rasterizing
 	{
 		std::array<std::vector<float>, 3> x, y, z, u, v;
 		std::vector<float> rcpSignedArea;
-		std::vector<int> modelIndex, firstThread, lastThread; //inclusive!
+		std::vector<int> modelIndex;
 		size_t size() const;
 		void clear();
 		void resize(size_t ind, bool overprovision = true);
