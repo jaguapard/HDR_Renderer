@@ -248,7 +248,7 @@ int main(int argc, char* argv[])
         gs.threadpool = &threadpool;
         OSD osd;
         uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
-
+        double lastOsdDrawMs = NAN;
         while (running) {
             for (auto& it : Statsman::statsmenForThreads) it.reset();
             osd.registerFrameBegin();
@@ -333,13 +333,14 @@ int main(int argc, char* argv[])
             //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
             gs.graphicsOutputBuffer = mapped.pData;
             currentRenderer->renderFrame(gs);
+            osd.registerFrameDone();
+
+            uint64_t ticksBeforeOSD = SDL_GetTicksNS();
             std::vector<std::pair<std::string, std::string>> additionalInfo = {
                 {"Camera pos", vec2str(gs.camPos)},
                 {"Camera ang", vec2str(gs.camAng)},
+                {"OSD draw time: ", std::to_string(lastOsdDrawMs) + " ms"},
             };
-            //std::cout << osd.composeString(additionalInfo) << "\n";
-            osd.registerFrameDone();
-
             if (gs.osdEnabled) //VERY slow, impacts FPS a lot, disabled by default
             {
                 auto osdSurface = osd.draw(additionalInfo);
@@ -387,6 +388,8 @@ int main(int argc, char* argv[])
                     std::cout << std::string(nls+1, '\r');*/
                 }
             }
+            uint64_t ticksAfterOSD = SDL_GetTicksNS();
+            lastOsdDrawMs = (ticksAfterOSD - ticksBeforeOSD) / 1e6;
 
             context->Unmap(cpuTexture, 0);            
 
