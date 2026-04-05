@@ -108,18 +108,12 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 	if (Statsman::ENABLED)
 	{
 		ss << "\n";
-		Statsman s = Statsman::statsmenForThreads[0]; //starting loop from 1 since aggregations break with 0
- 		for (int i = 1; i < Statsman::statsmenForThreads.size(); ++i) s = s + Statsman::statsmenForThreads[i];
-		for (int i = 0; i <= 3; ++i)
-		{
-
-		}
+		auto [s, ag] = Statsman::aggregateAll();
 		ss << s.triangles.rendered << " triangles rendered\n";
 		ss << s.triangles.total << " total triangles\n";
 		ss << "Vertices behind near plane: ";
 		for (int i = 0; i < 4; ++i) ss << i << ": " << toThousandsSeparatedString(s.triangles.verticesBehindNearPlane[i]) << (i != 3 ? ", " : "");
 
-		Statsman::Aggregated ag = s.getAggregatedInfo();
 		double count = Statsman::statsmenForThreads.size();
 		ss << "\n";
 		ss << "Barycentircs calculated: " << toThousandsSeparatedString(s.rendering.barycentricsCalculated) << "\n"
@@ -130,8 +124,10 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 			<< "Texture gather lanes: " << laneSurvivalRateString(s.rendering.textureGatheredLanes, s.rendering.textureGatherAliveLanes) << "\n"
 			<< "Depth buffer write lanes: " << laneSurvivalRateString(s.rendering.zBufferWriteLanes, s.rendering.zBufferWriteAliveLanes) << "\n"
 			<< "Frame buffer write lanes: " << laneSurvivalRateString(s.rendering.frameBufWriteLanes, s.rendering.frameBufWriteAliveLanes) << "\n\n"
-			<< "Transformation times: " << ag.transformMsMax << " ms max, " << ag.transformMsTotal / count << " ms avg, " << ag.transformMsMin << " ms min\n"
-			<< "Draw times: " << ag.drawMsMax << " ms max, " << ag.drawMsTotal / count << " ms avg, " << ag.drawMsMin << " ms min\n";
+			<< "Transformation times: " << ag.transformMsMax.value_or(NAN) << " ms max, " << ag.transformMsTotal.value_or(NAN) / count << " ms avg, " << ag.transformMsMin.value_or(NAN) << " ms min\n"
+			<< "Draw times: " << ag.drawMsMax.value_or(NAN) << " ms max, " << ag.drawMsTotal.value_or(NAN) / count << " ms avg, " << ag.drawMsMin.value_or(NAN) << " ms min\n"
+			<< "Depth buffer clean times: " << ag.zBufferCleanMsMax.value_or(NAN) << " ms max\n" // << ag.zBufferCleanMsTotal.value_or(NAN) / count << 
+			<< "Frame buffer clean times: " << ag.framebufCleanMsMax.value_or(NAN) << " ms max\n";
 	}
 	return ss.str();
 }

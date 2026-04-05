@@ -140,10 +140,19 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 			}
 		));
 	}
+
+	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
 	for (auto& it : zBuffer) it = -INFINITY;
+	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
+	
 	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height * 4;
 	float* pp = (float*)(settings.graphicsOutputBuffer);
 	for (int i = 0; i < sz; ++i) pp[i] = 0;
+	uint64_t framebufCleanTicks = SDL_GetTicksNS();
+
+	Statsman::statsmenForThreads[0].time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
+	Statsman::statsmenForThreads[0].time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
+
 	threadpool->waitForMultipleTasks(transformTasks);
 
 	size_t renderJobCount = 0;

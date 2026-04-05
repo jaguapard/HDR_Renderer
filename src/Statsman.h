@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <optional>
 
 struct alignas(64) Statsman
 {
@@ -16,27 +17,25 @@ struct alignas(64) Statsman
 	struct Rendering
 	{
 		uint64_t barycentricsCalculated, pointsInsideTriangles, visiblePoints, opaquePixels, textureGatheredLanes, textureGatherAliveLanes, zBufferFetchLanes, zBufferFetchAliveLanes, zBufferWriteLanes, zBufferWriteAliveLanes, frameBufWriteLanes, frameBufWriteAliveLanes;
-		
 	};
 
 	struct Time
 	{
-		double transformMs, drawMs;
+		std::optional<double> transformMs, drawMs, zBufferCleanMs, frameBufferCleanMs;
 	};
 	//these parametes are auto-calculated in operator+ from multiple Statsman insances
 	struct Aggregated
 	{
-		double transformMsMin, transformMsMax, transformMsTotal, drawMsMin, drawMsMax, drawMsTotal;
+		std::optional<double> transformMsMin, transformMsMax, transformMsTotal, drawMsMin, drawMsMax, drawMsTotal, zBufferCleanMsMin, zBufferCleanMsMax, zBufferCleanMsTotal, framebufCleanMsMin, framebufCleanMsMax, framebufCleanMsTotal;
 	};
 	Statsman() { reset(); }
 	Triangles triangles;
 	Rendering rendering;
 	Time time;
-	Statsman operator+(const Statsman& other) const;
-	Aggregated getAggregatedInfo() const;
+
+	static std::pair<Statsman,Aggregated> aggregateAll();
 
 private:
-	Aggregated ag;
 };
 
 //#define StatCount(__threadIndex, action) if (Statsman::ENABLED) {Statsman::statsmenForThreads[__threadIndex].action;};
