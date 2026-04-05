@@ -290,7 +290,9 @@ struct Vertex
 void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 {
 	uint64_t ticksBegin = SDL_GetTicksNS();
+	int threadCount = this->currGs->threadpool->getThreadCount();
 	this->renderJobForwardNetwork[threadIndex].clear();
+	this->renderJobForwardNetwork[threadIndex].resize(threadCount);
 	assert(this->original_verticeStore.x.size() == this->original_verticeStore.y.size() && this->original_verticeStore.y.size() == this->original_verticeStore.z.size() && this->original_verticeStore.u.size() == this->original_verticeStore.v.size());
 
 	float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / this->currGs->outputTextureParams.Height;
@@ -489,9 +491,12 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					if (!(activeTrianglesMask.mask & (1 << i))) continue;
 					//assert(std::abs(maxX[i]) < 5000);
 				}
-				int32x16 firstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
-				int32x16 lastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
-
+				int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
+				int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
+				vecFirstThread = _mm512_maskz_compress_epi32(activeTrianglesMask, vecFirstThread);
+				vecLastThread = _mm512_maskz_compress_epi32(activeTrianglesMask, vecLastThread);
+				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
+				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
 
 				//since render job store resize does 16 overprovisioning on resize, it's OK not to mask these stores. Some architectures have awful compress store unaligned performance
 				for (int i = 0; i < 3; ++i)
@@ -503,14 +508,16 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					_mm512_storeu_ps(myRjStore.v[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].v));
 				}
 				_mm512_storeu_epi32(myRjStore.modelIndex.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, int32x16(slice.modelIndex)));
-				_mm512_storeu_epi32(myRjStore.firstThread.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, firstThread));
-				_mm512_storeu_epi32(myRjStore.lastThread.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, lastThread));
-				/*
-				_mm512_storeu_ps(myRjStore.minX.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, minX));
-				_mm512_storeu_ps(myRjStore.maxX.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxX));
-				_mm512_storeu_ps(myRjStore.minY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, minY));
-				_mm512_storeu_ps(myRjStore.maxY.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, maxY));*/
 				_mm512_storeu_ps(myRjStore.rcpSignedArea.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, rcpSignedArea));
+
+				for (int i = rjRealSize; i < rjRealSize + jobsToAdd; ++i)
+				{
+					int ji = i - rjRealSize;
+					for (int currReceiverThread = vecFirstThread[ji]; currReceiverThread <= vecLastThread[ji]; ++currReceiverThread)
+					{
+						this->renderJobForwardNetwork[threadIndex][currReceiverThread].push_back(i);
+					}
+				}
 
 				for (int i = 0; i < jobsToAdd; ++i)
 				{
@@ -530,21 +537,6 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 	}
 	assert(seenTris == trisInSlices);*/
 	this->renderJobsFromThreads[threadIndex].resize(rjRealSize, false);
-
-	int maxThread = this->currGs->threadpool->getThreadCount() - 1;
-	this->renderJobForwardNetwork[threadIndex].resize(maxThread+1);
-	for (int i = 0; i < rjRealSize; ++i)
-	{
-		int firstThread = this->renderJobsFromThreads[threadIndex].firstThread[i];
-		int lastThread = this->renderJobsFromThreads[threadIndex].lastThread[i];
-		if (firstThread > maxThread || lastThread < 0) continue;
-		firstThread = std::clamp(firstThread, 0, maxThread);
-		lastThread = std::clamp(lastThread, 0, maxThread);
-		for (int j = firstThread; j <= lastThread; ++j)
-		{
-			this->renderJobForwardNetwork[threadIndex][j].push_back(i);
-		}
-	}
 	uint64_t ticksEnd = SDL_GetTicksNS();
 	if (Statsman::ENABLED) MyStatsman.time.transformMs = (ticksEnd-ticksBegin)/1e6;
 }
