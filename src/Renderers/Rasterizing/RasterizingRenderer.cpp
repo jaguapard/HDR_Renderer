@@ -594,14 +594,14 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 			group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_ceil_ps(group_xEnd));
 			group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_ceil_ps(group_yEnd));
 
-			float32x16 initialAlpha, initialBeta, initialGamma;
-			calculateBarycentricCoordinates({ group_xBeg, group_yBeg, 0.f,0.f }, group_verts[0].space, group_verts[1].space, group_verts[2].space, group_rcpSignedArea, initialAlpha, initialBeta, initialGamma);
-			float32x16 dAlpha_dx = (group_verts[1].space.y - group_verts[2].space.y) * group_rcpSignedArea;
-			float32x16 dAlpha_dy = (group_verts[2].space.x - group_verts[1].space.x) * group_rcpSignedArea;
-			float32x16 dBeta_dx = (group_verts[2].space.y - group_verts[0].space.y) * group_rcpSignedArea;
-			float32x16 dBeta_dy = (group_verts[0].space.x - group_verts[2].space.x) * group_rcpSignedArea;
-			float32x16 dGamma_dx = -dAlpha_dx - dBeta_dx; //TODO: replace with proper calculation, precision issues!
-			float32x16 dGamma_dy = -dAlpha_dy - dBeta_dy; //TODO: replace with proper calculation, precision issues!
+			float32x16 group_initialAlpha, group_initialBeta, group_initialGamma;
+			calculateBarycentricCoordinates({ group_xBeg, group_yBeg, 0.f,0.f }, group_verts[0].space, group_verts[1].space, group_verts[2].space, group_rcpSignedArea, group_initialAlpha, group_initialBeta, group_initialGamma);
+			float32x16 group_dAlpha_dx = (group_verts[1].space.y - group_verts[2].space.y) * group_rcpSignedArea;
+			float32x16 group_dAlpha_dy = (group_verts[2].space.x - group_verts[1].space.x) * group_rcpSignedArea;
+			float32x16 group_dBeta_dx = (group_verts[2].space.y - group_verts[0].space.y) * group_rcpSignedArea;
+			float32x16 group_dBeta_dy = (group_verts[0].space.x - group_verts[2].space.x) * group_rcpSignedArea;
+			float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues!
+			float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues!
 
 			for (int i = 0; i < 16; ++i)
 			{
@@ -622,6 +622,16 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 					verts[j].u = _mm512_permutexvar_ps(permInd, group_verts[j].u);
 					verts[j].v = _mm512_permutexvar_ps(permInd, group_verts[j].v);
 				}
+
+				float32x16 initialAlpha = _mm512_permutexvar_ps(permInd, group_initialAlpha);
+				float32x16 initialBeta = _mm512_permutexvar_ps(permInd, group_initialBeta);
+				float32x16 initialGamma = _mm512_permutexvar_ps(permInd, group_initialGamma);
+				float32x16 dAlpha_dx = _mm512_permutexvar_ps(permInd, group_dAlpha_dx);
+				float32x16 dAlpha_dy = _mm512_permutexvar_ps(permInd, group_dAlpha_dy);
+				float32x16 dBeta_dx = _mm512_permutexvar_ps(permInd, group_dBeta_dx);
+				float32x16 dBeta_dy = _mm512_permutexvar_ps(permInd, group_dBeta_dy);
+				float32x16 dGamma_dx = _mm512_permutexvar_ps(permInd, group_dGamma_dx);
+				float32x16 dGamma_dy = _mm512_permutexvar_ps(permInd, group_dGamma_dy);
 				
 				for (float y = yBeg[0]; y <= yEnd[0]; ++y)
 				{
@@ -631,9 +641,9 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 					for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
 					{
 						float32x16 dx = x - xBeg;
-						float32x16 alpha = float32x16(initialAlpha[i]) + float32x16(dAlpha_dx[i]) * dx + float32x16(dAlpha_dy[i]) * dy;
-						float32x16 beta = float32x16(initialBeta[i]) + float32x16(dBeta_dx[i]) * dx + float32x16(dBeta_dy[i]) * dy;
-						float32x16 gamma = float32x16(initialGamma[i]) + float32x16(dGamma_dx[i]) * dx + float32x16(dGamma_dy[i]) * dy;
+						float32x16 alpha = _mm512_fmadd_ps(dAlpha_dy, dy, _mm512_fmadd_ps(dAlpha_dx, dx, initialAlpha));
+						float32x16 beta = _mm512_fmadd_ps(dBeta_dy, dy, _mm512_fmadd_ps(dBeta_dx, dx, initialBeta));
+						float32x16 gamma = _mm512_fmadd_ps(dGamma_dy, dy, _mm512_fmadd_ps(dGamma_dx, dx, initialGamma));
 						if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 						Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
