@@ -482,14 +482,11 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				const Vec4_f32x16& r3 = transformedVertices[2].space;
 				//now transformedVertices hold screen coordinates (in pixels) and UVs are Z divided
 				float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
-				Mask16 zeroSignedAreaMask = signedArea == 0.f;
-				activeTrianglesMask &= ~zeroSignedAreaMask;
+				Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
+				activeTrianglesMask &= nonZeroSignedAreaMask;
 				if (!activeTrianglesMask) continue;
 
 				float32x16 rcpSignedArea = float32x16(1) / signedArea;
-				int jobsToAdd = _mm_popcnt_u32(activeTrianglesMask);
-				auto& myRjStore = this->renderJobsFromThreads[threadIndex];
-				myRjStore.resize(rjRealSize + jobsToAdd);
 
 				minX = _mm512_floor_ps(minX);
 				minY = _mm512_floor_ps(minY);
@@ -502,6 +499,12 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				}
 				int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
 				int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
+				activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
+				int jobsToAdd = _mm_popcnt_u32(activeTrianglesMask);
+				auto& myRjStore = this->renderJobsFromThreads[threadIndex];
+				myRjStore.resize(rjRealSize + jobsToAdd);
+
+
 				vecFirstThread = _mm512_maskz_compress_epi32(activeTrianglesMask, vecFirstThread);
 				vecLastThread = _mm512_maskz_compress_epi32(activeTrianglesMask, vecLastThread);
 				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
