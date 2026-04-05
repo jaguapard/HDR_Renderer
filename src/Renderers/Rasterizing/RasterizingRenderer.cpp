@@ -594,6 +594,15 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 			group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_ceil_ps(group_xEnd));
 			group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_ceil_ps(group_yEnd));
 
+			float32x16 initialAlpha, initialBeta, initialGamma;
+			calculateBarycentricCoordinates({ group_xBeg, group_yBeg, 0.f,0.f }, group_verts[0].space, group_verts[1].space, group_verts[2].space, group_rcpSignedArea, initialAlpha, initialBeta, initialGamma);
+			float32x16 dAlpha_dx = (group_verts[1].space.y - group_verts[2].space.y) * group_rcpSignedArea;
+			float32x16 dAlpha_dy = (group_verts[2].space.x - group_verts[1].space.x) * group_rcpSignedArea;
+			float32x16 dBeta_dx = (group_verts[2].space.y - group_verts[0].space.y) * group_rcpSignedArea;
+			float32x16 dBeta_dy = (group_verts[0].space.x - group_verts[2].space.x) * group_rcpSignedArea;
+			float32x16 dGamma_dx = -dAlpha_dx - dBeta_dx; //TODO: replace with proper calculation, precision issues!
+			float32x16 dGamma_dy = -dAlpha_dy - dBeta_dy; //TODO: replace with proper calculation, precision issues!
+
 			for (int i = 0; i < 16; ++i)
 			{
 				if ((bounds.mask & (1 << i)) == 0) continue;
@@ -618,11 +627,13 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 				{
 					size_t yInt = y;
 					size_t xInt = xBeg[0];
+					float32x16 dy = y - yBeg[0];
 					for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
 					{
-						Vec4_f32x16 r = Vec4_f32x16(x, y, 0.0, 0.0);
-						float32x16 alpha, beta, gamma;
-						calculateBarycentricCoordinates(r, verts[0].space, verts[1].space, verts[2].space, rcpSignedArea, alpha, beta, gamma);
+						float32x16 dx = x - xBeg;
+						float32x16 alpha = float32x16(initialAlpha[i]) + float32x16(dAlpha_dx[i]) * dx + float32x16(dAlpha_dy[i]) * dy;
+						float32x16 beta = float32x16(initialBeta[i]) + float32x16(dBeta_dx[i]) * dx + float32x16(dBeta_dy[i]) * dy;
+						float32x16 gamma = float32x16(initialGamma[i]) + float32x16(dGamma_dx[i]) * dx + float32x16(dGamma_dy[i]) * dy;
 						if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 						Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
