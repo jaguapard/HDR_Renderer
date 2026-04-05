@@ -339,6 +339,8 @@ int main(int argc, char* argv[])
             std::vector<std::pair<std::string, std::string>> additionalInfo = {
                 {"Camera pos", vec2str(gs.camPos)},
                 {"Camera ang", vec2str(gs.camAng)},
+                {"Render resolution", std::to_string(texDesc.Width) + "x" + std::to_string(texDesc.Height) },
+                {"Output resolution", std::to_string(scd.BufferDesc.Width) + "x" + std::to_string(scd.BufferDesc.Height) },
                 {"OSD draw time: ", std::to_string(lastOsdDrawMs) + " ms"},
             };
             if (gs.osdEnabled) //VERY slow, impacts FPS a lot, disabled by default
