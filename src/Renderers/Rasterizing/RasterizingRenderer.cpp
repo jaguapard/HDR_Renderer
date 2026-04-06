@@ -299,6 +299,8 @@ struct Vertex
 void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 {
 	uint64_t ticksBegin = SDL_GetTicksNS();
+	float32x16 w = this->currGs->outputTextureParams.Width;
+	float32x16 h = this->currGs->outputTextureParams.Height;
 	int threadCount = this->currGs->threadpool->getThreadCount();
 	this->renderJobForwardNetwork[threadIndex].clear();
 	this->renderJobForwardNetwork[threadIndex].resize(threadCount);
@@ -483,7 +485,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				//now transformedVertices hold screen coordinates (in pixels) and UVs are Z divided
 				float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
 				Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
-				activeTrianglesMask &= nonZeroSignedAreaMask;
+				activeTrianglesMask = (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & (activeTrianglesMask & nonZeroSignedAreaMask);
 				if (!activeTrianglesMask) continue;
 
 				float32x16 rcpSignedArea = float32x16(1) / signedArea;
@@ -499,7 +501,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				}
 				int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
 				int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
-				activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
+				//activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
 				int jobsToAdd = _mm_popcnt_u32(activeTrianglesMask);
 				auto& myRjStore = this->renderJobsFromThreads[threadIndex];
 				myRjStore.resize(rjRealSize + jobsToAdd);
