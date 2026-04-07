@@ -146,8 +146,9 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
 	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
-	Vec4f* pp = (Vec4f*)(settings.graphicsOutputBuffer);
-	for (int i = 0; i < sz; ++i) pp[i] = Vec4f(0.3, 0.7, 1, 1);
+	uint64_t skyColor = _mm_extract_epi64(_mm_cvtps_ph(Vec4f(0.3, 0.7, 1, 1), _MM_FROUND_NO_EXC), 0);
+	uint64_t* pp = (uint64_t*)(settings.graphicsOutputBuffer);
+	for (int i = 0; i < sz; ++i) pp[i] = skyColor;
 	uint64_t framebufCleanTicks = SDL_GetTicksNS();
 
 	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
@@ -617,17 +618,20 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						//duplicate each opaquePixelsMask bit 4 times, i.e: 0123 -> 0000111122223333, 16 bits -> 64
 						__m512i expanded = _mm512_maskz_mov_epi32(opaquePixelsMask, _mm512_set1_epi32(-1));
 						__mmask64 duplicated = _mm512_cmpneq_epi8_mask(expanded, _mm512_set1_epi32(0));
+
+						__m256i ph_r = _mm512_cvtps_ph(texturePixels.r, _MM_FROUND_NO_EXC);
+						__m256i ph_g = _mm512_cvtps_ph(texturePixels.g, _MM_FROUND_NO_EXC);
+						__m256i ph_b = _mm512_cvtps_ph(texturePixels.b, _MM_FROUND_NO_EXC);
+						__m256i ph_a = _mm512_cvtps_ph(texturePixels.a, _MM_FROUND_NO_EXC);
 						for (int i = 0; i < 16; i += 4)
 						{
-							__m512i rg_ind = _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19, DC, DC));
-							__m512i ba_ind = _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(DC, DC, 0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19));
-							//__m512i gr_ind = _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(DC, DC, 0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19));
-							//__m512i ab_ind = _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19, DC, DC));
-							float32x16 rgxx = _mm512_permutex2var_ps(texturePixels.x, rg_ind, texturePixels.y);
-							float32x16 xxba = _mm512_permutex2var_ps(texturePixels.z, ba_ind, _mm512_set1_ps(1));
-							float32x16 rgba = _mm512_mask_mov_ps(rgxx, 0b1100110011001100, xxba);
+							__m256i rg_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19, DC, DC));
+							__m256i ba_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(DC, DC, 0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19));
+							__m256i rgxx = _mm256_permutex2var_epi16(ph_r, rg_ind, ph_g);
+							__m256i xxba = _mm256_permutex2var_epi16(ph_b, ba_ind, ph_a);
+							__m256i rgba = _mm256_mask_mov_epi16(rgxx, 0b1100110011001100, xxba);
 							int storeInd = (yInt * w + xInt + i) * 4;
-							_mm512_mask_storeu_ps((float*)this->currGs->graphicsOutputBuffer + storeInd, duplicated >> (i * 4), rgba);
+							_mm256_mask_storeu_epi16((int16_t*)this->currGs->graphicsOutputBuffer + storeInd, duplicated >> (i * 4), rgba);
 						}
 
 						if (Statsman::ENABLED)

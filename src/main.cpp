@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
 #endif
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
-        texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; //TODO: HUGE floats, change to less pcie bandwith crushing format
+        texDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
         texDesc.SampleDesc.Count = 1;
         texDesc.Usage = D3D11_USAGE_DYNAMIC;
         texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -351,28 +351,18 @@ int main(int argc, char* argv[])
                 auto osdSurface = osd.draw(additionalInfo);
                 int osdW = osdSurface->w;
                 int osdH = osdSurface->h;
-                const float* osdPixels = (float*)(osdSurface->pixels);
-                float* output = (float*)gs.graphicsOutputBuffer;
+                const Vec4f* osdPixels = (Vec4f*)(osdSurface->pixels);
+                uint64_t* output = (uint64_t*)gs.graphicsOutputBuffer;
                 //just abruptly cuts off OSD if it's too big. TODO: scale this?
                 for (int y = 0; y < std::min<int>(osdH, texDesc.Height); ++y)
                 {
                     for (int x = 0; x < std::min<int>(osdW, texDesc.Width); ++x)
                     {
-                        int osdInd = (y * osdW + x) * 4;
-                        float r = osdPixels[osdInd];
-                        float g = osdPixels[osdInd + 1];
-                        float b = osdPixels[osdInd + 2];
-                        float a = osdPixels[osdInd + 3];
-                        //if (a != 1) __debugbreak();
-                        //if (r >= 0 && g >= 0 && b >= 0 && a >= 1)
-                        //if (a >= 1)
-                        if (r > 0 || g > 0 || b > 0)
+                        Vec4f osdPixel = osdPixels[y * osdW + x];
+                        if (osdPixel.x > 0 || osdPixel.y > 0 || osdPixel.z > 0) //alpha is always 1 in returned surface for some reason, so work around by testing manually
                         {
-                            int outInd = (y * texDesc.Width + x) * 4;
-                            output[outInd] = r;
-                            output[outInd + 1] = g;
-                            output[outInd + 2] = b;
-                            output[outInd + 3] = a;
+                            int outInd = y * texDesc.Width + x;
+                            output[outInd] = _mm_extract_epi64(_mm_cvtps_ph(osdPixel, _MM_FROUND_NO_EXC), 0);
                         }
                     }
                 }
