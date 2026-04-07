@@ -573,12 +573,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 						if (!pointsInsideTriangleMask) continue;
 
-						Vec4_f32x16 interpolatedDividedUv =
-							Vec4_f32x16(u0[i], v0[i], z0[i], 0.f) * alpha +
-							Vec4_f32x16(u1[i], v1[i], z1[i], 0.f) * beta +
-							Vec4_f32x16(u2[i], v2[i], z2[i], 0.f) * gamma;
-
-						//float32x16 currDepthValues = this->zBuffer.getPixels16(xInt, yInt);
+						Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(u0[i], v0[i], z0[i], 0.f) * alpha + Vec4_f32x16(u1[i], v1[i], z1[i], 0.f) * beta + Vec4_f32x16(u2[i], v2[i], z2[i], 0.f) * gamma;
 						float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, this->zBuffer.data() + yInt * w + xInt);
 						if (Statsman::ENABLED)
 						{
