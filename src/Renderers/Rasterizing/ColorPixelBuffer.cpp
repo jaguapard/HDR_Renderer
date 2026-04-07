@@ -5,7 +5,8 @@
 Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
     packedColors(std::move(dying.packedColors)),
     opacityMap(std::move(dying.opacityMap)),
-    sizes(dying.sizes)
+    sizes(dying.sizes),
+    isFullyOpaque(dying.isFullyOpaque)
 {
 }
 
@@ -99,6 +100,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             Mask16 m2 = (packed2 & int32x16(0x80000000)) != 0;
             uint32_t mt = (uint32_t(m2) << 16) | m1;
             this->opacityMap[i / 32] = mt;
+            if (~mt) this->isFullyOpaque = false;
         }
     }
 
@@ -223,6 +225,11 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
     Vec4f ret = _mm_cvtepu32_ps(channels);
     ret *= _mm_setr_ps(1.f / 1023, 1.f / 2047, 1.f / 1023, 1); //TODO: alpha will get messed up if it's not 0 or 1!
     return ret * ret;
+}
+
+bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
+{
+    return this->isFullyOpaque;
 }
 
 /*

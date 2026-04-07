@@ -43,9 +43,11 @@ namespace Rasterizing
 		ColorPixelBufferGatherAccessor getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
 
 		Vec4f getLinearIntensity(float u, float v) const;
+		bool areAllPixelsOpaque() const;
 	private:
 		void init(int w, int h);
 		std::unique_ptr<uint32_t[]> packedColors, opacityMap;
+		bool isFullyOpaque = true;
 		
 		struct Sizes
 		{

@@ -110,6 +110,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		{
 			auto& currModel = this->sceneModels[firstModelInd + i];
 			currModel.diffuseMapIndex = diffuseMapIndices[i];
+			currModel.noBackfaceCulling = !this->textureManager.getTextureByHandle(diffuseMapIndices[i]).areAllPixelsOpaque();
 		}
 	}
 
@@ -279,7 +280,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 		//const float* xData = 
 		seenTris += slice.modelTriangleIndexEnd - slice.modelTriangleIndexBegin;
 		int myRenderJobCount = 0;
-		bool doBackfaceCulling = this->currGs->backfaceCullingEnabled;// && !this->sceneModels[slice.modelIndex].noBackfaceCulling)
+		bool doBackfaceCulling = this->currGs->backfaceCullingEnabled && !this->sceneModels[slice.modelIndex].noBackfaceCulling;
 		for (int currModelTriangleIndex = slice.modelTriangleIndexBegin;
 			currModelTriangleIndex < slice.modelTriangleIndexEnd; 
 			currModelTriangleIndex += 16)

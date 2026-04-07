@@ -42,7 +42,8 @@ namespace Rasterizing
 	struct Model
 	{
 		Triangle_Store triangleStore;
-		int diffuseMapIndex = -1;
+		int diffuseMapIndex = 0;
+		bool noBackfaceCulling = true;
 	};
 
 	struct ModelSlice
