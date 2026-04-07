@@ -128,8 +128,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getThreadCount();
-	this->renderJobsFromThreads.resize(threadCount);
-	this->renderJobForwardNetwork.resize(threadCount);
+	if (this->renderJobsFromThreadToThread.size() != threadCount) this->renderJobsFromThreadToThread.resize(threadCount);
 
 	std::vector<task_id> transformTasks, drawTasks;
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
@@ -156,7 +155,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	threadpool->waitForMultipleTasks(transformTasks);
 
 	size_t renderJobCount = 0;
-	for (auto& it : this->renderJobsFromThreads) renderJobCount += it.size();
+	//for (auto& it : this->renderJobsFromThreads) renderJobCount += it.size();
 	//std::cout << renderJobCount << " render jobs\n";
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
@@ -167,7 +166,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		));
 	}
 	threadpool->waitForMultipleTasks(drawTasks);
-	for (auto& it : renderJobsFromThreads) it.clear();
+	//for (auto& it : renderJobsFromThreads) it.clear();
 }
 
 std::vector<std::vector<Rasterizing::ModelSlice>> RasterizingRenderer::makeModelSliceList() const
@@ -230,41 +229,6 @@ std::vector<std::vector<Rasterizing::ModelSlice>> RasterizingRenderer::makeModel
 	return ret;
 }
 
-struct VertexPack16
-{
-	Vec4_f32x16 space;
-	float32x16 u, v;
-	//VertexPack16(float32x16 x, )
-	VertexPack16() {};
-	static __forceinline VertexPack16 lerpVertices(const VertexPack16& from, const VertexPack16& to, const float32x16& alpha)
-	{
-		VertexPack16 ret;
-		ret.space.x = lerp(from.space.x, to.space.x, alpha);
-		ret.space.y = lerp(from.space.y, to.space.y, alpha);
-		ret.space.z = lerp(from.space.z, to.space.z, alpha);
-		ret.u = lerp(from.u, to.u, alpha);
-		ret.v = lerp(from.v, to.v, alpha);
-		return ret;
-	}
-
-	static __forceinline VertexPack16 maskMove(const VertexPack16& zero, const VertexPack16& one, Mask16 mask)
-	{
-		VertexPack16 ret;
-		ret.space.x = _mm512_mask_mov_ps(zero.space.x, mask, one.space.x);
-		ret.space.y = _mm512_mask_mov_ps(zero.space.y, mask, one.space.y);
-		ret.space.z = _mm512_mask_mov_ps(zero.space.z, mask, one.space.z);
-		ret.u = _mm512_mask_mov_ps(zero.u, mask, one.u);
-		ret.v = _mm512_mask_mov_ps(zero.v, mask, one.v);
-		return ret;
-	}
-
-	static __forceinline VertexPack16 lerpToClippingZ(const VertexPack16& from, const VertexPack16& to, const float32x16& clippingZ)
-	{
-		float32x16 alpha = (clippingZ - from.space.z) / (to.space.z - from.space.z);
-		return VertexPack16::lerpVertices(from, to, alpha);
-	}
-};
-
 struct Vertex
 {
 	float x, y, z, u, v;
@@ -299,16 +263,16 @@ struct Vertex
 void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 {
 	uint64_t ticksBegin = SDL_GetTicksNS();
-	float32x16 w = this->currGs->outputTextureParams.Width;
-	float32x16 h = this->currGs->outputTextureParams.Height;
 	int threadCount = this->currGs->threadpool->getThreadCount();
-	this->renderJobForwardNetwork[threadIndex].clear();
-	this->renderJobForwardNetwork[threadIndex].resize(threadCount);
+	if (this->renderJobsFromThreadToThread[threadIndex].size() != threadCount) this->renderJobsFromThreadToThread[threadIndex].resize(threadCount);
 	assert(this->original_verticeStore.x.size() == this->original_verticeStore.y.size() && this->original_verticeStore.y.size() == this->original_verticeStore.z.size() && this->original_verticeStore.u.size() == this->original_verticeStore.v.size());
 
+	for (auto& it : this->renderJobsFromThreadToThread[threadIndex]) it.clear();
 	float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / this->currGs->outputTextureParams.Height;
 	float32x16 clippingZ = this->currGs->cameraPlane_zDist;
-	size_t rjRealSize = 0;
+	float w = this->currGs->outputTextureParams.Width;
+	float h = this->currGs->outputTextureParams.Height;
+	size_t storedJobCount = 0;
 	size_t seenTris = 0;
 	for (auto& slice : this->modelSlicesForThreads[threadIndex])
 	{
@@ -321,7 +285,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 		{
 			int32x16 triangleIndices = int32x16::sequence() + currModelTriangleIndex;
 			Mask16 inBoundsTrianglesMask = triangleIndices < slice.modelTriangleIndexEnd;
-			VertexPack16 transformedVertices[3];
+			std::array<VertexPack16, 3> transformedVertices;
 
 			int32x16 behindPlaneCount = 0;
 			Mask16 behindPlaneMasks[3];
@@ -501,59 +465,28 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				}
 				int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
 				int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
-				//activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
-				int jobsToAdd = _mm_popcnt_u32(activeTrianglesMask);
-				auto& myRjStore = this->renderJobsFromThreads[threadIndex];
-				myRjStore.resize(rjRealSize + jobsToAdd);
+				activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
 
+				//vecFirstThread = _mm512_mask_compress_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
+				//vecLastThread = _mm512_mask_compress_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
+				vecFirstThread = _mm512_mask_mov_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
+				vecLastThread = _mm512_mask_mov_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
+				int groupFirstThread = std::clamp(_mm512_reduce_min_epi32(vecFirstThread), 0, threadCount - 1);
+				int groupLastThread = std::clamp(_mm512_reduce_max_epi32(vecLastThread), 0, threadCount - 1);
 
-				vecFirstThread = _mm512_maskz_compress_epi32(activeTrianglesMask, vecFirstThread);
-				vecLastThread = _mm512_maskz_compress_epi32(activeTrianglesMask, vecLastThread);
-				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
-				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
-
-				//since render job store resize does 16 overprovisioning on resize, it's OK not to mask these stores. Some architectures have awful compress store unaligned performance
-				for (int i = 0; i < 3; ++i)
+				int activeJobs = _mm_popcnt_u32(activeTrianglesMask);
+				if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountProducer += activeJobs;
+				for (int currReceiverThread = groupFirstThread; currReceiverThread <= groupLastThread; ++currReceiverThread)
 				{
-					_mm512_storeu_ps(myRjStore.x[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].space.x));
-					_mm512_storeu_ps(myRjStore.y[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].space.y));
-					_mm512_storeu_ps(myRjStore.z[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].space.z));
-					_mm512_storeu_ps(myRjStore.u[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].u));
-					_mm512_storeu_ps(myRjStore.v[i].data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, transformedVertices[i].v));
-				}
-				_mm512_storeu_epi32(myRjStore.modelIndex.data() + rjRealSize, _mm512_maskz_compress_epi32(activeTrianglesMask, int32x16(slice.modelIndex)));
-				_mm512_storeu_ps(myRjStore.rcpSignedArea.data() + rjRealSize, _mm512_maskz_compress_ps(activeTrianglesMask, rcpSignedArea));
-
-				for (int i = rjRealSize; i < rjRealSize + jobsToAdd; ++i)
-				{
-					int ji = i - rjRealSize;
-					for (int currReceiverThread = vecFirstThread[ji]; currReceiverThread <= vecLastThread[ji]; ++currReceiverThread)
-					{
-						this->renderJobForwardNetwork[threadIndex][currReceiverThread].push_back(i);
-					}
-				}
-
-				for (int i = 0; i < jobsToAdd; ++i)
-				{
-					int ind = rjRealSize + i;
-					assert(myRjStore.rcpSignedArea[ind] != 0);
-				}
-				rjRealSize += jobsToAdd;
+					auto& targetStore = this->renderJobsFromThreadToThread[threadIndex][currReceiverThread];
+					Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
+					targetStore.add(transformedVertices, rcpSignedArea, slice.modelIndex, currMask);
+				}				
 			}
 		}
 	}
-
-	/*
-	size_t trisInSlices = 0;
-	for (auto& m : )
-	{
-		for ()
-	}
-	assert(seenTris == trisInSlices);*/
-	this->renderJobsFromThreads[threadIndex].resize(rjRealSize, false);
 	
 	if (Statsman::ENABLED) {
-		MyStatsman.rendering.renderJobCountProducer = rjRealSize;
 		uint64_t ticksEnd = SDL_GetTicksNS();
 		MyStatsman.time.transformMs = (ticksEnd - ticksBegin) / 1e6;
 	}
@@ -576,29 +509,26 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	float my_xMin = 0;
 	float my_xMax = this->currGs->outputTextureParams.Width - 1;
 	int w = this->currGs->outputTextureParams.Width;
-	int totalRenderJobs = 0;
 	for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 	{
-		const RenderJob_Store& creatorThreadJobStore = this->renderJobsFromThreads[senderThreadIndex];
-		int jobsCountForMe = this->renderJobForwardNetwork[senderThreadIndex][threadIndex].size();
-		totalRenderJobs += jobsCountForMe;
-		int* pData = this->renderJobForwardNetwork[senderThreadIndex][threadIndex].data();
+		RenderJob_Store& storeForMe = this->renderJobsFromThreadToThread[senderThreadIndex][threadIndex];
+		int jobsCountForMe = storeForMe.size();
+		if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
 		for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt += 16)
 		{
 			Mask16 bounds = (int32x16::sequence() + myJobsPointerInt) < jobsCountForMe;
-			int32x16 jobIndices = _mm512_maskz_loadu_epi32(bounds, pData + myJobsPointerInt);
-			float32x16 group_rcpSignedArea = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.rcpSignedArea.data(), 4);
-			int32x16 group_modelIndex = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), bounds, jobIndices, creatorThreadJobStore.modelIndex.data(), 4);
+			float32x16 group_rcpSignedArea = _mm512_maskz_load_ps(bounds, storeForMe.rcpSignedArea.data() + myJobsPointerInt);
+			int32x16 group_modelIndex = _mm512_maskz_load_epi32(bounds, storeForMe.modelIndex.data() + myJobsPointerInt);
 			VertexPack16 group_verts[3];
 
 			float32x16 group_xBeg = INFINITY, group_xEnd = -INFINITY, group_yBeg = INFINITY, group_yEnd = -INFINITY;
 			for (int i = 0; i < 3; ++i)
 			{
-				group_verts[i].space.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.x[i].data(), 4);
-				group_verts[i].space.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.y[i].data(), 4);
-				group_verts[i].space.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.z[i].data(), 4);
-				group_verts[i].u = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.u[i].data(), 4);
-				group_verts[i].v = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), bounds, jobIndices, creatorThreadJobStore.v[i].data(), 4);
+				group_verts[i].space.x = _mm512_maskz_load_ps(bounds, storeForMe.x[i].data() + myJobsPointerInt);
+				group_verts[i].space.y = _mm512_maskz_load_ps(bounds, storeForMe.y[i].data() + myJobsPointerInt);
+				group_verts[i].space.z = _mm512_maskz_load_ps(bounds, storeForMe.z[i].data() + myJobsPointerInt);
+				group_verts[i].u = _mm512_maskz_load_ps(bounds, storeForMe.u[i].data() + myJobsPointerInt);
+				group_verts[i].v = _mm512_maskz_load_ps(bounds, storeForMe.v[i].data() + myJobsPointerInt);
 				group_xBeg = _mm512_min_ps(group_xBeg, group_verts[i].space.x);
 				group_yBeg = _mm512_min_ps(group_yBeg, group_verts[i].space.y);
 				group_xEnd = _mm512_max_ps(group_xEnd, group_verts[i].space.x);
@@ -712,7 +642,6 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	}
 
 	if (Statsman::ENABLED) {
-		MyStatsman.rendering.renderJobCountConsumer = totalRenderJobs;
 		auto ticksEnd = SDL_GetTicksNS();
 		MyStatsman.time.drawMs = (ticksEnd - ticksBegin) / 1e6;
 	}
@@ -750,35 +679,73 @@ size_t Rasterizing::Triangle_Store::size() const
 
 size_t Rasterizing::RenderJob_Store::size() const
 {
-	return modelIndex.size();
+	return this->realSize;
 }
 
-void Rasterizing::RenderJob_Store::clear()
+void Rasterizing::RenderJob_Store::clear(bool forceClear)
 {
-	return;
-	for (int i = 0; i < 3; ++i)
+	this->realSize = 0;
+	if (forceClear)
 	{
-		x[i].clear();
-		y[i].clear();
-		z[i].clear();
-		u[i].clear();
-		v[i].clear();
+		for (int i = 0; i < 3; ++i)
+		{
+			x[i].clear();
+			y[i].clear();
+			z[i].clear();
+			u[i].clear();
+			v[i].clear();
+		}
+		modelIndex.clear();
+		rcpSignedArea.clear();
+		this->capacity = 0;
 	}
-	modelIndex.clear();
-	rcpSignedArea.clear();
 }
-void Rasterizing::RenderJob_Store::resize(size_t ind, bool overprovision)
+void Rasterizing::RenderJob_Store::makeSpace(size_t newSize)
 {
-	if (overprovision) ind += 16;
-	if (ind < size()) return;
+	if (newSize <= this->capacity) return;
 	for (int i = 0; i < 3; ++i)
 	{
-		x[i].resize(ind);
-		y[i].resize(ind);
-		z[i].resize(ind);
-		u[i].resize(ind);
-		v[i].resize(ind);
+		x[i].resize(newSize);
+		y[i].resize(newSize);
+		z[i].resize(newSize);
+		u[i].resize(newSize);
+		v[i].resize(newSize);
 	}
-	modelIndex.resize(ind);
-	rcpSignedArea.resize(ind);
+	modelIndex.resize(newSize);
+	rcpSignedArea.resize(newSize);
+	this->capacity = newSize;
+}
+void Rasterizing::RenderJob_Store::add(const std::array<VertexPack16,3>& verts, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask)
+{
+	if (!activeElementsMask) return;
+	size_t oldSz = this->realSize;
+	this->makeSpace(oldSz + 16);
+	if (activeElementsMask == 0xFFFF)
+	{
+		for (int i = 0; i < 3; ++i)
+		{
+			_mm512_storeu_ps(this->x[i].data() + oldSz, verts[i].space.x);
+			_mm512_storeu_ps(this->y[i].data() + oldSz, verts[i].space.y);
+			_mm512_storeu_ps(this->z[i].data() + oldSz, verts[i].space.z);
+			_mm512_storeu_ps(this->u[i].data() + oldSz, verts[i].u);
+			_mm512_storeu_ps(this->v[i].data() + oldSz, verts[i].v);
+		}
+		_mm512_storeu_epi32(this->modelIndex.data() + oldSz, modelIndex);
+		_mm512_storeu_ps(this->rcpSignedArea.data() + oldSz, rcpSignedArea);
+	}
+	else
+	{
+		//since render job store resize does 16 overprovisioning on resize, it's OK not to mask these stores. Some architectures have awful compress store unaligned performance, so store compressed register
+		for (int i = 0; i < 3; ++i)
+		{
+			_mm512_storeu_ps(this->x[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].space.x));
+			_mm512_storeu_ps(this->y[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].space.y));
+			_mm512_storeu_ps(this->z[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].space.z));
+			_mm512_storeu_ps(this->u[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].u));
+			_mm512_storeu_ps(this->v[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].v));
+		}
+		_mm512_storeu_epi32(this->modelIndex.data() + oldSz, _mm512_maskz_compress_epi32(activeElementsMask, modelIndex));
+		_mm512_storeu_ps(this->rcpSignedArea.data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, rcpSignedArea));
+	}
+	this->realSize += _mm_popcnt_u32(activeElementsMask);
 }
