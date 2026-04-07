@@ -145,9 +145,9 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	for (auto& it : zBuffer) it = -INFINITY;
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
-	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height * 4;
-	float* pp = (float*)(settings.graphicsOutputBuffer);
-	for (int i = 0; i < sz; ++i) pp[i] = 0;
+	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
+	Vec4f* pp = (Vec4f*)(settings.graphicsOutputBuffer);
+	for (int i = 0; i < sz; ++i) pp[i] = Vec4f(0.3, 0.7, 1, 1);
 	uint64_t framebufCleanTicks = SDL_GetTicksNS();
 
 	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
