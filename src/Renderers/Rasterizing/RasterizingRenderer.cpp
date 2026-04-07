@@ -596,8 +596,11 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (texturingEnabled)
 						{
 							texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, visiblePointsMask);
-							MyStatsman.rendering.textureGatheredLanes += 16;
-							MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(visiblePointsMask.mask);
+							if (Statsman::ENABLED) 
+							{
+								MyStatsman.rendering.textureGatheredLanes += 16;
+								MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(visiblePointsMask.mask);
+							}
 						}
 						else 
 						{
