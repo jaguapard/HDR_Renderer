@@ -330,6 +330,9 @@ int main(int argc, char* argv[])
             }
 
             if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_O)) gs.osdEnabled ^= 1;
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_B)) gs.backfaceCullingEnabled ^= 1;
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_T)) gs.texturingEnabled ^= 1;
+
             //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
             gs.graphicsOutputBuffer = mapped.pData;
             currentRenderer->renderFrame(gs);

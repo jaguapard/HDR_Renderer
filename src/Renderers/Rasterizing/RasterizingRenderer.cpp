@@ -279,6 +279,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 		//const float* xData = 
 		seenTris += slice.modelTriangleIndexEnd - slice.modelTriangleIndexBegin;
 		int myRenderJobCount = 0;
+		bool doBackfaceCulling = this->currGs->backfaceCullingEnabled;// && !this->sceneModels[slice.modelIndex].noBackfaceCulling)
 		for (int currModelTriangleIndex = slice.modelTriangleIndexBegin;
 			currModelTriangleIndex < slice.modelTriangleIndexEnd; 
 			currModelTriangleIndex += 16)
@@ -318,12 +319,11 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 
 			Mask16 activeTrianglesMask = inBoundsTrianglesMask & behindPlaneCount != 3;
 
-			/* 
-			if (this->currGs.backfaceCullingEnabled && !this->sceneModels[slice.modelIndex].noBackfaceCulling)
+			if (doBackfaceCulling)
 			{
 				Vec4_f32x16 normal = (transformedVertices[2].space - transformedVertices[0].space).cross3d(transformedVertices[1].space - transformedVertices[0].space);
 				activeTrianglesMask &= transformedVertices[0].space.dot3d(normal) > 0.f;
-			}*/
+			}
 			
 			for (int i = 0; i < 3; ++i)
 			{
@@ -508,6 +508,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	float my_yMax = std::min<float>(floor(d_high), this->currGs->outputTextureParams.Height - 1);
 	float my_xMin = 0;
 	float my_xMax = this->currGs->outputTextureParams.Width - 1;
+	bool texturingEnabled = this->currGs->texturingEnabled;
 	int w = this->currGs->outputTextureParams.Width;
 	for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 	{
@@ -590,21 +591,24 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (!visiblePointsMask) continue; //if all points are occluded, then skip
 
 						Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
-						//Vec4_f32x16 texturePixels = texture.gatherPixels512(uvCorrected.x, uvCorrected.y, visiblePointsMask);
-						Vec4_f32x16 texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, visiblePointsMask);
-						Mask16 opaquePixelsMask = visiblePointsMask & (texturePixels.a > 0.0f);
-						if (Statsman::ENABLED)
+						Vec4_f32x16 texturePixels;
+						if (texturingEnabled)
 						{
-							MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+							texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, visiblePointsMask);
 							MyStatsman.rendering.textureGatheredLanes += 16;
 							MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(visiblePointsMask.mask);
 						}
+						else 
+						{
+							float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
+							float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
+							texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
+							texturePixels.a = 1;
+						}
+						Mask16 opaquePixelsMask = visiblePointsMask & (texturePixels.a > 0.0f);
 						if (!opaquePixelsMask) continue;
 
 						_mm512_mask_storeu_ps(this->zBuffer.data() + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
-						/*float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
-						float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
-						texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;*/
 
 						//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
 						//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
@@ -633,6 +637,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 							MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
 							MyStatsman.rendering.frameBufWriteLanes += 16;
 							MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+							MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
 						}
 					}
 				}
