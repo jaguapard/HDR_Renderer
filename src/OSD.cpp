@@ -120,7 +120,7 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 		ss << "Barycentircs calculated: " << toThousandsSeparatedString(s.rendering.barycentricsCalculated) << "\n"
 			<< "Points inside triangles: " << toThousandsSeparatedString(s.rendering.pointsInsideTriangles) << "\n"
 			<< "Depth buffer fetch lanes: " << laneSurvivalRateString(s.rendering.zBufferFetchLanes, s.rendering.zBufferFetchAliveLanes) << "\n"
-			<< "Visible points: " << toThousandsSeparatedString(s.rendering.visiblePoints) << "\n"
+			<< "Not occluded points: " << toThousandsSeparatedString(s.rendering.notOccludedPoints) << "\n"
 			<< "Opaque pixels: " << toThousandsSeparatedString(s.rendering.opaquePixels) << "\n"
 			<< "Texture gather lanes: " << laneSurvivalRateString(s.rendering.textureGatheredLanes, s.rendering.textureGatherAliveLanes) << "\n"
 			<< "Depth buffer write lanes: " << laneSurvivalRateString(s.rendering.zBufferWriteLanes, s.rendering.zBufferWriteAliveLanes) << "\n"

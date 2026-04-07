@@ -18,7 +18,7 @@ std::pair<Statsman, Statsman::Aggregated> Statsman::aggregateAll()
 		ret.rendering.pointsInsideTriangles += other.rendering.pointsInsideTriangles;
 		ret.rendering.zBufferFetchLanes += other.rendering.zBufferFetchLanes;
 		ret.rendering.zBufferFetchAliveLanes += other.rendering.zBufferFetchAliveLanes;
-		ret.rendering.visiblePoints += other.rendering.visiblePoints;
+		ret.rendering.notOccludedPoints += other.rendering.notOccludedPoints;
 		ret.rendering.opaquePixels += other.rendering.opaquePixels;
 		ret.rendering.textureGatheredLanes += other.rendering.textureGatheredLanes;
 		ret.rendering.textureGatherAliveLanes += other.rendering.textureGatherAliveLanes;

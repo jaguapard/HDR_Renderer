@@ -582,19 +582,19 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						}
 						//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
 						//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
-						Mask16 visiblePointsMask = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
-						if (Statsman::ENABLED) MyStatsman.rendering.visiblePoints += _mm_popcnt_u32(visiblePointsMask.mask);
-						if (!visiblePointsMask) continue; //if all points are occluded, then skip
+						Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
+						if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+						if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
 						Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
 						Vec4_f32x16 texturePixels;
 						if (texturingEnabled)
 						{
-							texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, visiblePointsMask);
+							texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
 							if (Statsman::ENABLED) 
 							{
 								MyStatsman.rendering.textureGatheredLanes += 16;
-								MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(visiblePointsMask.mask);
+								MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
 							}
 						}
 						else 
@@ -604,7 +604,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 							texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
 							texturePixels.a = 1;
 						}
-						Mask16 opaquePixelsMask = visiblePointsMask & (texturePixels.a > 0.0f);
+						Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
 						if (!opaquePixelsMask) continue;
 
 						_mm512_mask_storeu_ps(this->zBuffer.data() + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
