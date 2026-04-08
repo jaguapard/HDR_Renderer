@@ -92,9 +92,9 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 			Model& m = this->sceneModels.emplace_back();
 			for (auto& it : loadedModels[i].triangles)
 			{
-				Vec4f v1 = { it.v[0].space.x, -it.v[0].space.y, it.v[0].space.z, 0 };
-				Vec4f v2 = { it.v[1].space.x, -it.v[1].space.y, it.v[1].space.z, 0 };
-				Vec4f v3 = { it.v[2].space.x, -it.v[2].space.y, it.v[2].space.z, 0 };
+				Vec4f v1 = { it.v[0].space.x, it.v[0].space.y, it.v[0].space.z, 0 };
+				Vec4f v2 = { it.v[1].space.x, it.v[1].space.y, it.v[1].space.z, 0 };
+				Vec4f v3 = { it.v[2].space.x, it.v[2].space.y, it.v[2].space.z, 0 };
 				Vec4f dv21 = v2 - v1;
 				Vec4f dv32 = v3 - v2;
 				if (dv21.lenSq() * dv32.lenSq() == 0) //degenerate triangles
@@ -104,7 +104,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 				for (int k = 0; k < 3; ++k)
 				{
 					uint32_t vertInd = this->original_verticeStore.insert(
-						it.v[k].space.x, -it.v[k].space.y, it.v[k].space.z, it.v[k].diffuseMapCoords.x, -it.v[k].diffuseMapCoords.y, it.v[k].normal.x, it.v[k].normal.y, it.v[k].normal.z //TODO: solve fucked up coordinates some day. Right now, just flip signs
+						it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, it.v[k].diffuseMapCoords.x, 1 - it.v[k].diffuseMapCoords.y, it.v[k].normal.x, it.v[k].normal.y, it.v[k].normal.z
 					);
 
 					//TODO: clean from degenerate triangles (i.e 2 or 3 vertices same or all 3 collinear)?
@@ -351,7 +351,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 			if (doBackfaceCulling)
 			{
 				Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformedVertices[0].space, transformedVertices[1].space, transformedVertices[2].space);
-				activeTrianglesMask &= transformedVertices[0].space.dot3d(transformedFaceNormals) > 0.f;
+				activeTrianglesMask &= transformedVertices[0].space.dot3d(transformedFaceNormals) < 0.f;
 			}
 			
 			

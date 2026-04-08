@@ -102,7 +102,6 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadObj(std::string path, s
 				int vertIndex = face.mIndices[k];
 				aiVector3D aiVertice = mesh->mVertices[vertIndex];
 				aiVector3D aiUVs = mesh->mTextureCoords[0][vertIndex];
-				//aiUVs.y *= -1;
 				aiVector3D aiNormal = mesh->mNormals[vertIndex];
 
 				auto v = aiToBob(aiVertice);
