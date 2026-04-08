@@ -273,6 +273,7 @@
     <ClInclude Include="src\Renderers\Rasterizing\TextureManager.h" />
     <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h" />
     <ClInclude Include="src\Renderers\RendererBase.h" />
+    <ClInclude Include="src\smart.h" />
     <ClInclude Include="src\Statsman.h" />
     <ClInclude Include="src\Threadpool.h" />
     <ClInclude Include="src\Vec.h" />

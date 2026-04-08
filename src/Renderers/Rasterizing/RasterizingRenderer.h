@@ -19,12 +19,12 @@ namespace Rasterizing
 	
 	struct Vertice_Store
 	{
-		std::vector<float> x, y, z, u, v;
-		uint32_t insert(float x, float y, float z, float u, float v);
+		std::vector<float> x, y, z, u, v, nx, ny, nz;
+		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
 		size_t size() const;
 	private:
 		//TODO: if gonna make this dynamic, make it cleanable and check
-		std::map<std::tuple<float, float, float, float, float>, uint32_t> dedup;
+		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
 	};
 
 	struct Triangle_Store

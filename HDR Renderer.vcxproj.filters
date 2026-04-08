@@ -137,5 +137,8 @@
     <ClInclude Include="src\Statsman.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\smart.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

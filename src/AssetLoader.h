@@ -1,16 +1,24 @@
 #pragma once
 #include <assimp/Importer.hpp>
 #include <vector>
+#include <optional>
+#include <memory>
 
 class AssetLoader
 {
 public:
-	//WARNING: this structs aren't supposed to be used in renderers, and act just as easy wrappings, renderers should perform their optimizations (like indexed triangle lists) on their own!
+	#pragma pack(push, 1)
+	struct ImportedVertex
+	{
+		aiVector3D space, normal;
+		aiVector3D diffuseMapCoords, normalMapCoords;
+	};
+	//WARNING: this structs aren't supposed to be used in renderers, and act just as easy wrappings, renderers should perform optimizations (like indexed triangle lists, etc) on their own!
 	struct ImportedTriangle
 	{
-		float vertices[3][3]; //vertice vertices[i][j] = j'th vertice of triangle i
-		float u[3], v[3];
+		ImportedVertex v[3];
 	};
+	#pragma pack(pop)
 	struct ImportedModel
 	{
 		std::vector<ImportedTriangle> triangles;
@@ -19,11 +27,11 @@ public:
 
 	AssetLoader();
 	std::vector<ImportedModel> loadObj(std::string path, std::string convertToSavePath = "");
-	static std::vector<ImportedModel> loadBmdl(std::string path);
+	static std::vector<ImportedModel> loadBmdl(std::string path); //compacted format for much faster and much less memory-consuming loading
 
 	//void saveModels(const std::vector<Model>& models, std::string path) const;
 
-	
-private:
 	Assimp::Importer importer;
+private:
+	
 };

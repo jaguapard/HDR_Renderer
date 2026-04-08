@@ -58,7 +58,12 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadObj(std::string path, s
 
 	std::vector<AssetLoader::ImportedModel> models;
 	std::ofstream convertedSavedModel;
-	if (convertToSavePath.length() > 0) convertedSavedModel = std::ofstream(convertToSavePath, std::ios::binary);
+	if (convertToSavePath.length() > 0)
+	{
+		convertedSavedModel = std::ofstream(convertToSavePath, std::ios::binary);
+		uint64_t version = 1;
+		writeVarToFile(version, convertedSavedModel);
+	}
 
 	for (size_t i = 0; i < pScene->mNumMeshes; i++)
 	{
@@ -66,11 +71,22 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadObj(std::string path, s
 		aiMaterial* material = pScene->mMaterials[mesh->mMaterialIndex];
 		aiString texturePath;
 		material->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath);
+		//material->GetTexture(aiTex, 0, &texturePath);
 
 		std::string textureRelPath = texturePath.C_Str();
 		std::string textureFullPath = getFolderFromPath(path, true) + textureRelPath;
 
 		std::vector<AssetLoader::ImportedTriangle> tris;
+		if (mesh->mTextureCoordsNames)
+		{
+			for (int j = 0; j < AI_MAX_NUMBER_OF_TEXTURECOORDS; ++j)
+			{
+				aiString* coordName = mesh->mTextureCoordsNames[j];
+				if (!coordName) continue;
+				std::cout << "Texture coord " << j << " for model " << i << " in "  << path << " is named: " << coordName->C_Str() << "\n";
+			}
+		}
+		else std::cout << "Texture coords names for model " << i << " in " << path << " are not available.\n";
 		for (size_t j = 0; j < mesh->mNumFaces; ++j)
 		{
 			aiFace face = mesh->mFaces[j];
@@ -86,16 +102,13 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadObj(std::string path, s
 				int vertIndex = face.mIndices[k];
 				aiVector3D aiVertice = mesh->mVertices[vertIndex];
 				aiVector3D aiUVs = mesh->mTextureCoords[0][vertIndex];
-				aiUVs.y *= -1;
+				//aiUVs.y *= -1;
+				aiVector3D aiNormal = mesh->mNormals[vertIndex];
 
 				auto v = aiToBob(aiVertice);
-				t.vertices[k][0] = v[0];
-				t.vertices[k][1] = v[1];
-				t.vertices[k][2] = v[2];
-
-				auto uv = aiToBob(aiUVs);
-				t.u[k] = uv.x;
-				t.v[k] = uv.x;
+				t.v[k].space = aiVertice;
+				t.v[k].diffuseMapCoords = aiUVs;
+				t.v[k].normal = aiNormal;
 			}
 		}
 
@@ -107,21 +120,14 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadObj(std::string path, s
 		//if this is true, will save BMDL to path. This format is much lighter and fast to import
 		if (convertToSavePath.length() > 0)
 		{
-			float saveData[15];
-			uint64_t modelSize = tris.size() * sizeof(saveData); //size of a single model entry in bytes, not counting size member and path. 
+			uint64_t modelSize = tris.size() * sizeof(ImportedTriangle); //size of a single model entry in bytes, not counting size member and path. 
 			writeVarToFile(modelSize, convertedSavedModel);
-			convertedSavedModel.write(textureRelPath.c_str(), textureRelPath.length() + 1);
-			for (const auto& it : tris)
+			uint32_t texturePathLen = textureRelPath.length();
+			writeVarToFile(texturePathLen, convertedSavedModel);
+			convertedSavedModel.write(textureRelPath.c_str(), texturePathLen);
+			for (const auto& it : models.back().triangles)
 			{
-				for (int k = 0; k < 3; ++k)
-				{
-					saveData[5 * k] = it.vertices[k][0];
-					saveData[5 * k + 1] = it.vertices[k][1];
-					saveData[5 * k + 2] = it.vertices[k][2];
-					saveData[5 * k + 3] = it.u[k];
-					saveData[5 * k + 4] = it.v[k];
-				}
-				writeVarToFile(saveData, convertedSavedModel);
+				writeVarToFile(it, convertedSavedModel);
 			}
 		}
 	}
@@ -177,19 +183,24 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadBmdl(std::string path)
 	std::vector<ImportedModel> ret;
 	std::string parentDir = getFolderFromPath(path, true);
 
-	float triangleData[15];
 	BufferedData buf(path);
+	uint64_t version;
+	buf.read(version);
+	if (version != 1) throw std::runtime_error("Unsupported version for BMDL file: " + std::to_string(version));
+
 	while (!buf.eof())
 	{
 		uint64_t modelSize;
 		buf.read(modelSize);
 		uint64_t bytesRemaining = modelSize;
-		if (modelSize % sizeof(triangleData) != 0) throw std::runtime_error("Error while loading model" + path + ": unexpected model size: " + std::to_string(modelSize) + " bytes, not mod " + std::to_string(sizeof(triangleData)));
+		if (modelSize % sizeof(ImportedVertex) != 0) throw std::runtime_error("Error while loading model" + path + ": unexpected model size: " + std::to_string(modelSize) + " bytes, not mod " + std::to_string(sizeof(ImportedTriangle)));
 
 		std::string textureRelPath;
-		char c = -1;
-		while (c != 0)
+		uint32_t texturePathLen;
+		buf.read(texturePathLen);
+		for (int i = 0; i < texturePathLen; ++i)
 		{
+			char c;
 			buf.read(c);
 			textureRelPath.push_back(c);
 		}
@@ -198,23 +209,14 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadBmdl(std::string path)
 		std::vector<ImportedTriangle> tris;
 		while (bytesRemaining > 0)
 		{
-			buf.read(triangleData);
 			ImportedTriangle& t = tris.emplace_back();
-			for (int i = 0; i < 3; ++i)
-			{
-				t.vertices[i][0] = triangleData[i * 5];
-				t.vertices[i][1] = triangleData[i * 5+1] * -1;
-				t.vertices[i][2] = triangleData[i * 5+2];
-				t.u[i] = triangleData[i * 5 + 3];
-				t.v[i] = triangleData[i * 5 + 4];
-			}
-			bytesRemaining -= sizeof(triangleData);
+			buf.read(t);
+			bytesRemaining -= sizeof(t);
 		}
 
-		ImportedModel m;
+		ImportedModel& m = ret.emplace_back();
 		m.diffuseMapPath = textureFullPath;
-		m.triangles = tris;
-		ret.emplace_back(m);
+		m.triangles = std::move(tris);
 	}
 
 	return ret;

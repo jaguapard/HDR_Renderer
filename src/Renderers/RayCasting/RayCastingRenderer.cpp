@@ -11,7 +11,7 @@ void RayCastingRenderer::loadScene(std::string path, std::string mode)
 {
 	AssetLoader ldr;
 	std::vector<AssetLoader::ImportedModel> loadedModels;
-	if (mode == "obj") { loadedModels = ldr.loadObj(path, "H:\\Sponza goodies\\Old Sponza 2026.bmdl"); }
+	if (mode == "obj") { loadedModels = ldr.loadObj(path, ""); }
 	else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
 	else throw std::runtime_error("Unsupported mode for RayCastingRenderer::loadScene: " + mode);
 
@@ -24,8 +24,8 @@ void RayCastingRenderer::loadScene(std::string path, std::string mode)
 			auto& t = tris.emplace_back();
 			for (int k = 0; k < 3; ++k)
 			{
-				t.tv[k].space = { it.vertices[k][0], it.vertices[k][1], it.vertices[k][2], 0 };
-				t.tv[k].diffuse = { it.u[k], it.v[k], 0,0 };
+				t.tv[k].space = { it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, 0.f };
+				t.tv[k].diffuse = { it.v[k].diffuseMapCoords.x, it.v[k].diffuseMapCoords.y, 0.f,0.f };
 			}
 		}
 		Model m;

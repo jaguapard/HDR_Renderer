@@ -46,7 +46,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		};
 		for (int k = 0; k < 3; ++k)
 		{
-			uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, vertices[k].y, vertices[k].z, 0.5, 0.5);
+			uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, 0.5, -0.5, 0, 0, 0);
 			m.triangleStore.vertInd[k].push_back(vertInd);
 			m.diffuseMapIndex = 0;
 		}
@@ -55,13 +55,21 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 
 	std::mutex mtx;
 	std::vector<task_id> tasks;
+	std::string savePaths[] = {"new_sponza.bmdl2", "curtains.bmdl2", "tree.bmdl2", "ivy.bmdl2"};
+	auto currSavePath = std::begin(savePaths);
+	bool onlyConvertToBmdl = false;
 	for (auto& [path, mode] : scd.files)
 	{
 		AssetLoader ldr;
 		std::vector<AssetLoader::ImportedModel> loadedModels;
-		if (mode == "obj") { loadedModels = ldr.loadObj(path, "H:\\Sponza goodies\\Old Sponza 2026.bmdl"); }
+		if (mode == "obj" || mode == "") { loadedModels = ldr.loadObj(path, onlyConvertToBmdl ? "H:/Sponza goodies/BMDL/" + *currSavePath : ""); }
 		else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
 		else throw std::runtime_error("Unsupported mode for RasterizingRenderer::loadScene: " + mode);
+		if (onlyConvertToBmdl)
+		{
+			++currSavePath;
+			continue;
+		}
 
 		size_t importModelCount = loadedModels.size();
 		std::vector<int> diffuseMapIndices(importModelCount, -1);
@@ -82,9 +90,9 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 			Model& m = this->sceneModels.emplace_back();
 			for (auto& it : loadedModels[i].triangles)
 			{
-				Vec4f v1 = { it.vertices[0][0], it.vertices[0][1], it.vertices[0][2], 0 };
-				Vec4f v2 = { it.vertices[1][0], it.vertices[1][1], it.vertices[1][2], 0 };
-				Vec4f v3 = { it.vertices[2][0], it.vertices[2][1], it.vertices[2][2], 0 };
+				Vec4f v1 = { it.v[0].space.x, -it.v[0].space.y, it.v[0].space.z, 0 };
+				Vec4f v2 = { it.v[1].space.x, -it.v[1].space.y, it.v[1].space.z, 0 };
+				Vec4f v3 = { it.v[2].space.x, -it.v[2].space.y, it.v[2].space.z, 0 };
 				Vec4f dv21 = v2 - v1;
 				Vec4f dv32 = v3 - v2;
 				if (dv21.lenSq() * dv32.lenSq() == 0) //degenerate triangles
@@ -94,7 +102,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 				for (int k = 0; k < 3; ++k)
 				{
 					uint32_t vertInd = this->original_verticeStore.insert(
-						it.vertices[k][0], it.vertices[k][1], it.vertices[k][2], it.u[k], it.v[k]
+						it.v[k].space.x, -it.v[k].space.y, it.v[k].space.z, it.v[k].diffuseMapCoords.x, -it.v[k].diffuseMapCoords.y, it.v[k].normal.x, it.v[k].normal.y, it.v[k].normal.z //TODO: solve fucked up coordinates some day. Right now, just flip signs
 					);
 
 					//TODO: clean from degenerate triangles (i.e 2 or 3 vertices same or all 3 collinear)?
@@ -117,6 +125,8 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 	Threadpool::instance->waitForMultipleTasks(tasks);
 	Uint64 ticksEnd = SDL_GetTicksNS();
 	std::cout << "Scene loaded in " << (ticksEnd - ticksBegin) / 1e9 << " sec.\n";
+
+	if (onlyConvertToBmdl) throw std::runtime_error("BMDL conversion complete. This is not an error, but models are removed from memory immediately after converting to BMDL. Disable conversion and load BMDL directly on next launch.");
 }
 
 void RasterizingRenderer::renderFrame(const GameSettings& settings)
@@ -341,12 +351,14 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				activeTrianglesMask &= transformedVertices[0].space.dot3d(transformedFaceNormals) > 0.f;
 			}
 			
-			Vec4_f32x16 faceNormals = getFaceNormalsForTriangles16(originalVertices[0].space, originalVertices[1].space, originalVertices[2].space);
+			//Vec4_f32x16 faceNormals = getFaceNormalsForTriangles16(originalVertices[0].space, originalVertices[1].space, originalVertices[2].space);
 			for (int i = 0; i < 3; ++i)
 			{
 				transformedVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.u.data(), 4);
 				transformedVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.v.data(), 4);
-				transformedVertices[i].normal = faceNormals;
+				transformedVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.nx.data(), 4);
+				transformedVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.ny.data(), 4);
+				transformedVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.nz.data(), 4);
 			}
 
 			VertexPack16 clipOutput[6];
@@ -440,6 +452,9 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					float32x16 zInv = fovMult / transformedVertices[i].space.z;
 					transformedVertices[i].u *= zInv;
 					transformedVertices[i].v *= zInv;
+					transformedVertices[i].normal.x *= zInv;
+					transformedVertices[i].normal.y *= zInv;
+					transformedVertices[i].normal.z *= zInv;
 					
 					for (int i = 0; i < 16; ++i)
 					{
@@ -596,13 +611,14 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (texturingEnabled)
 						{
 							texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-							Vec4_f32x16 interpolatedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha + 
+							Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha + 
 								Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
 								Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
-							interpolatedNormals /= interpolatedNormals.len3d();
+							Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
+							correctedNormals /= correctedNormals.len3d();
 							Vec4_f32x16 lightDir = { 2100.f, 2660.f, 221.f,0.f };
 							lightDir /= lightDir.len3d();
-							float32x16 normalDot = interpolatedNormals.dot3d(lightDir);
+							float32x16 normalDot = correctedNormals.dot3d(lightDir);
 							texturePixels *= _mm512_max_ps(float32x16(0.05), normalDot);
 							if (Statsman::ENABLED) 
 							{
@@ -668,10 +684,10 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	}
 }
 
-uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, float v)
+uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, float v, float nx, float ny, float nz)
 {
 	assert(this->dedup.size() == this->x.size());
-	auto t = std::make_tuple(x, y, z, u, v);
+	auto t = std::make_tuple(x, y, z, u, v, nx, ny, nz);
 	auto it = this->dedup.find(t);
 	uint32_t ret;
 	if (it == this->dedup.end())
@@ -682,6 +698,9 @@ uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, 
 		this->z.push_back(z);
 		this->u.push_back(u);
 		this->v.push_back(v);
+		this->nx.push_back(nx);
+		this->ny.push_back(ny);
+		this->nz.push_back(nz);
 		return ret;
 	}
 	return it->second;

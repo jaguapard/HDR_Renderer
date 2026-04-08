@@ -225,15 +225,20 @@ int main(int argc, char* argv[])
         uint64_t ticksOnStart = SDL_GetTicks();
 
         std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RasterizingRenderer>();
-        RendererLoadSceneData sceneLoadData;
-        if (true) sceneLoadData.files = { { "scenes/Sponza/old_sponza.bmdl", "bmdl" } };
-        else {
-            sceneLoadData.files = { {"H:/Sponza goodies/main1_sponza/new_sponza.bmdl", "bmdl"},
-            { "H:/Sponza goodies/pkg_a_curtains/curtains.bmdl", "bmdl" },
-            { "H:/Sponza goodies/pkg_c1_trees/tree.bmdl", "bmdl" },
-            { "H:/Sponza goodies/pkg_b_ivy/ivy.bmdl", "bmdl" } };
-        }
-        currentRenderer->loadScene(sceneLoadData);
+        RendererLoadSceneData oldSponza, newSponza;
+        oldSponza.files = { { "H:/Sponza goodies/old_sponza/old_sponza.obj", "obj" } };
+        /*newSponza.files = {{"H:/Sponza goodies/main1_sponza/NewSponza_Main_Yup_003.fbx", ""},
+            { "H:/Sponza goodies/pkg_a_curtains/NewSponza_Curtains_FBX_YUp.fbx", "" },
+            { "H:/Sponza goodies/pkg_c1_trees/NewSponza_CypressTree_FBX_YUp.fbx", "" },
+            { "H:/Sponza goodies/pkg_b_ivy/NewSponza_IvyGrowth_FBX_YUp.fbx", "" }
+        };*/
+        newSponza.files = {
+            {"H:/Sponza goodies/main1_sponza/new_sponza.bmdl2", "bmdl"},
+            {"H:/Sponza goodies/pkg_a_curtains/curtains.bmdl2", "bmdl"},
+            {"H:/Sponza goodies/pkg_c1_trees/tree.bmdl2", "bmdl"},
+            {"H:/Sponza goodies/pkg_b_ivy/ivy.bmdl2", "bmdl"},
+        };
+        currentRenderer->loadScene(oldSponza);
       
         constexpr double PIXELS_PER_DOUBLING = 250;
         constexpr double MIDPOINT_NITS = 20;
@@ -271,15 +276,7 @@ int main(int argc, char* argv[])
 
                 if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
                 {
-                    RendererLoadSceneData loadSceneData;
-                    if (inp.wasCharPressedOnThisFrame('0'))
-                    {
-                        loadSceneData.files = { {"H:/Sponza goodies/main1_sponza/new_sponza.bmdl", "bmdl"},
-                        { "H:/Sponza goodies/pkg_a_curtains/curtains.bmdl", "bmdl" },
-                        { "H:/Sponza goodies/pkg_c1_trees/tree.bmdl", "bmdl" },
-                        { "H:/Sponza goodies/pkg_b_ivy/ivy.bmdl", "bmdl" } };
-                    }
-                    else loadSceneData.files = { { "scenes/Sponza/old_sponza.bmdl", "bmdl" } };
+                    RendererLoadSceneData loadSceneData = inp.wasCharPressedOnThisFrame('0') ? newSponza : oldSponza;
                     currentRenderer = std::make_shared<RasterizingRenderer>();
                     currentRenderer->loadScene(loadSceneData);
                 }
