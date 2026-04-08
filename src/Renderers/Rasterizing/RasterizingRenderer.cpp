@@ -9,6 +9,8 @@
 #include <iostream>
 #include "../../Statsman.h"
 #include "../../helpers.h"
+#include "../../C_Input.h"
+#include "../../EnumCycler.h"
 using namespace Rasterizing;
 
 std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
@@ -137,6 +139,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	this->ctr = { (int)settings.outputTextureParams.Width, (int)settings.outputTextureParams.Height };
 	this->ctr.prepare(settings.camPos, settings.camAng);
 	
+	C_Input& inp = C_Input::getInstance();
+	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getThreadCount();
 	if (this->renderJobsFromThreadToThread.size() != threadCount) this->renderJobsFromThreadToThread.resize(threadCount);
@@ -344,21 +348,29 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 
 			Mask16 activeTrianglesMask = inBoundsTrianglesMask & behindPlaneCount != 3;
 
-			
 			if (doBackfaceCulling)
 			{
 				Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformedVertices[0].space, transformedVertices[1].space, transformedVertices[2].space);
 				activeTrianglesMask &= transformedVertices[0].space.dot3d(transformedFaceNormals) > 0.f;
 			}
 			
-			//Vec4_f32x16 faceNormals = getFaceNormalsForTriangles16(originalVertices[0].space, originalVertices[1].space, originalVertices[2].space);
+			
 			for (int i = 0; i < 3; ++i)
 			{
 				transformedVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.u.data(), 4);
 				transformedVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.v.data(), 4);
-				transformedVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.nx.data(), 4);
-				transformedVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.ny.data(), 4);
-				transformedVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.nz.data(), 4);
+				switch (this->shadingMode)
+				{
+				case ShadingMode::SMOOTH:
+					transformedVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.nx.data(), 4);
+					transformedVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.ny.data(), 4);
+					transformedVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.nz.data(), 4);
+					break;
+				case ShadingMode::FLAT:
+					transformedVertices[i].normal = getFaceNormalsForTriangles16(originalVertices[0].space, originalVertices[1].space, originalVertices[2].space); break;
+				default:
+					break;
+				}
 			}
 
 			VertexPack16 clipOutput[6];
@@ -611,15 +623,18 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (texturingEnabled)
 						{
 							texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-							Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha + 
-								Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
-								Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
-							Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
-							correctedNormals /= correctedNormals.len3d();
-							Vec4_f32x16 lightDir = { 2100.f, 2660.f, 221.f,0.f };
-							lightDir /= lightDir.len3d();
-							float32x16 normalDot = correctedNormals.dot3d(lightDir);
-							texturePixels *= _mm512_max_ps(float32x16(0.05), normalDot);
+							if (this->shadingMode != ShadingMode::NONE)
+							{
+								Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
+									Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
+									Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
+								Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
+								correctedNormals /= correctedNormals.len3d();
+								Vec4_f32x16 lightDir = { 2100.f, 2660.f, 221.f,0.f };
+								lightDir /= lightDir.len3d();
+								float32x16 normalDot = correctedNormals.dot3d(lightDir);
+								texturePixels *= _mm512_max_ps(float32x16(0.05), normalDot);
+							}
 							if (Statsman::ENABLED) 
 							{
 								MyStatsman.rendering.textureGatheredLanes += 16;

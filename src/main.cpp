@@ -273,13 +273,13 @@ int main(int argc, char* argv[])
                 if (e.type == SDL_EVENT_QUIT) {
                     running = false; break;
                 }
+            }
 
-                if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
-                {
-                    RendererLoadSceneData loadSceneData = inp.wasCharPressedOnThisFrame('0') ? newSponza : oldSponza;
-                    currentRenderer = std::make_shared<RasterizingRenderer>();
-                    currentRenderer->loadScene(loadSceneData);
-                }
+            if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
+            {
+                RendererLoadSceneData loadSceneData = inp.wasCharPressedOnThisFrame('0') ? newSponza : oldSponza;
+                currentRenderer = std::make_shared<RasterizingRenderer>();
+                currentRenderer->loadScene(loadSceneData);
             }
 
             D3D11_MAPPED_SUBRESOURCE mapped;

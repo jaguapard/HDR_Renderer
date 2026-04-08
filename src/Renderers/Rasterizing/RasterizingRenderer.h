@@ -8,6 +8,13 @@
 
 namespace Rasterizing
 {
+	enum class ShadingMode
+	{
+		SMOOTH,
+		FLAT,
+		NONE,
+		COUNT,
+	};
 	/*
 	struct Triangle
 	{
@@ -132,7 +139,9 @@ class RasterizingRenderer : public RendererBase
 public:
 	virtual void loadScene(RendererLoadSceneData scd);
 	virtual void renderFrame(const GameSettings& settings);
+	//virtual void handleInputEvent(const SDL_Event& ev, C_Input& input);
 private:
+	Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 	std::vector<Rasterizing::Model> sceneModels;
 	Rasterizing::Vertice_Store original_verticeStore;
 	Rasterizing::Triangle_Store original_triangleStore;
