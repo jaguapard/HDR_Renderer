@@ -140,5 +140,8 @@
     <ClInclude Include="src\smart.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\EnumCycler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
