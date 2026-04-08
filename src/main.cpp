@@ -21,6 +21,7 @@
 
 void* operator new(size_t n)
 {
+    if (Statsman::ENABLED && !Statsman::statsmenForThreads.empty()) Statsman::statsmenForThreads.back().allocsByNew++;;
     //StatCount(statsman.memory.allocsByNew++);
 #ifdef __AVX512F__
     constexpr size_t alignmentRequirement = 64;
@@ -35,7 +36,7 @@ void* operator new(size_t n)
 
 void operator delete(void* block)
 {
-    //StatCount(statsman.memory.freesByDelete++);
+    if (Statsman::ENABLED && !Statsman::statsmenForThreads.empty()) Statsman::statsmenForThreads.back().freesByDelete++;
     return _aligned_free(block);
 }
 

@@ -11,6 +11,9 @@ std::pair<Statsman, Statsman::Aggregated> Statsman::aggregateAll()
 	Aggregated ag;
 	for (auto& other : Statsman::statsmenForThreads)
 	{
+		ret.allocsByNew += other.allocsByNew;
+		ret.freesByDelete += other.freesByDelete;
+
 		ret.triangles.rendered += other.triangles.rendered;
 		ret.triangles.total += other.triangles.total;
 		for (int i = 0; i <= 3; ++i) ret.triangles.verticesBehindNearPlane[i] += other.triangles.verticesBehindNearPlane[i];

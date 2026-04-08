@@ -115,6 +115,7 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 		ss << "Vertices behind near plane: ";
 		for (int i = 0; i < 4; ++i) ss << i << ": " << toThousandsSeparatedString(s.triangles.verticesBehindNearPlane[i]) << (i != 3 ? ", " : "");
 		ss << "\nVertice index deltas: " << double(s.triangles.vertIndexDelta) / s.triangles.vertIndexDeltaCount << " avg, " << s.triangles.vertIndexDeltaMax.value_or(NAN) << " max, " << s.triangles.vertIndexDeltaMin.value_or(NAN) << " min\n";
+		ss << "Memory allocations by new: " << toThousandsSeparatedString(s.allocsByNew) << ", frees by delete: " << toThousandsSeparatedString(s.freesByDelete) << ", new - delete: " << toThousandsSeparatedString(s.allocsByNew-s.freesByDelete) << "\n";
 
 		double count = Statsman::statsmenForThreads.size();
 		ss << "\n";

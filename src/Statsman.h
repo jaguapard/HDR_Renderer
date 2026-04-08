@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <optional>
+#include <atomic>
 
 struct alignas(64) Statsman
 {
@@ -29,9 +30,11 @@ struct alignas(64) Statsman
 		std::optional<double> transformMsMin, transformMsMax, transformMsTotal, drawMsMin, drawMsMax, drawMsTotal, zBufferCleanMsMin, zBufferCleanMsMax, zBufferCleanMsTotal, framebufCleanMsMin, framebufCleanMsMax, framebufCleanMsTotal;
 	};
 	Statsman() { reset(); }
+	Statsman(const Statsman& s) {memcpy(this, &s, sizeof(*this));}
 	Triangles triangles;
 	Rendering rendering;
 	Time time;
+	std::atomic<uint64_t> allocsByNew, freesByDelete;
 
 	static std::pair<Statsman,Aggregated> aggregateAll();
 
