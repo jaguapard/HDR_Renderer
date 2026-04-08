@@ -11,7 +11,8 @@ struct alignas(64) Statsman
 
 	struct Triangles
 	{
-		uint64_t total, rendered, verticesBehindNearPlane[4];
+		uint64_t total, rendered, verticesBehindNearPlane[4], vertIndexDelta, vertIndexDeltaCount;
+		std::optional<uint64_t> vertIndexDeltaMin, vertIndexDeltaMax;
 	};
 	
 	struct Rendering

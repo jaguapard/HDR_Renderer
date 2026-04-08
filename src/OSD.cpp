@@ -114,6 +114,7 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 		ss << "Render jobs: " << toThousandsSeparatedString(s.rendering.renderJobCountProducer) << " (producer-side), " << toThousandsSeparatedString(s.rendering.renderJobCountConsumer) << " (consumer-side, " << s.rendering.renderJobCountConsumer * 100.0 / s.rendering.renderJobCountProducer << "%)\n";
 		ss << "Vertices behind near plane: ";
 		for (int i = 0; i < 4; ++i) ss << i << ": " << toThousandsSeparatedString(s.triangles.verticesBehindNearPlane[i]) << (i != 3 ? ", " : "");
+		ss << "\nVertice index deltas: " << double(s.triangles.vertIndexDelta) / s.triangles.vertIndexDeltaCount << " avg, " << s.triangles.vertIndexDeltaMax.value_or(NAN) << " max, " << s.triangles.vertIndexDeltaMin.value_or(NAN) << " min\n";
 
 		double count = Statsman::statsmenForThreads.size();
 		ss << "\n";

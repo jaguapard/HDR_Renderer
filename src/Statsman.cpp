@@ -14,6 +14,11 @@ std::pair<Statsman, Statsman::Aggregated> Statsman::aggregateAll()
 		ret.triangles.rendered += other.triangles.rendered;
 		ret.triangles.total += other.triangles.total;
 		for (int i = 0; i <= 3; ++i) ret.triangles.verticesBehindNearPlane[i] += other.triangles.verticesBehindNearPlane[i];
+		ret.triangles.vertIndexDelta += other.triangles.vertIndexDelta;
+		ret.triangles.vertIndexDeltaCount += other.triangles.vertIndexDeltaCount;
+		if (other.triangles.vertIndexDeltaMin) ret.triangles.vertIndexDeltaMin = std::min(ret.triangles.vertIndexDeltaMin.value_or(UINT64_MAX), *other.triangles.vertIndexDeltaMin);
+		if (other.triangles.vertIndexDeltaMax) ret.triangles.vertIndexDeltaMax = std::max(ret.triangles.vertIndexDeltaMax.value_or(0), *other.triangles.vertIndexDeltaMax);
+
 		ret.rendering.barycentricsCalculated += other.rendering.barycentricsCalculated;
 		ret.rendering.pointsInsideTriangles += other.rendering.pointsInsideTriangles;
 		ret.rendering.zBufferFetchLanes += other.rendering.zBufferFetchLanes;

@@ -312,9 +312,22 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 			//StatCount(threadIndex, trianges.ver)
 			if (Statsman::ENABLED)
 			{
+				int minVertInd = INT32_MAX, maxVertInd = INT32_MIN;
 				for (int i = 0; i <= 3; ++i)
 				{
-					Statsman::statsmenForThreads[threadIndex].triangles.verticesBehindNearPlane[i] += _mm512_mask_reduce_add_epi32(behindPlaneCount == i, _mm512_set1_epi32(1));
+					MyStatsman.triangles.verticesBehindNearPlane[i] += _mm512_mask_reduce_add_epi32(behindPlaneCount == i, _mm512_set1_epi32(1));
+					if (i < 3)
+					{
+						minVertInd = std::min(minVertInd, _mm512_mask_reduce_min_epi32(inBoundsTrianglesMask, verticeIndicesCache[i]));
+						maxVertInd = std::max(maxVertInd, _mm512_mask_reduce_max_epi32(inBoundsTrianglesMask, verticeIndicesCache[i]));
+					}
+					assert(maxVertInd >= minVertInd);
+					assert(minVertInd >= 0);
+					uint64_t delta = maxVertInd - minVertInd;
+					MyStatsman.triangles.vertIndexDelta += delta;
+					MyStatsman.triangles.vertIndexDeltaMin = std::min(MyStatsman.triangles.vertIndexDeltaMin.value_or(UINT64_MAX), delta);
+					MyStatsman.triangles.vertIndexDeltaMax = std::max(MyStatsman.triangles.vertIndexDeltaMax.value_or(0), delta);
+					MyStatsman.triangles.vertIndexDeltaCount += 1;
 				}
 			}
 			if (!(behindPlaneCount != 3)) continue; //if all triangles have all vertices behind clipping plane, skip them
