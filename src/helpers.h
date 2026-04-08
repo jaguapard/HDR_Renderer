@@ -23,6 +23,18 @@ __forceinline float32x16 inverse_lerp(float32x16 from, float32x16 to, float32x16
 	return (value - from) / (to - from);
 }
 
+__forceinline Vec4f getFaceNormalForTriangle(const Vec4f& v0, const Vec4f& v1, const Vec4f& v2)
+{
+	Vec4f n = (v2 - v0).cross3d(v1 - v0);
+	n.w = 0;
+	return n / n.len();
+}
+__forceinline Vec4_f32x16 getFaceNormalsForTriangles16(const Vec4_f32x16& v0, const Vec4_f32x16& v1, const Vec4_f32x16& v2)
+{
+	Vec4_f32x16 n = (v2 - v0).cross3d(v1 - v0);
+	return n / n.len3d();
+}
+
 inline std::string toThousandsSeparatedString(int64_t value, std::string sep = ",")
 {
 	if (value == 0) return "0";

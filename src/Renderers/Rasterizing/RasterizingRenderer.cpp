@@ -288,7 +288,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 		{
 			int32x16 triangleIndices = int32x16::sequence() + currModelTriangleIndex;
 			Mask16 inBoundsTrianglesMask = triangleIndices < slice.modelTriangleIndexEnd;
-			std::array<VertexPack16, 3> transformedVertices;
+			std::array<VertexPack16, 3> transformedVertices, originalVertices;
 
 			int32x16 behindPlaneCount = 0;
 			Mask16 behindPlaneMasks[3];
@@ -297,12 +297,12 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 			for (int i = 0; i < 3; ++i)
 			{
 				int32x16 verticeIndices = _mm512_maskz_loadu_epi32(inBoundsTrianglesMask, model.triangleStore.vertInd[i].data() + currModelTriangleIndex);
-				float32x16 x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.x.data(), 4);
-				float32x16 y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.y.data(), 4);
-				float32x16 z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.z.data(), 4);
-				float32x16 w = 1;
+				originalVertices[i].space.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.x.data(), 4);
+				originalVertices[i].space.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.y.data(), 4);
+				originalVertices[i].space.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.z.data(), 4);
+				originalVertices[i].space.w = 1;
 
-				Vec4_f32x16 rotatedTranslated = this->ctr.rotateAndTranslate(Vec4_f32x16(x, y, z, w));
+				Vec4_f32x16 rotatedTranslated = this->ctr.rotateAndTranslate(originalVertices[i].space);
 				Mask16 vertexBehindClippingPlane = rotatedTranslated.z < clippingZ;
 				behindPlaneMasks[i] = vertexBehindClippingPlane;
 				behindPlaneCount = _mm512_mask_add_epi32(behindPlaneCount, vertexBehindClippingPlane, behindPlaneCount, int32x16(1));
@@ -334,16 +334,19 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 
 			Mask16 activeTrianglesMask = inBoundsTrianglesMask & behindPlaneCount != 3;
 
+			
 			if (doBackfaceCulling)
 			{
-				Vec4_f32x16 normal = (transformedVertices[2].space - transformedVertices[0].space).cross3d(transformedVertices[1].space - transformedVertices[0].space);
-				activeTrianglesMask &= transformedVertices[0].space.dot3d(normal) > 0.f;
+				Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformedVertices[0].space, transformedVertices[1].space, transformedVertices[2].space);
+				activeTrianglesMask &= transformedVertices[0].space.dot3d(transformedFaceNormals) > 0.f;
 			}
 			
+			Vec4_f32x16 faceNormals = getFaceNormalsForTriangles16(originalVertices[0].space, originalVertices[1].space, originalVertices[2].space);
 			for (int i = 0; i < 3; ++i)
 			{
 				transformedVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.u.data(), 4);
 				transformedVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.v.data(), 4);
+				transformedVertices[i].normal = faceNormals;
 			}
 
 			VertexPack16 clipOutput[6];
@@ -551,6 +554,15 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 			const float32x16 v0 = _mm512_maskz_loadu_ps(bounds, storeForMe.v[0].data() + myJobsPointerInt);
 			const float32x16 v1 = _mm512_maskz_loadu_ps(bounds, storeForMe.v[1].data() + myJobsPointerInt);
 			const float32x16 v2 = _mm512_maskz_loadu_ps(bounds, storeForMe.v[2].data() + myJobsPointerInt);
+			const float32x16 nx0 = _mm512_maskz_loadu_ps(bounds, storeForMe.nx[0].data() + myJobsPointerInt);
+			const float32x16 nx1 = _mm512_maskz_loadu_ps(bounds, storeForMe.nx[1].data() + myJobsPointerInt);
+			const float32x16 nx2 = _mm512_maskz_loadu_ps(bounds, storeForMe.nx[2].data() + myJobsPointerInt);
+			const float32x16 ny0 = _mm512_maskz_loadu_ps(bounds, storeForMe.ny[0].data() + myJobsPointerInt);
+			const float32x16 ny1 = _mm512_maskz_loadu_ps(bounds, storeForMe.ny[1].data() + myJobsPointerInt);
+			const float32x16 ny2 = _mm512_maskz_loadu_ps(bounds, storeForMe.ny[2].data() + myJobsPointerInt);
+			const float32x16 nz0 = _mm512_maskz_loadu_ps(bounds, storeForMe.nz[0].data() + myJobsPointerInt);
+			const float32x16 nz1 = _mm512_maskz_loadu_ps(bounds, storeForMe.nz[1].data() + myJobsPointerInt);
+			const float32x16 nz2 = _mm512_maskz_loadu_ps(bounds, storeForMe.nz[2].data() + myJobsPointerInt);
 			float32x16 group_xBeg = _mm512_max_ps(float32x16(my_xMin), _mm512_floor_ps(_mm512_min_ps(x2, _mm512_min_ps(x0, x1))));
 			float32x16 group_yBeg = _mm512_max_ps(float32x16(my_yMin), _mm512_floor_ps(_mm512_min_ps(y2, _mm512_min_ps(y0, y1))));
 			float32x16 group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_ceil_ps(_mm512_max_ps(x2, _mm512_max_ps(x0, x1))));
@@ -605,6 +617,12 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (texturingEnabled)
 						{
 							texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+							Vec4_f32x16 interpolatedNormals = Vec4_f32x16(nx0[i], ny0[i], nz0[i], 0.f) * alpha + Vec4_f32x16(nx1[i], ny1[i], nz1[i], 0.f) * beta + Vec4_f32x16(nx2[i], ny2[i], nz2[i], 0.f);
+							interpolatedNormals /= interpolatedNormals.len3d();
+							Vec4_f32x16 lightDir = { 2100.f, 2660.f, 221.f,0.f };
+							lightDir /= lightDir.len3d();
+							float32x16 normalDot = interpolatedNormals.dot3d(lightDir);
+							texturePixels *= _mm512_max_ps(float32x16(0.05), normalDot);
 							if (Statsman::ENABLED) 
 							{
 								MyStatsman.rendering.textureGatheredLanes += 16;
@@ -716,6 +734,9 @@ void Rasterizing::RenderJob_Store::clear(bool forceClear)
 			z[i].clear();
 			u[i].clear();
 			v[i].clear();
+			nx[i].clear();
+			ny[i].clear();
+			nz[i].clear();
 		}
 		modelIndex.clear();
 		rcpSignedArea.clear();
@@ -732,6 +753,9 @@ void Rasterizing::RenderJob_Store::makeSpace(size_t newSize)
 		z[i].resize(newSize);
 		u[i].resize(newSize);
 		v[i].resize(newSize);
+		nx[i].resize(newSize);
+		ny[i].resize(newSize);
+		nz[i].resize(newSize);
 	}
 	modelIndex.resize(newSize);
 	rcpSignedArea.resize(newSize);
@@ -751,6 +775,9 @@ void Rasterizing::RenderJob_Store::add(const std::array<VertexPack16,3>& verts, 
 			_mm512_storeu_ps(this->z[i].data() + oldSz, verts[i].space.z);
 			_mm512_storeu_ps(this->u[i].data() + oldSz, verts[i].u);
 			_mm512_storeu_ps(this->v[i].data() + oldSz, verts[i].v);
+			_mm512_storeu_ps(this->nx[i].data() + oldSz, verts[i].normal.x);
+			_mm512_storeu_ps(this->ny[i].data() + oldSz, verts[i].normal.y);
+			_mm512_storeu_ps(this->nz[i].data() + oldSz, verts[i].normal.z);
 		}
 		_mm512_storeu_epi32(this->modelIndex.data() + oldSz, modelIndex);
 		_mm512_storeu_ps(this->rcpSignedArea.data() + oldSz, rcpSignedArea);
@@ -765,6 +792,9 @@ void Rasterizing::RenderJob_Store::add(const std::array<VertexPack16,3>& verts, 
 			_mm512_storeu_ps(this->z[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].space.z));
 			_mm512_storeu_ps(this->u[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].u));
 			_mm512_storeu_ps(this->v[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].v));
+			_mm512_storeu_ps(this->nx[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].normal.x));
+			_mm512_storeu_ps(this->ny[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].normal.y));
+			_mm512_storeu_ps(this->nz[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, verts[i].normal.z));
 		}
 		_mm512_storeu_epi32(this->modelIndex.data() + oldSz, _mm512_maskz_compress_epi32(activeElementsMask, modelIndex));
 		_mm512_storeu_ps(this->rcpSignedArea.data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, rcpSignedArea));

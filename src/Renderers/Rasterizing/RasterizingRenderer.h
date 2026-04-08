@@ -63,7 +63,7 @@ namespace Rasterizing
 
 	struct VertexPack16
 	{
-		Vec4_f32x16 space;
+		Vec4_f32x16 space, normal;
 		float32x16 u, v;
 		//VertexPack16(float32x16 x, )
 		VertexPack16() {};
@@ -73,6 +73,10 @@ namespace Rasterizing
 			ret.space.x = lerp(from.space.x, to.space.x, alpha);
 			ret.space.y = lerp(from.space.y, to.space.y, alpha);
 			ret.space.z = lerp(from.space.z, to.space.z, alpha);
+			ret.normal.x = lerp(from.normal.x, to.normal.x, alpha);
+			ret.normal.y = lerp(from.normal.y, to.normal.y, alpha);
+			ret.normal.z = lerp(from.normal.z, to.normal.z, alpha);
+			ret.normal /= ret.normal.len3d();
 			ret.u = lerp(from.u, to.u, alpha);
 			ret.v = lerp(from.v, to.v, alpha);
 			return ret;
@@ -84,6 +88,9 @@ namespace Rasterizing
 			ret.space.x = _mm512_mask_mov_ps(zero.space.x, mask, one.space.x);
 			ret.space.y = _mm512_mask_mov_ps(zero.space.y, mask, one.space.y);
 			ret.space.z = _mm512_mask_mov_ps(zero.space.z, mask, one.space.z);
+			ret.normal.x = _mm512_mask_mov_ps(zero.normal.x, mask, one.normal.x);
+			ret.normal.y = _mm512_mask_mov_ps(zero.normal.y, mask, one.normal.y);
+			ret.normal.z = _mm512_mask_mov_ps(zero.normal.z, mask, one.normal.z);
 			ret.u = _mm512_mask_mov_ps(zero.u, mask, one.u);
 			ret.v = _mm512_mask_mov_ps(zero.v, mask, one.v);
 			return ret;
@@ -98,7 +105,7 @@ namespace Rasterizing
 
 	struct RenderJob_Store
 	{
-		std::array<std::vector<float>, 3> x, y, z, u, v;
+		std::array<std::vector<float>, 3> x, y, z, u, v, nx, ny, nz;
 		std::vector<float> rcpSignedArea;
 		std::vector<int> modelIndex;
 		size_t realSize = 0;
@@ -109,12 +116,12 @@ namespace Rasterizing
 		void makeSpace(size_t newSize);
 		void add(const std::array<VertexPack16, 3>& verts, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask);
 	};
-
+	/*
 	struct RenderJob
 	{
 		float x[3], y[3], z[3], u[3], v[3];
 		int modelIndex;
-	};
+	};*/
 }
 
 class RasterizingRenderer : public RendererBase
