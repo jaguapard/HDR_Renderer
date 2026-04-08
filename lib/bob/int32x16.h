@@ -62,8 +62,8 @@ namespace bob
 		__forceinline int32x16 operator~() const;
 
 		__forceinline operator __m512i() const;
-		__forceinline operator float32x16() const;
-		__forceinline operator __m512() const;
+		//__forceinline operator float32x16() const;
+		//__forceinline operator __m512() const;
 
 		__forceinline int32x16 clamp(const int32x16& min, const int32x16& max) const;
 		__forceinline int32x16 abs() const;
@@ -214,7 +214,7 @@ namespace bob
 	{
 		return zmm;
 	}
-
+	/*
 	__forceinline int32x16::operator float32x16() const
 	{
 		return _mm512_cvtepi32_ps(zmm);
@@ -223,7 +223,7 @@ namespace bob
 	__forceinline int32x16::operator __m512() const
 	{
 		return _mm512_cvtepi32_ps(zmm);
-	}
+	}*/
 
 	__forceinline int32x16 int32x16::clamp(const int32x16& min, const int32x16& max) const
 	{
