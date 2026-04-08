@@ -63,12 +63,16 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                         int32x16 srcR = srcUint32 & 0xFF;
                         int32x16 srcG = (srcUint32 >> 8) & 0xFF;
                         int32x16 srcB = (srcUint32 >> 16) & 0xFF;
-                        float32x16 floatR = _mm512_mul_ps(_mm512_cvtepu32_ps(srcR), float32x16(1.f / 255));
-                        float32x16 floatG = _mm512_mul_ps(_mm512_cvtepu32_ps(srcG), float32x16(1.f / 255));
-                        float32x16 floatB = _mm512_mul_ps(_mm512_cvtepu32_ps(srcB), float32x16(1.f / 255));
-                        float32x16 encodedR = _mm512_mul_ps(_mm512_pow_ps(floatR, float32x16(1.1)), float32x16(1023));
-                        float32x16 encodedG = _mm512_mul_ps(_mm512_pow_ps(floatG, float32x16(1.1)), float32x16(2047));
-                        float32x16 encodedB = _mm512_mul_ps(_mm512_pow_ps(floatB, float32x16(1.1)), float32x16(1023));
+                        float32x16 floatR = _mm512_mul_ps(_mm512_cvtepu32_ps(srcR.zmm), float32x16(1.f / 255));
+                        float32x16 floatG = _mm512_mul_ps(_mm512_cvtepu32_ps(srcG.zmm), float32x16(1.f / 255));
+                        float32x16 floatB = _mm512_mul_ps(_mm512_cvtepu32_ps(srcB.zmm), float32x16(1.f / 255));
+                        float32x16 encodedR, encodedG, encodedB;
+                        for (int i = 0; i < 16; ++i)
+                        {
+                            encodedR[i] = powf(floatR[i], 1.1) * 1023;
+                            encodedG[i] = powf(floatG[i], 1.1) * 2047;
+                            encodedB[i] = powf(floatB[i], 1.1) * 1023;
+                        }
 
                         encodedR = encodedR.clamp(0, 1023);
                         encodedG = encodedG.clamp(0, 2047);
@@ -78,10 +82,10 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                         int32x16 dstG = _mm512_cvtps_epi32(encodedG);
                         int32x16 dstB = _mm512_cvtps_epi32(encodedB);
                         int32x16 dstFull = dstR | (dstG << 10) | (dstB << 21);// | 0x80000000; //storeA = (srcUint32 >> 24) ? 1 : 0;
-                        dstFull = _mm512_mask_or_epi32(dstFull, _mm512_cmpgt_epu32_mask(srcUint32, _mm512_set1_epi32(0x00FFFFFF)), dstFull, int32x16(0x80000000));
+                        dstFull = _mm512_mask_or_epi32(dstFull.zmm, _mm512_cmpgt_epu32_mask(srcUint32.zmm, _mm512_set1_epi32(0x00FFFFFF)), dstFull.zmm, int32x16(0x80000000).zmm);
 
                         //R10G11B10A1
-                        _mm512_mask_storeu_epi32(&this->packedColors[y * w + x], boundsMask, dstFull);
+                        _mm512_mask_storeu_epi32(&this->packedColors[y * w + x], boundsMask, dstFull.zmm);
                         //this->packedColors[y * w + x] = storeUint;
                     }
                 }
@@ -256,17 +260,17 @@ void Rasterizing::ColorPixelBuffer::init(int w, int h)
 
 void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& output) const
 {
-    int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), this->gatherMask, this->gatherInd, this->buf->packedColors.get(), 4);
+    int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0).zmm, this->gatherMask, this->gatherInd.zmm, this->buf->packedColors.get(), 4);
 
     int32x16 r = gathered & 1023;
-    int32x16 g = _mm512_srli_epi32(gathered, 10);
+    int32x16 g = _mm512_srli_epi32(gathered.zmm, 10);
     g &= 2047;
-    int32x16 b = _mm512_srli_epi32(gathered, 21);
+    int32x16 b = _mm512_srli_epi32(gathered.zmm, 21);
     b &= 1023;
 
-    float32x16 fr = _mm512_cvtepu32_ps(r);
-    float32x16 fg = _mm512_cvtepu32_ps(g);
-    float32x16 fb = _mm512_cvtepu32_ps(b);
+    float32x16 fr = _mm512_cvtepu32_ps(r.zmm);
+    float32x16 fg = _mm512_cvtepu32_ps(g.zmm);
+    float32x16 fb = _mm512_cvtepu32_ps(b.zmm);
     float32x16 fa = _mm512_maskz_mov_ps(gathered < 0, float32x16(1)); //if uppermost bit is 1 (i.e. sign bit is 1, i.e negative), then alpha is 1
     fr *= 1.f / 1023;
     fg *= 1.f / 2047;
@@ -279,7 +283,7 @@ void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& o
 
 float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
 {
-    int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), this->gatherMask, this->gatherInd >> 5, this->buf->opacityMap.get(), 4);
+    int32x16 gathered = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), this->gatherMask, (this->gatherInd >> 5).zmm, this->buf->opacityMap.get(), 4);
     int32x16 shifts = this->gatherInd & 31;
     int32x16 opacityMapValuesForPixels = gathered & (int32x16(1) << shifts);
     return _mm512_maskz_mov_ps(opacityMapValuesForPixels != 0, _mm512_set1_ps(1));

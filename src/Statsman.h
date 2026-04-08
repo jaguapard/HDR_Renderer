@@ -5,7 +5,6 @@
 struct alignas(64) Statsman
 {
 	static constexpr bool ENABLED = true;
-	static inline std::vector<Statsman> statsmenForThreads;
 
 	void reset();
 
@@ -36,10 +35,12 @@ struct alignas(64) Statsman
 
 	static std::pair<Statsman,Aggregated> aggregateAll();
 
-private:
+	static std::vector<Statsman> statsmenForThreads;
 };
 
 //#define StatCount(__threadIndex, action) if (Statsman::ENABLED) {Statsman::statsmenForThreads[__threadIndex].action;};
 #define StatCount(action) if (Statsman::ENABLED) Statsman::statsmenForThreads[threadIndex].action;};
 #define MyStatsman Statsman::statsmenForThreads[threadIndex]
 //#define MyStatsman(__variableName) Statsman::statsmenForThreads[__variableName]
+
+inline std::vector<Statsman> Statsman::statsmenForThreads;

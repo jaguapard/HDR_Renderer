@@ -12,7 +12,6 @@
 #include "Threadpool.h"
 #include "OSD.h"
 #include "Statsman.h"
-
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "SDL3.lib")
@@ -22,10 +21,10 @@
 
 void* operator new(size_t n)
 {
-    StatCount(statsman.memory.allocsByNew++);
+    //StatCount(statsman.memory.allocsByNew++);
 #ifdef __AVX512F__
     constexpr size_t alignmentRequirement = 64;
-#elif __AVX__
+#elifdef __AVX__
     constexpr size_t alignmentRequirement = 32;
 #else 
     constexpr size_t alignmentRequirement = 16;
@@ -36,7 +35,7 @@ void* operator new(size_t n)
 
 void operator delete(void* block)
 {
-    StatCount(statsman.memory.freesByDelete++);
+    //StatCount(statsman.memory.freesByDelete++);
     return _aligned_free(block);
 }
 
