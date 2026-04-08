@@ -539,41 +539,18 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 			float32x16 group_rcpSignedArea = _mm512_maskz_loadu_ps(bounds, storeForMe.rcpSignedArea.data() + myJobsPointerInt);
 			int32x16 group_modelIndex = _mm512_maskz_loadu_epi32(bounds, storeForMe.modelIndex.data() + myJobsPointerInt);
 
-			const float32x16 x0 = _mm512_maskz_loadu_ps(bounds, storeForMe.x[0].data() + myJobsPointerInt);
-			const float32x16 x1 = _mm512_maskz_loadu_ps(bounds, storeForMe.x[1].data() + myJobsPointerInt);
-			const float32x16 x2 = _mm512_maskz_loadu_ps(bounds, storeForMe.x[2].data() + myJobsPointerInt);
-			const float32x16 y0 = _mm512_maskz_loadu_ps(bounds, storeForMe.y[0].data() + myJobsPointerInt);
-			const float32x16 y1 = _mm512_maskz_loadu_ps(bounds, storeForMe.y[1].data() + myJobsPointerInt);
-			const float32x16 y2 = _mm512_maskz_loadu_ps(bounds, storeForMe.y[2].data() + myJobsPointerInt);
-			const float32x16 z0 = _mm512_maskz_loadu_ps(bounds, storeForMe.z[0].data() + myJobsPointerInt);
-			const float32x16 z1 = _mm512_maskz_loadu_ps(bounds, storeForMe.z[1].data() + myJobsPointerInt);
-			const float32x16 z2 = _mm512_maskz_loadu_ps(bounds, storeForMe.z[2].data() + myJobsPointerInt);
-			const float32x16 u0 = _mm512_maskz_loadu_ps(bounds, storeForMe.u[0].data() + myJobsPointerInt);
-			const float32x16 u1 = _mm512_maskz_loadu_ps(bounds, storeForMe.u[1].data() + myJobsPointerInt);
-			const float32x16 u2 = _mm512_maskz_loadu_ps(bounds, storeForMe.u[2].data() + myJobsPointerInt);
-			const float32x16 v0 = _mm512_maskz_loadu_ps(bounds, storeForMe.v[0].data() + myJobsPointerInt);
-			const float32x16 v1 = _mm512_maskz_loadu_ps(bounds, storeForMe.v[1].data() + myJobsPointerInt);
-			const float32x16 v2 = _mm512_maskz_loadu_ps(bounds, storeForMe.v[2].data() + myJobsPointerInt);
-			const float32x16 nx0 = _mm512_maskz_loadu_ps(bounds, storeForMe.nx[0].data() + myJobsPointerInt);
-			const float32x16 nx1 = _mm512_maskz_loadu_ps(bounds, storeForMe.nx[1].data() + myJobsPointerInt);
-			const float32x16 nx2 = _mm512_maskz_loadu_ps(bounds, storeForMe.nx[2].data() + myJobsPointerInt);
-			const float32x16 ny0 = _mm512_maskz_loadu_ps(bounds, storeForMe.ny[0].data() + myJobsPointerInt);
-			const float32x16 ny1 = _mm512_maskz_loadu_ps(bounds, storeForMe.ny[1].data() + myJobsPointerInt);
-			const float32x16 ny2 = _mm512_maskz_loadu_ps(bounds, storeForMe.ny[2].data() + myJobsPointerInt);
-			const float32x16 nz0 = _mm512_maskz_loadu_ps(bounds, storeForMe.nz[0].data() + myJobsPointerInt);
-			const float32x16 nz1 = _mm512_maskz_loadu_ps(bounds, storeForMe.nz[1].data() + myJobsPointerInt);
-			const float32x16 nz2 = _mm512_maskz_loadu_ps(bounds, storeForMe.nz[2].data() + myJobsPointerInt);
-			float32x16 group_xBeg = _mm512_max_ps(float32x16(my_xMin), _mm512_floor_ps(_mm512_min_ps(x2, _mm512_min_ps(x0, x1))));
-			float32x16 group_yBeg = _mm512_max_ps(float32x16(my_yMin), _mm512_floor_ps(_mm512_min_ps(y2, _mm512_min_ps(y0, y1))));
-			float32x16 group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_ceil_ps(_mm512_max_ps(x2, _mm512_max_ps(x0, x1))));
-			float32x16 group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_ceil_ps(_mm512_max_ps(y2, _mm512_max_ps(y0, y1))));
+			const std::array<VertexPack16, 3> vertices = storeForMe.loadVertices16(myJobsPointerInt, bounds);
+			float32x16 group_xBeg = _mm512_max_ps(float32x16(my_xMin), _mm512_floor_ps(_mm512_min_ps(vertices[2].space.x, _mm512_min_ps(vertices[0].space.x, vertices[1].space.x))));
+			float32x16 group_yBeg = _mm512_max_ps(float32x16(my_yMin), _mm512_floor_ps(_mm512_min_ps(vertices[2].space.y, _mm512_min_ps(vertices[0].space.y, vertices[1].space.y))));
+			float32x16 group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_ceil_ps(_mm512_max_ps(vertices[2].space.x, _mm512_max_ps(vertices[0].space.x, vertices[1].space.x))));
+			float32x16 group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_ceil_ps(_mm512_max_ps(vertices[2].space.y, _mm512_max_ps(vertices[0].space.y, vertices[1].space.y))));
 
 			float32x16 group_initialAlpha, group_initialBeta, group_initialGamma;
-			calculateBarycentricCoordinates({ group_xBeg, group_yBeg, 0.f,0.f }, { x0, y0, 0.f,0.f }, { x1,y1,0.f,0.f }, { x2,y2,0.f,0.f }, group_rcpSignedArea, group_initialAlpha, group_initialBeta, group_initialGamma);
-			float32x16 group_dAlpha_dx = (y1 - y2) * group_rcpSignedArea;
-			float32x16 group_dAlpha_dy = (x2 - x1) * group_rcpSignedArea;
-			float32x16 group_dBeta_dx = (y2 - y0) * group_rcpSignedArea;
-			float32x16 group_dBeta_dy = (x0 - x2) * group_rcpSignedArea;
+			calculateBarycentricCoordinates({ group_xBeg, group_yBeg, 0.f,0.f }, vertices[0].space, vertices[1].space, vertices[2].space, group_rcpSignedArea, group_initialAlpha, group_initialBeta, group_initialGamma);
+			float32x16 group_dAlpha_dx = (vertices[1].space.y - vertices[2].space.y) * group_rcpSignedArea;
+			float32x16 group_dAlpha_dy = (vertices[2].space.x - vertices[1].space.x) * group_rcpSignedArea;
+			float32x16 group_dBeta_dx = (vertices[2].space.y - vertices[0].space.y) * group_rcpSignedArea;
+			float32x16 group_dBeta_dy = (vertices[0].space.x - vertices[2].space.x) * group_rcpSignedArea;
 			float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, can cause precision issues! (actually, doesn't do now)
 			float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //and this too
 
@@ -599,7 +576,9 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 						if (!pointsInsideTriangleMask) continue;
 
-						Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(u0[i], v0[i], z0[i], 0.f) * alpha + Vec4_f32x16(u1[i], v1[i], z1[i], 0.f) * beta + Vec4_f32x16(u2[i], v2[i], z2[i], 0.f) * gamma;
+						Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(vertices[0].u[i], vertices[0].v[i], vertices[0].space.z[i], 0.f) * alpha +
+							Vec4_f32x16(vertices[1].u[i], vertices[1].v[i], vertices[1].space.z[i], 0.f) * beta +
+							Vec4_f32x16(vertices[2].u[i], vertices[2].v[i], vertices[2].space.z[i], 0.f) * gamma;
 						float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, this->zBuffer.data() + yInt * w + xInt);
 						if (Statsman::ENABLED)
 						{
@@ -617,7 +596,9 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (texturingEnabled)
 						{
 							texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-							Vec4_f32x16 interpolatedNormals = Vec4_f32x16(nx0[i], ny0[i], nz0[i], 0.f) * alpha + Vec4_f32x16(nx1[i], ny1[i], nz1[i], 0.f) * beta + Vec4_f32x16(nx2[i], ny2[i], nz2[i], 0.f);
+							Vec4_f32x16 interpolatedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha + 
+								Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
+								Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
 							interpolatedNormals /= interpolatedNormals.len3d();
 							Vec4_f32x16 lightDir = { 2100.f, 2660.f, 221.f,0.f };
 							lightDir /= lightDir.len3d();
@@ -715,6 +696,23 @@ size_t Rasterizing::Vertice_Store::size() const
 size_t Rasterizing::Triangle_Store::size() const
 {
 	return vertInd[0].size();
+}
+
+std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t firstInd, Mask16 mask) const
+{
+	std::array<VertexPack16,3> ret;
+	for (int i = 0; i < 3; ++i) 
+	{
+		ret[i].space.x = _mm512_maskz_loadu_ps(mask, this->x[i].data() + firstInd);
+		ret[i].space.y = _mm512_maskz_loadu_ps(mask, this->y[i].data() + firstInd);
+		ret[i].space.z = _mm512_maskz_loadu_ps(mask, this->z[i].data() + firstInd);
+		ret[i].u = _mm512_maskz_loadu_ps(mask, this->u[i].data() + firstInd);
+		ret[i].v = _mm512_maskz_loadu_ps(mask, this->v[i].data() + firstInd);
+		ret[i].normal.x = _mm512_maskz_loadu_ps(mask, this->nx[i].data() + firstInd);
+		ret[i].normal.y = _mm512_maskz_loadu_ps(mask, this->ny[i].data() + firstInd);
+		ret[i].normal.z = _mm512_maskz_loadu_ps(mask, this->nz[i].data() + firstInd);
+	}
+	return ret;
 }
 
 size_t Rasterizing::RenderJob_Store::size() const

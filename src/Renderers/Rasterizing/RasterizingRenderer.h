@@ -111,6 +111,9 @@ namespace Rasterizing
 		size_t realSize = 0;
 		size_t capacity = 0;
 
+		std::array<VertexPack16, 3> loadVertices16(size_t firstInd, Mask16 mask) const;
+		//VertexPack16 gatherVertices16(int32x16 indices) const;
+
 		size_t size() const;
 		void clear(bool forceClear = false); //sets the realSize to 0. If forceClear is true also cleans the vectors.
 		void makeSpace(size_t newSize);
