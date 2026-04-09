@@ -17,7 +17,7 @@ void CoordinateTransformer::prepare(const Vec4f camPos, const Vec4f camAng)
 	translation[3][3] = 1;
 
 	this->rotationTranslation = (rotation * translation);//.transposed();
-	this->inverseRotationTranslation = rotationTranslation.transposed().inverse();
+	this->inverseRotationTranslation = rotationTranslation.inverse();
 	//this->translationRotation = translation * rotation;
 }
 
@@ -46,7 +46,7 @@ bob::Vec4_f32x16 CoordinateTransformer::screenSpaceToPixels(const bob::Vec4_f32x
 
 Vec4f CoordinateTransformer::rotateAndTranslate(Vec4f v) const
 {
-	Vec4f interm = rotationTranslation.multiplyByTransposed(v);
+	Vec4f interm = rotationTranslation * v;
 	return interm;
 }
 
@@ -63,7 +63,7 @@ Vec4f CoordinateTransformer::shift(const Vec4f v) const
 
 Matrix4 CoordinateTransformer::getCurrentTransformationMatrix() const
 {
-	return rotationTranslation.transposed();
+	return rotationTranslation;
 }
 
 Matrix4 CoordinateTransformer::getCurrentInverseTransformationMatrix() const
