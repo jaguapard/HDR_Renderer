@@ -23,7 +23,7 @@ namespace Rasterizing
 
 		//static std::vector<float> xStore, yStore, zStore, uStore, vStore;
 	};*/
-	
+
 	struct Vertice_Store
 	{
 		std::vector<float> x, y, z, u, v, nx, ny, nz;
@@ -110,6 +110,7 @@ namespace Rasterizing
 		}
 	};
 
+	struct DrawCommand;
 	struct RenderJob_Store
 	{
 		std::array<std::vector<float>, 3> x, y, z, u, v, nx, ny, nz;
@@ -124,16 +125,39 @@ namespace Rasterizing
 		size_t size() const;
 		void clear(bool forceClear = false); //sets the realSize to 0. If forceClear is true also cleans the vectors.
 		void makeSpace(size_t newSize);
-		void add(const std::array<VertexPack16, 3>& verts, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask);
+		void add(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask, const DrawCommand& subInfo);
 	};
+
+	enum class FaceCullingType
+	{
+		NONE,
+		BACKFACE,
+		FRONTFACE,
+	};
+
+	struct DrawCommand
+	{
+		CoordinateTransformer ctr;
+		bool needsUVs = true, needsNormals = true, depthOnly = false;
+		FaceCullingType faceCullingType = FaceCullingType::NONE;
+		Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
+
+		std::vector<std::vector<Rasterizing::RenderJob_Store>>* outputStores = nullptr; //TODO: rename this to transformedVertStores
+		float* zBuffer = nullptr;
+		void* frameBuffer = nullptr;
+		uint32_t renderW, renderH;
+		uint32_t threadCount = -1;
+	};
+
+	
 	/*
 	struct RenderJob
 	{
 		float x[3], y[3], z[3], u[3], v[3];
 		int modelIndex;
 	};*/
+	
 }
-
 class RasterizingRenderer : public RendererBase
 {
 public:
@@ -146,19 +170,20 @@ private:
 	Rasterizing::Vertice_Store original_verticeStore;
 	Rasterizing::Triangle_Store original_triangleStore;
 
+	std::array<Rasterizing::DrawCommand, 2> drawCommands;
+
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;
 	std::vector<std::vector<Rasterizing::ModelSlice>> modelSlicesForThreads;
 
 	std::vector<std::vector<Rasterizing::ModelSlice>> makeModelSliceList() const;
 	void doTransformationsAndClipping(int threadIndex);
-
 	void drawRenderJobs(int threadIndex);
+	void joinMainWithShadowMap(int threadIndex);
 
-	std::vector<float> zBuffer;
+	std::vector<float> zBuffer, shadowMap_zBuffer;
 
-	std::vector<std::vector<Rasterizing::RenderJob_Store>> renderJobsFromThreadToThread;
+	std::vector<std::vector<Rasterizing::RenderJob_Store>> mainRenderJobs, shadowMapRenderJobs;
 
-	CoordinateTransformer ctr;
 	Rasterizing::TextureManager textureManager;
 };
