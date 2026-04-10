@@ -116,6 +116,8 @@ namespace Rasterizing
 	{
 		float x[3], y[3], z[3], u[3], v[3], nx[3], ny[3], nz[3], rcpSignedArea;
 		int modelIndex;
+
+		RenderJob() {};
 	};
 
 	struct RenderJob_Store

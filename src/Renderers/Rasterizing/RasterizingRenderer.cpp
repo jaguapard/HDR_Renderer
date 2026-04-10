@@ -1082,22 +1082,76 @@ void Rasterizing::RenderJob_Store::add(const VertexPack16* pStart, const VertexP
 	if (!activeElementsMask) return;
 	this->makeSpace(this->realSize + 16);
 	size_t oldSz = this->realSize;
+
+
+	//The next code expects exactly this layout and may break if it changes, so have strict checks for it! You'll have to tweak it when changing stuff!
+	{
+		static_assert(sizeof(RenderJob) == 104);
+		static_assert(offsetof(RenderJob, x[0]) == 0);
+		static_assert(offsetof(RenderJob, x[1]) == 4);
+		static_assert(offsetof(RenderJob, x[2]) == 8);
+		static_assert(offsetof(RenderJob, y[0]) == 12);
+		static_assert(offsetof(RenderJob, y[1]) == 16);
+		static_assert(offsetof(RenderJob, y[2]) == 20);
+		static_assert(offsetof(RenderJob, z[0]) == 24);
+		static_assert(offsetof(RenderJob, z[1]) == 28);
+		static_assert(offsetof(RenderJob, z[2]) == 32);
+		static_assert(offsetof(RenderJob, u[0]) == 36);
+		static_assert(offsetof(RenderJob, u[1]) == 40);
+		static_assert(offsetof(RenderJob, u[2]) == 44);
+		static_assert(offsetof(RenderJob, v[0]) == 48);
+		static_assert(offsetof(RenderJob, v[1]) == 52);
+		static_assert(offsetof(RenderJob, v[2]) == 56);
+		static_assert(offsetof(RenderJob, nx[0]) == 60);
+		static_assert(offsetof(RenderJob, nx[1]) == 64);
+		static_assert(offsetof(RenderJob, nx[2]) == 68);
+		static_assert(offsetof(RenderJob, ny[0]) == 72);
+		static_assert(offsetof(RenderJob, ny[1]) == 76);
+		static_assert(offsetof(RenderJob, ny[2]) == 80);
+		static_assert(offsetof(RenderJob, nz[0]) == 84);
+		static_assert(offsetof(RenderJob, nz[1]) == 88);
+		static_assert(offsetof(RenderJob, nz[2]) == 92);
+		static_assert(offsetof(RenderJob, rcpSignedArea) == 96);
+		static_assert(offsetof(RenderJob, modelIndex) == 100);
+	}
+
 	for (int j = 0; j < 16; ++j)
 	{
 		if ((activeElementsMask.mask & (1 << j)) == 0) continue;
 		//if (oldSz + j == 53958) __debugbreak();
 		RenderJob& rj = this->jobs[this->realSize++];
-		for (int i = 0; i < 3; ++i)
-		{
-			rj.x[i] = pStart[i].space.x[j];
-			rj.y[i] = pStart[i].space.y[j];
-			rj.z[i] = pStart[i].space.z[j];
-			rj.u[i] = pStart[i].u[j];
-			rj.v[i] = pStart[i].v[j];
-			rj.nx[i] = pStart[i].normal.x[j];
-			rj.ny[i] = pStart[i].normal.y[j];
-			rj.nz[i] = pStart[i].normal.z[j];
-		}
+
+		int32x16 gatherInd_first = _mm512_setr_epi32(
+			sizeof(VertexPack16)*0 + offsetof(VertexPack16,space.x),
+			sizeof(VertexPack16)*1 + offsetof(VertexPack16, space.x),
+			sizeof(VertexPack16)*2 + offsetof(VertexPack16, space.x),
+			sizeof(VertexPack16)*0 + offsetof(VertexPack16, space.y),
+			sizeof(VertexPack16)*1 + offsetof(VertexPack16, space.y),
+			sizeof(VertexPack16)*2 + offsetof(VertexPack16, space.y),
+			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, space.z),
+			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, space.z),
+			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, space.z),
+			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, u),
+			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, u),
+			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, u),
+			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, v),
+			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, v),
+			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, v),
+			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, normal.x)
+		);
+		int32x16 gatherInd_second = _mm512_setr_epi32(
+			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, normal.x),
+			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, normal.x),
+			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, normal.y),
+			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, normal.y),
+			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, normal.y),
+			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, normal.z),
+			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, normal.z),
+			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, normal.z),
+			0, 0, 0, 0, 0, 0, 0, 0
+		);
+		_mm512_storeu_ps(&rj,_mm512_i32gather_ps(gatherInd_first + j*4, pStart, 1));
+		_mm512_mask_storeu_ps(reinterpret_cast<__m512*>(&rj) + 1, 0xFF, _mm512_mask_i32gather_ps(_mm512_setzero_ps(), 0xFF, gatherInd_second + j*4, pStart, 1));
 		rj.modelIndex = modelIndex[j];
 		rj.rcpSignedArea = rcpSignedArea[j];
 	}
