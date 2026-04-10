@@ -143,6 +143,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
 	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
+	if (inp.wasCharPressedOnThisFrame('B')) this->faceCullingType = EnumCycler::next(this->faceCullingType);
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_9)) this->missingTexturesSetToPlaceholder ^= 1;
 
 
@@ -158,7 +159,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.renderH = settings.outputTextureParams.Height;
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = true;
-	mainDrawCmd.faceCullingType = this->currGs->backfaceCullingEnabled ? FaceCullingType::BACKFACE : FaceCullingType::NONE;
+	mainDrawCmd.faceCullingType = this->faceCullingType;
 	mainDrawCmd.outputStores = &this->mainRenderJobs;
 	mainDrawCmd.threadCount = threadCount;
 	mainDrawCmd.zBuffer = this->zBuffer.data();

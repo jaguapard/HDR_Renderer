@@ -133,6 +133,7 @@ namespace Rasterizing
 		NONE,
 		BACKFACE,
 		FRONTFACE,
+		COUNT,
 	};
 
 	struct DrawCommand
@@ -191,4 +192,5 @@ private:
 	Vec4f lightPos, lightAng, lightColor, skyColor;
 	float lightIntensity, skyLightIntensity;
 	bool drawShadowMapDebug = false, missingTexturesSetToPlaceholder = true;
+	Rasterizing::FaceCullingType faceCullingType = Rasterizing::FaceCullingType::NONE;
 };
