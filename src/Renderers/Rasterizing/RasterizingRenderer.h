@@ -186,4 +186,9 @@ private:
 	std::vector<std::vector<Rasterizing::RenderJob_Store>> mainRenderJobs, shadowMapRenderJobs;
 
 	Rasterizing::TextureManager textureManager;
+	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
+
+	Vec4f lightPos, lightAng, lightColor, skyColor;
+	float lightIntensity, skyLightIntensity;
+	bool drawShadowMapDebug = false;
 };

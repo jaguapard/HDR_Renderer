@@ -136,12 +136,15 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	this->currGs = &settings;
 	this->modelSlicesForThreads = this->makeModelSliceList();
 	this->zBuffer.resize(settings.outputTextureParams.Width * settings.outputTextureParams.Height);
-	int shadowMapW = 2560;//512*3;
-	int shadowMapH = 1440;//288*3;
+	int shadowMapW = 512*3;
+	int shadowMapH = 288*3;
 	this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
 	
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
+	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
+
+
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getThreadCount();
 
@@ -869,22 +872,23 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 		for (float32x16 x = float32x16::sequence() + my_xMin; Mask16 xBoundsMask = x <= my_xMax; x += 16)
 		{
 			size_t xInt = x[0];
-			if (false) //debug draw shadow map to screen
+			if (this->drawShadowMapDebug) //debug draw shadow map to screen
 			{
 				float smw = this->drawCommands[1].renderW;
 				float smh = this->drawCommands[1].renderH;
 				Mask16 sm_xBounds = x < smw;
-				if (!sm_xBounds) continue;
-				if (y >= smh) continue;
-				float32x16 z = _mm512_maskz_loadu_ps(sm_xBounds, this->drawCommands[1].zBuffer + yInt * this->drawCommands[1].renderW + xInt);
-				float32x16 dz = float32x16(1) / z;
-				float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
+				if (sm_xBounds && y < smh)
+				{
+					float32x16 z = _mm512_maskz_loadu_ps(sm_xBounds, this->drawCommands[1].zBuffer + yInt * this->drawCommands[1].renderW + xInt);
+					float32x16 dz = float32x16(1) / z;
+					float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
 
-				Vec4_f32x16 colOut;
-				colOut.r = colOut.g = colOut.b = distIntensity;
-				colOut.a = 1;
-				mask_store_vec4_f32x16_to_framebuffer(colOut, this->drawCommands[0].frameBuffer, xInt, yInt, this->drawCommands[0].renderW, sm_xBounds);
-				continue;
+					Vec4_f32x16 colOut;
+					colOut.r = colOut.g = colOut.b = distIntensity;
+					colOut.a = 1;
+					mask_store_vec4_f32x16_to_framebuffer(colOut, this->drawCommands[0].frameBuffer, xInt, yInt, this->drawCommands[0].renderW, sm_xBounds);
+					continue;
+				}
 			}
 
 			float32x16 zInvSrc = _mm512_maskz_loadu_ps(xBoundsMask, this->drawCommands[0].zBuffer + yInt * w + xInt);
