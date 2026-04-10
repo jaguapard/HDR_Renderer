@@ -190,5 +190,5 @@ private:
 
 	Vec4f lightPos, lightAng, lightColor, skyColor;
 	float lightIntensity, skyLightIntensity;
-	bool drawShadowMapDebug = false;
+	bool drawShadowMapDebug = false, missingTexturesSetToPlaceholder = true;
 };

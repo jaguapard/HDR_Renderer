@@ -143,6 +143,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
 	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
+	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_9)) this->missingTexturesSetToPlaceholder ^= 1;
 
 
 	Threadpool* threadpool = settings.threadpool;
@@ -748,7 +749,8 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 				for (int i = 0; i < 16; ++i)
 				{
 					if ((bounds.mask & (1 << i)) == 0) continue;
-					const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[group_modelIndex[i]].diffuseMapIndex);
+					int diffuseMapIndex = this->sceneModels[group_modelIndex[i]].diffuseMapIndex;
+					const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex);
 
 					for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
 					{
@@ -795,26 +797,30 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 							{
 								if (texturingEnabled)
 								{
-									texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-									if (drawCmd.shadingMode != ShadingMode::NONE)
+									if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
 									{
-										Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
-											Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
-											Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
-										Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
-										correctedNormals /= correctedNormals.len3d();
-										Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
-										Vec4_f32x16 lightDir = lightTo - lightFrom;
-										lightDir /= lightDir.len3d();
-										float32x16 normalDot = -correctedNormals.dot3d(lightDir);
-										texturePixels *= _mm512_max_ps(float32x16(0.05), normalDot);
+										texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+										if (drawCmd.shadingMode != ShadingMode::NONE)
+										{
+											Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
+												Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
+												Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
+											Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
+											correctedNormals /= correctedNormals.len3d();
+											Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
+											Vec4_f32x16 lightDir = lightTo - lightFrom;
+											lightDir /= lightDir.len3d();
+											float32x16 normalDot = -correctedNormals.dot3d(lightDir);
+											texturePixels *= _mm512_max_ps(float32x16(0.05), normalDot);
+										}
+										if (Statsman::ENABLED)
+										{
+											MyStatsman.rendering.textureGatheredLanes += 16;
+											MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
+										}
+										texturePixels *= 3;
 									}
-									if (Statsman::ENABLED)
-									{
-										MyStatsman.rendering.textureGatheredLanes += 16;
-										MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
-									}
-									texturePixels *= 3;
+									else texturePixels.a = 0.f;
 								}
 								else
 								{
