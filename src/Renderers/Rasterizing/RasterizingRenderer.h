@@ -143,7 +143,7 @@ namespace Rasterizing
 		FaceCullingType faceCullingType = FaceCullingType::NONE;
 		Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 
-		std::vector<Rasterizing::RenderJob_Store>* outputStores = nullptr; //TODO: rename this to transformedVertStores
+		std::vector<Rasterizing::RenderJob_Store>* transformedVertices = nullptr;
 		float* zBuffer = nullptr;
 		void* frameBuffer = nullptr;
 		uint32_t renderW, renderH;

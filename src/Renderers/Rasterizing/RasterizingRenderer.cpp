@@ -160,7 +160,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = true;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
-	mainDrawCmd.outputStores = &this->mainRenderJobs;
+	mainDrawCmd.transformedVertices = &this->mainRenderJobs;
 	mainDrawCmd.threadCount = threadCount;
 	mainDrawCmd.zBuffer = this->zBuffer.data();
 	mainDrawCmd.frameBuffer = settings.graphicsOutputBuffer;
@@ -173,13 +173,13 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
 	//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
 	//shadowMapDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
-	shadowMapDrawCmd.outputStores = &this->shadowMapRenderJobs;
+	shadowMapDrawCmd.transformedVertices = &this->shadowMapRenderJobs;
 	shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
 	shadowMapDrawCmd.renderH = shadowMapH;
 	shadowMapDrawCmd.needsUVs = true;
 	shadowMapDrawCmd.needsNormals = false;
 	shadowMapDrawCmd.faceCullingType = FaceCullingType::FRONTFACE; //FaceCullingType::FRONT
-	shadowMapDrawCmd.outputStores = &this->shadowMapRenderJobs;
+	shadowMapDrawCmd.transformedVertices = &this->shadowMapRenderJobs;
 	shadowMapDrawCmd.threadCount = threadCount;
 	shadowMapDrawCmd.zBuffer = this->shadowMap_zBuffer.data();
 	shadowMapDrawCmd.depthOnly = true;
@@ -188,7 +188,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	int tCntSq = threadCount * threadCount;
 	for (auto& currSub : this->drawCommands)
 	{
-		if (currSub.outputStores->size() != tCntSq) currSub.outputStores->resize(tCntSq);
+		if (currSub.transformedVertices->size() != tCntSq) currSub.transformedVertices->resize(tCntSq);
 	}
 
 	std::vector<task_id> transformTasks, drawTasks;
@@ -242,7 +242,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	for (auto& currSub : this->drawCommands)
 	{
-		for (auto& store : *currSub.outputStores)
+		for (auto& store : *currSub.transformedVertices)
 			store.clear();
 	}
 	//for (auto& it : renderJobsFromThreads) it.clear();
@@ -631,7 +631,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountProducer += activeJobs;
 					for (int currReceiverThread = groupFirstThread; currReceiverThread <= groupLastThread; ++currReceiverThread)
 					{
-						auto& targetStore = (*currCmd.outputStores)[threadIndex * threadCount + currReceiverThread];
+						auto& targetStore = (*currCmd.transformedVertices)[threadIndex * threadCount + currReceiverThread];
 						Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
 						targetStore.add(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, slice.modelIndex, currMask, currCmd);
 					}
@@ -723,7 +723,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		int w = drawCmd.renderW;
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
-			RenderJob_Store& storeForMe = (*drawCmd.outputStores)[senderThreadIndex * threadCount + threadIndex];
+			RenderJob_Store& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
 			int jobsCountForMe = storeForMe.size();
 			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
 			for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt += 16)
