@@ -143,7 +143,7 @@ namespace Rasterizing
 		FaceCullingType faceCullingType = FaceCullingType::NONE;
 		Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 
-		std::vector<std::vector<Rasterizing::RenderJob_Store>>* outputStores = nullptr; //TODO: rename this to transformedVertStores
+		std::vector<Rasterizing::RenderJob_Store>* outputStores = nullptr; //TODO: rename this to transformedVertStores
 		float* zBuffer = nullptr;
 		void* frameBuffer = nullptr;
 		uint32_t renderW, renderH;
@@ -184,7 +184,7 @@ private:
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 
-	std::vector<std::vector<Rasterizing::RenderJob_Store>> mainRenderJobs, shadowMapRenderJobs;
+	std::vector<Rasterizing::RenderJob_Store> mainRenderJobs, shadowMapRenderJobs;
 
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;

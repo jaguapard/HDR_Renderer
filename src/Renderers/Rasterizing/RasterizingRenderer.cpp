@@ -185,9 +185,10 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.depthOnly = true;
 	this->drawCommands[1] = shadowMapDrawCmd;
 
+	int tCntSq = threadCount * threadCount;
 	for (auto& currSub : this->drawCommands)
 	{
-		if (currSub.outputStores->size() != threadCount) currSub.outputStores->resize(threadCount);
+		if (currSub.outputStores->size() != tCntSq) currSub.outputStores->resize(tCntSq);
 	}
 
 	std::vector<task_id> transformTasks, drawTasks;
@@ -238,6 +239,12 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		));
 	}
 	threadpool->waitForMultipleTasks(drawTasks);
+
+	for (auto& currSub : this->drawCommands)
+	{
+		for (auto& store : *currSub.outputStores)
+			store.clear();
+	}
 	//for (auto& it : renderJobsFromThreads) it.clear();
 }
 
@@ -336,14 +343,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 {
 	uint64_t ticksBegin = SDL_GetTicksNS();
 	int threadCount = this->currGs->threadpool->getThreadCount();
-	if (this->mainRenderJobs[threadIndex].size() != threadCount) this->mainRenderJobs[threadIndex].resize(threadCount);
-	if (this->shadowMapRenderJobs[threadIndex].size() != threadCount) this->shadowMapRenderJobs[threadIndex].resize(threadCount);
 	assert(this->original_verticeStore.x.size() == this->original_verticeStore.y.size() && this->original_verticeStore.y.size() == this->original_verticeStore.z.size() && this->original_verticeStore.u.size() == this->original_verticeStore.v.size());
-
-	for (auto& currSub : this->drawCommands)
-	{
-		for (auto& it : (*currSub.outputStores)[threadIndex]) it.clear();
-	}
 	
 	float32x16 clippingZ = this->currGs->cameraPlane_zDist;
 	size_t storedJobCount = 0;
@@ -631,7 +631,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountProducer += activeJobs;
 					for (int currReceiverThread = groupFirstThread; currReceiverThread <= groupLastThread; ++currReceiverThread)
 					{
-						auto& targetStore = (*currCmd.outputStores)[threadIndex][currReceiverThread];
+						auto& targetStore = (*currCmd.outputStores)[threadIndex * threadCount + currReceiverThread];
 						Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
 						targetStore.add(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, slice.modelIndex, currMask, currCmd);
 					}
@@ -723,7 +723,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		int w = drawCmd.renderW;
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
-			RenderJob_Store& storeForMe = (*drawCmd.outputStores)[senderThreadIndex][threadIndex];
+			RenderJob_Store& storeForMe = (*drawCmd.outputStores)[senderThreadIndex * threadCount + threadIndex];
 			int jobsCountForMe = storeForMe.size();
 			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
 			for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt += 16)
