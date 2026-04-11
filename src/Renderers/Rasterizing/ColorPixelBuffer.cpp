@@ -1,7 +1,7 @@
 #include "ColorPixelBuffer.h"
 #include <stdexcept>
 #include "../../Threadpool.h"
-
+#include "../../helpers.h"
 Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
     packedColors(std::move(dying.packedColors)),
     opacityMap(std::move(dying.opacityMap)),
@@ -219,16 +219,44 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
 {
     u -= std::floor(u);
     v -= std::floor(v);
-    int pixelsX = u * this->sizes.float_maxSafeX;
-    int pixelsY = v * this->sizes.float_maxSafeY;
-    uint32_t packed = this->packedColors[pixelsY * this->sizes.w + pixelsX];
+    float fx = u * this->sizes.float_maxSafeX;
+    float fy = v * this->sizes.float_maxSafeY;
+    int x1 = fx;
+    int y1 = fy;
+    int x2 = x1 + 1;
+    int y2 = y1 + 1;
+    x1 += x1 < 0 ? sizes.w : 0;
+    x1 -= x1 >= sizes.w ? sizes.w : 0;
+    x2 += x2 < 0 ? sizes.w : 0;
+    x2 -= x2 >= sizes.w ? sizes.w : 0;
+    y1 += y1 < 0 ? sizes.h : 0;
+    y1 -= y1 >= sizes.h ? sizes.h : 0;
+    y2 += y2 < 0 ? sizes.h : 0;
+    y2 -= y2 >= sizes.h ? sizes.h : 0;
+
+    uint32_t packed[4];
+    packed[0] = this->packedColors[y1 * this->sizes.w + x1]; //top left
+    packed[1] = this->packedColors[y1 * this->sizes.w + x2]; //top right
+    packed[2] = this->packedColors[y2 * this->sizes.w + x1]; //bottom left
+    packed[3] = this->packedColors[y2 * this->sizes.w + x2]; //bottom right
+
+    Vec4f linear[4];
+    for (int i = 0; i < 4; ++i)
+    {
+        __m128i channels = _mm_set1_epi32(packed[i]);
+        channels = _mm_srlv_epi32(channels, _mm_setr_epi32(0, 10, 21, 31));
+        channels = _mm_and_si128(channels, _mm_setr_epi32(1023, 2047, 1023, 1));
+        Vec4f gammaEncodedChannels = _mm_cvtepu32_ps(channels);
+        Vec4f normalized = gammaEncodedChannels * Vec4f(_mm_setr_ps(1.f / 1023, 1.f / 2047, 1.f / 1023, 1)); //TODO: alpha will get messed up if it's not 0 or 1!
+        linear[i] = normalized * normalized;
+    }
     
-    __m128i channels = _mm_set1_epi32(packed);
-    channels = _mm_srlv_epi32(channels, _mm_setr_epi32(0, 10, 21, 31));
-    channels = _mm_and_si128(channels, _mm_setr_epi32(1023, 2047, 1023, 1));
-    Vec4f ret = _mm_cvtepu32_ps(channels);
-    ret *= _mm_setr_ps(1.f / 1023, 1.f / 2047, 1.f / 1023, 1); //TODO: alpha will get messed up if it's not 0 or 1!
-    return ret * ret;
+    //TODO: what about alpha?
+    float tx = std::fmod(fx, 1);
+    float ty = std::fmod(fy, 1);
+    Vec4f ler1 = lerp(linear[0], linear[1], tx);
+    Vec4f ler2 = lerp(linear[2], linear[3], tx);
+    return lerp(ler1, ler2, ty);
 }
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
