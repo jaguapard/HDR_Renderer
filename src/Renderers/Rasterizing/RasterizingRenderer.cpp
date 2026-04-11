@@ -914,9 +914,6 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			}
 
 			float32x16 zInvSrc = _mm512_maskz_loadu_ps(xBoundsMask, main_zBuffer + yInt * w + xInt);
-
-			//float32x16 sy = y;
-			//float32x16 sy = this->drawCommands[0].renderH - y;
 			Vec4_f32x16 screenPos(x, y, 1, zInvSrc);
 			Vec4_f32x16 worldCoords = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPos);
 
@@ -942,6 +939,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			}
 			float32x16 rcpSignedArea = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, rcpSignedArea), filledPixels);
 			int32x16 modelIndex = _mm512_castps_si512(gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, modelIndex), filledPixels));
+			int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, modelIndex * sizeof(Model) + offsetof(Model, diffuseMapIndex), this->sceneModels.data(), 1);
 			float32x16 alpha, beta, gamma;
 			calculateBarycentricCoordinates({ x,y,0.f,0.f }, restoredVerts[0].space, restoredVerts[1].space, restoredVerts[2].space, rcpSignedArea, alpha, beta, gamma);
 
@@ -955,25 +953,29 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				Vec4_f32x16(restoredVerts[2].normal.x, restoredVerts[2].normal.y, restoredVerts[2].normal.z, 0.f) * gamma;
 			Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
 
-			Vec4_f32x16 texturePixels = this->skyColor;
-
-
+			Vec4_f32x16 texturePixels;
+			#ifdef VS_CLANG //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
 			for (int i = 0; i < 16; ++i)
 			{
 				if ((filledPixels.mask & (1 << i)) == 0) continue;
-				Vec4f pixel = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex[i]].diffuseMapIndex).getLinearIntensity(uvCorrected.x[i], uvCorrected.y[i]);
+				Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndices[i]).getLinearIntensity(uvCorrected.x[i], uvCorrected.y[i]);
 				texturePixels.x[i] = pixel.x;
 				texturePixels.y[i] = pixel.y;
 				texturePixels.z[i] = pixel.z;
 				texturePixels.w[i] = 1;
 			}
+			#else
+			texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uvCorrected.x, uvCorrected.y, filledPixels);
+			#endif
+			texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
+			texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
+			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
 
 			const auto& currentShadowMap = this->drawCommands[1];
 			Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
 			float32x16 zInv = float32x16(1) / sunWorldPositions.z;
 			Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
 			sunScreenPositions.z = zInv;
-			//sunScreenPositions.y = float32x16(currentShadowMap.renderH) - sunScreenPositions.y;
 			sunScreenPositions.y = sunScreenPositions.y;
 
 			Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
@@ -992,9 +994,6 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
 			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
 			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
-			/*Vec4_f32x16 originalColors = mask_load_vec4_f32x16_from_framebuffer(main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
-			for (int i = 0; i < 3; ++i) originalColors[i] = _mm512_mask_mul_ps(originalColors[i], pointsInShadow, originalColors[i], float32x16(0.2));
-			mask_store_vec4_f32x16_to_framebuffer(originalColors, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);*/
 		}
 	}
 }
