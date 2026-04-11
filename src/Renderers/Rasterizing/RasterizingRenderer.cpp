@@ -734,63 +734,64 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
-			RenderJob_Store& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
-			int jobsCountForMe = storeForMe.size();
-			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
-			for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt++)
-			{
-				const RenderJob& rj = storeForMe.jobs[myJobsPointerInt];
-				float xBeg = std::max(my_xMin, std::floor(std::min(rj.x[2], std::min(rj.x[0], rj.x[1]))));
-				float yBeg = std::max(my_yMin, std::floor(std::min(rj.y[2], std::min(rj.y[0], rj.y[1]))));
-				float xEnd = std::min(my_xMax, std::ceil(std::max(rj.x[2], std::max(rj.x[0], rj.x[1]))));
-				float yEnd = std::min(my_yMax, std::ceil(std::max(rj.y[2], std::max(rj.y[0], rj.y[1]))));
-
-				int diffuseMapIndex = this->sceneModels[rj.modelIndex].diffuseMapIndex;
-				const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex);
-				Vec4f r1 = { rj.x[0], rj.y[0], rj.z[0],0.f };
-				Vec4f r2 = { rj.x[1], rj.y[1], rj.z[1],0.f };
-				Vec4f r3 = { rj.x[2], rj.y[2], rj.z[2],0.f };
-
-				for (float y = yBeg; y <= yEnd; ++y)
+			RenderJob_Store* storeForMe = &(*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
+			do {
+				int jobsCountForMe = storeForMe->occupiedElementCount;
+				if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
+				for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt++)
 				{
-					size_t yInt = y;
-					size_t xInt = xBeg;
-					float32x16 dy = y - yBeg;
-					for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
+					const RenderJob& rj = storeForMe->block[myJobsPointerInt];
+					float xBeg = std::max(my_xMin, std::floor(std::min(rj.x[2], std::min(rj.x[0], rj.x[1]))));
+					float yBeg = std::max(my_yMin, std::floor(std::min(rj.y[2], std::min(rj.y[0], rj.y[1]))));
+					float xEnd = std::min(my_xMax, std::ceil(std::max(rj.x[2], std::max(rj.x[0], rj.x[1]))));
+					float yEnd = std::min(my_yMax, std::ceil(std::max(rj.y[2], std::max(rj.y[0], rj.y[1]))));
+
+					int diffuseMapIndex = this->sceneModels[rj.modelIndex].diffuseMapIndex;
+					const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex);
+					Vec4f r1 = { rj.x[0], rj.y[0], rj.z[0],0.f };
+					Vec4f r2 = { rj.x[1], rj.y[1], rj.z[1],0.f };
+					Vec4f r3 = { rj.x[2], rj.y[2], rj.z[2],0.f };
+
+					for (float y = yBeg; y <= yEnd; ++y)
 					{
-						float32x16 dx = x - xBeg;
-						/*
-						float32x16 alpha = _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dx[i]), dx, _mm512_set1_ps(group_initialAlpha[i])));
-						float32x16 beta = _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dx[i]), dx, _mm512_set1_ps(group_initialBeta[i])));
-						float32x16 gamma = _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dx[i]), dx, _mm512_set1_ps(group_initialGamma[i])));*/
-						float32x16 alpha, beta, gamma;
-						calculateBarycentricCoordinates({ x,y,0.f,0.f }, r1, r2, r3, rj.rcpSignedArea, alpha, beta, gamma);
-						if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
-
-						Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
-						if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-						if (!pointsInsideTriangleMask) continue;
-
-						Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(rj.u[0], rj.v[0], rj.z[0], 0.f) * alpha +
-							Vec4_f32x16(rj.u[1], rj.v[1], rj.z[1], 0.f) * beta +
-							Vec4_f32x16(rj.u[2], rj.v[2], rj.z[2], 0.f) * gamma;
-						float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
-						if (Statsman::ENABLED)
+						size_t yInt = y;
+						size_t xInt = xBeg;
+						float32x16 dy = y - yBeg;
+						for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
 						{
-							MyStatsman.rendering.zBufferFetchLanes += 16;
-							MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-						}
-						//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
-						//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
-						Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
-						if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
-						if (!notOccludedPoints) continue; //if all points are occluded, then skip
+							float32x16 dx = x - xBeg;
+							/*
+							float32x16 alpha = _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dx[i]), dx, _mm512_set1_ps(group_initialAlpha[i])));
+							float32x16 beta = _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dx[i]), dx, _mm512_set1_ps(group_initialBeta[i])));
+							float32x16 gamma = _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dx[i]), dx, _mm512_set1_ps(group_initialGamma[i])));*/
+							float32x16 alpha, beta, gamma;
+							calculateBarycentricCoordinates({ x,y,0.f,0.f }, r1, r2, r3, rj.rcpSignedArea, alpha, beta, gamma);
+							if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
+
+							Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
+							if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+							if (!pointsInsideTriangleMask) continue;
+
+							Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(rj.u[0], rj.v[0], rj.z[0], 0.f) * alpha +
+								Vec4_f32x16(rj.u[1], rj.v[1], rj.z[1], 0.f) * beta +
+								Vec4_f32x16(rj.u[2], rj.v[2], rj.z[2], 0.f) * gamma;
+							float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
+							if (Statsman::ENABLED)
+							{
+								MyStatsman.rendering.zBufferFetchLanes += 16;
+								MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+							}
+							//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
+							//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
+							Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
+							if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+							if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
 							Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
 							Vec4_f32x16 texturePixels;
 							if (depthOnly)
 							{
-								
+
 								auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
 								texturePixels.a = accessor.gatherA();
 								//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
@@ -808,7 +809,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 												Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
 												Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
 											Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
-											
+
 										}*/
 										if (Statsman::ENABLED)
 										{
@@ -846,17 +847,19 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 								mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
 							}*/
 
-						if (Statsman::ENABLED)
-						{
-							MyStatsman.rendering.zBufferWriteLanes += 16;
-							MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-							MyStatsman.rendering.frameBufWriteLanes += 16;
-							MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-							MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+							if (Statsman::ENABLED)
+							{
+								MyStatsman.rendering.zBufferWriteLanes += 16;
+								MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+								MyStatsman.rendering.frameBufWriteLanes += 16;
+								MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+								MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+							}
 						}
 					}
 				}
-			}
+				storeForMe = storeForMe->next.get();
+			} while (storeForMe);
 		}
 		drawCmdInd++;
 	}
@@ -1031,12 +1034,12 @@ size_t Rasterizing::Triangle_Store::size() const
 	return vertInd[0].size();
 }
 
+/*
 std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t firstInd, Mask16 mask) const
 {
 	std::array<VertexPack16,3> ret;
 	for (int i = 0; i < 3; ++i) 
 	{
-		
 		for (int j = 0; j < 16; ++j)
 		{
 			if ((mask.mask & (1 << j)) == 0) continue;
@@ -1052,36 +1055,46 @@ std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t f
 		}
 	}
 	return ret;
-}
+}*/
 
-size_t Rasterizing::RenderJob_Store::size() const
+RenderJob_Store& Rasterizing::RenderJob_Store::getInsertTarget(size_t numElementsToInsert)
 {
-	return this->realSize;
+	assert(MAX_RENDER_JOBS_PER_BLOCK >= numElementsToInsert);
+	if (this->end->occupiedElementCount + numElementsToInsert > MAX_RENDER_JOBS_PER_BLOCK)
+	{
+		this->end->next = std::make_unique<RenderJob_Store>();
+		this->end = this->end->next.get();
+	}
+	return *this->end;
 }
 
 void Rasterizing::RenderJob_Store::clear(bool forceClear)
 {
-	this->realSize = 0;
 	if (forceClear)
 	{
-		this->jobs.clear();
-		this->capacity = 0;
+		//this->block = nullptr;
+		this->next = nullptr;
+		this->end = this;
+		this->occupiedElementCount = 0;
 	}
-}
-void Rasterizing::RenderJob_Store::makeSpace(size_t newSize)
-{
-	if (newSize <= this->capacity) return;
-	this->jobs.resize(newSize);
-	this->capacity = newSize;
+	else
+	{
+		RenderJob_Store* currStore = this;
+		do {
+			currStore->occupiedElementCount = 0;
+			currStore = currStore->next.get();
+		} while (currStore);
+		this->end = this;
+	}
 }
 void Rasterizing::RenderJob_Store::add(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask, const DrawCommand& subInfo)
 {
 	if (pEnd - pStart != 3) throw std::runtime_error("Vertex pack sizes not equal to 3 are not yet supported in RenderJob_Store::add");
 	//TODO: handle subInfo by eliding unused stores and resizes (normals/uvs/etc) (actually, maybe better not with AoS layout, since we won't avoid much anyway)
 	if (!activeElementsMask) return;
-	this->makeSpace(this->realSize + 16);
-	size_t oldSz = this->realSize;
-
+	
+	int elementCountToAdd = _mm_popcnt_u32(activeElementsMask);
+	RenderJob_Store& insertTarget = this->getInsertTarget(elementCountToAdd);
 
 	//The next code expects exactly this layout and may break if it changes, so have strict checks for it! You'll have to tweak it when changing stuff!
 	{
@@ -1118,7 +1131,7 @@ void Rasterizing::RenderJob_Store::add(const VertexPack16* pStart, const VertexP
 	{
 		if ((activeElementsMask.mask & (1 << j)) == 0) continue;
 		//if (oldSz + j == 53958) __debugbreak();
-		RenderJob& rj = this->jobs[this->realSize++];
+		RenderJob& rj = insertTarget.block[insertTarget.occupiedElementCount++];
 
 		int32x16 gatherInd_first = _mm512_setr_epi32(
 			sizeof(VertexPack16)*0 + offsetof(VertexPack16,space.x),

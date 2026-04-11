@@ -119,19 +119,27 @@ namespace Rasterizing
 
 		RenderJob() {};
 	};
-
+	/*
+	struct RenderJobBlock
+	{
+		std::unique_ptr<RenderJob[]> 
+	};*/
 	struct RenderJob_Store
 	{
-		std::vector<RenderJob> jobs;
-		size_t realSize = 0;
-		size_t capacity = 0;
+		static constexpr size_t MAX_RENDER_JOBS_PER_BLOCK = 600 * 16;
+		//using RenderJobBlock = std::unique_ptr<RenderJob[]>;
+		
+		std::unique_ptr<RenderJob[]> block = std::make_unique<RenderJob[]>(MAX_RENDER_JOBS_PER_BLOCK);
+		std::unique_ptr<RenderJob_Store> next = nullptr;
+		RenderJob_Store* end = this; //unmanaged pointer for fast insertions. The real owner is it's parent!
+		size_t occupiedElementCount = 0;
 
-		std::array<VertexPack16, 3> loadVertices16(size_t firstInd, Mask16 mask) const;
+		RenderJob_Store& getInsertTarget(size_t numElementsToInsert);
+		//void getInsertTargetBlockAndSize(size_t numElementsToInsert, std::unique_ptr<RenderJob[]>** outBlock, size_t& outBlockSize);
+
+		//std::array<VertexPack16, 3> loadVertices16(size_t firstInd, Mask16 mask) const;
 		//VertexPack16 gatherVertices16(int32x16 indices) const;
-
-		size_t size() const;
-		void clear(bool forceClear = false); //sets the realSize to 0. If forceClear is true also cleans the vectors.
-		void makeSpace(size_t newSize);
+		void clear(bool forceClear = false); //sets the size to 0 for this and all children. If forceClear is true, will delete all children and this store's block instead.
 		void add(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask, const DrawCommand& subInfo);
 	};
 
