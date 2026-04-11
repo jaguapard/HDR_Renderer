@@ -196,6 +196,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	for (auto& currSub : this->drawCommands)
 	{
 		if (currSub.transformedVertices->size() != tCntSq) currSub.transformedVertices->resize(tCntSq);
+		for (auto& it : *currSub.transformedVertices) it.clear(true);
 	}
 
 	std::vector<task_id> transformTasks, drawTasks;
