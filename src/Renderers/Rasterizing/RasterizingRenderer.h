@@ -111,11 +111,16 @@ namespace Rasterizing
 	};
 
 	struct DrawCommand;
+
+	struct RenderJob
+	{
+		float x[3], y[3], z[3], u[3], v[3], nx[3], ny[3], nz[3], rcpSignedArea;
+		int modelIndex;
+	};
+
 	struct RenderJob_Store
 	{
-		std::array<std::vector<float>, 3> x, y, z, u, v, nx, ny, nz;
-		std::vector<float> rcpSignedArea;
-		std::vector<int> modelIndex;
+		std::vector<RenderJob> jobs;
 		size_t realSize = 0;
 		size_t capacity = 0;
 
@@ -136,27 +141,31 @@ namespace Rasterizing
 		COUNT,
 	};
 
+	struct GenericBuffer
+	{
+		void* data = nullptr;
+		int w, h;
+		GenericBuffer(void* p, int w, int h) : data(p), w(w), h(h) {};
+	};
+
+	enum class DrawRecipe
+	{
+		MAIN_DEPTH_PREPASS,
+		SHADOW_MAP_DEPTH,
+	};
 	struct DrawCommand
 	{
 		CoordinateTransformer ctr;
-		bool needsUVs = true, needsNormals = true, depthOnly = false;
+		bool needsUVs = true, needsNormals = true;
 		FaceCullingType faceCullingType = FaceCullingType::NONE;
 		Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 
 		std::vector<Rasterizing::RenderJob_Store>* transformedVertices = nullptr;
-		float* zBuffer = nullptr;
-		void* frameBuffer = nullptr;
+		std::vector<GenericBuffer> buffers;
 		uint32_t renderW, renderH;
 		uint32_t threadCount = -1;
+		DrawRecipe recipe;
 	};
-
-	
-	/*
-	struct RenderJob
-	{
-		float x[3], y[3], z[3], u[3], v[3];
-		int modelIndex;
-	};*/
 	
 }
 class RasterizingRenderer : public RendererBase
@@ -183,14 +192,15 @@ private:
 	void joinMainWithShadowMap(int threadIndex);
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
-
+	std::vector<uint64_t> deferrendRenderJobPtrs;
 	std::vector<Rasterizing::RenderJob_Store> mainRenderJobs, shadowMapRenderJobs;
 
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
 
-	Vec4f lightPos, lightAng, lightColor, skyColor;
-	float lightIntensity, skyLightIntensity;
+	Vec4f lightPos, lightAng, lightColor, skyColor = Vec4f(0.3, 0.7, 1, 1);
+	//float lightIntensity, skyLightIntensity;
+	float ambientLightIntensity = 0.3, lightIntesity = 3;
 	bool drawShadowMapDebug = false, missingTexturesSetToPlaceholder = true;
 	Rasterizing::FaceCullingType faceCullingType = Rasterizing::FaceCullingType::NONE;
 };

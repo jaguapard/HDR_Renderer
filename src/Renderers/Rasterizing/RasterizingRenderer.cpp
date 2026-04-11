@@ -135,10 +135,12 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 {
 	this->currGs = &settings;
 	this->modelSlicesForThreads = this->makeModelSliceList();
-	this->zBuffer.resize(settings.outputTextureParams.Width * settings.outputTextureParams.Height);
+	int mainBufSize = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
+	this->zBuffer.resize(mainBufSize);
 	int shadowMapW = 512*3;
 	int shadowMapH = 288*3;
 	this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
+	this->deferrendRenderJobPtrs.resize(mainBufSize);
 	
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
@@ -150,20 +152,23 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getThreadCount();
 
-
+	int w = (int)settings.outputTextureParams.Width;
+	int h = (int)settings.outputTextureParams.Height;
 	DrawCommand mainDrawCmd;
-	mainDrawCmd.ctr = { (int)settings.outputTextureParams.Width, (int)settings.outputTextureParams.Height }; 
+	mainDrawCmd.ctr = { w,h }; 
 	mainDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
 	mainDrawCmd.shadingMode = this->shadingMode;
-	mainDrawCmd.renderW = settings.outputTextureParams.Width; //TODO: transformer has W and H already, infer it?
-	mainDrawCmd.renderH = settings.outputTextureParams.Height;
+	mainDrawCmd.buffers.emplace_back(this->zBuffer.data(), w, h);
+	mainDrawCmd.buffers.emplace_back(this->currGs->graphicsOutputBuffer, w, h);
+	mainDrawCmd.buffers.emplace_back(this->deferrendRenderJobPtrs.data(), w, h);
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = true;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
 	mainDrawCmd.transformedVertices = &this->mainRenderJobs;
 	mainDrawCmd.threadCount = threadCount;
-	mainDrawCmd.zBuffer = this->zBuffer.data();
-	mainDrawCmd.frameBuffer = settings.graphicsOutputBuffer;
+	mainDrawCmd.renderW = w;
+	mainDrawCmd.renderH = h;
+	mainDrawCmd.recipe = DrawRecipe::MAIN_DEPTH_PREPASS;
 	this->drawCommands[0] = mainDrawCmd;
 
 	DrawCommand shadowMapDrawCmd;
@@ -176,13 +181,15 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.transformedVertices = &this->shadowMapRenderJobs;
 	shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
 	shadowMapDrawCmd.renderH = shadowMapH;
+	shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
 	shadowMapDrawCmd.needsUVs = true;
 	shadowMapDrawCmd.needsNormals = false;
 	shadowMapDrawCmd.faceCullingType = FaceCullingType::FRONTFACE; //FaceCullingType::FRONT
 	shadowMapDrawCmd.transformedVertices = &this->shadowMapRenderJobs;
 	shadowMapDrawCmd.threadCount = threadCount;
-	shadowMapDrawCmd.zBuffer = this->shadowMap_zBuffer.data();
-	shadowMapDrawCmd.depthOnly = true;
+	shadowMapDrawCmd.renderW = shadowMapW;
+	shadowMapDrawCmd.renderH = shadowMapH;
+	shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
 	this->drawCommands[1] = shadowMapDrawCmd;
 
 	int tCntSq = threadCount * threadCount;
@@ -204,12 +211,13 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
 	for (auto& it : zBuffer) it = -INFINITY;
 	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
+	for (auto& it : this->deferrendRenderJobPtrs) it = 0;
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
 	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
-	uint64_t skyColor = _mm_extract_epi64(_mm_cvtps_ph(Vec4f(0.3, 0.7, 1, 1), _MM_FROUND_NO_EXC), 0);
-	uint64_t* pp = (uint64_t*)(settings.graphicsOutputBuffer);
-	for (int i = 0; i < sz; ++i) pp[i] = skyColor;
+	//uint64_t skyColor = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_NO_EXC), 0);
+	//uint64_t* pp = (uint64_t*)(settings.graphicsOutputBuffer);
+	//for (int i = 0; i < sz; ++i) pp[i] = skyColor;
 	uint64_t framebufCleanTicks = SDL_GetTicksNS();
 
 	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
@@ -713,6 +721,8 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	int drawCmdInd = 0;
 	for (auto& drawCmd : this->drawCommands)
 	{
+		float* zBuffer = (float*)drawCmd.buffers[0].data;
+		uint64_t* frameBuffer = drawCmd.buffers.size() >= 2 ? (uint64_t*)drawCmd.buffers[1].data : nullptr;
 		auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, drawCmd.renderH);
 		int threadCount = this->currGs->threadpool->getThreadCount();
 		float my_yMin = floor(d_low);
@@ -721,78 +731,69 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		float my_xMax = drawCmd.renderW - 1;
 		bool texturingEnabled = this->currGs->texturingEnabled;
 		int w = drawCmd.renderW;
+		bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
 			RenderJob_Store& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
 			int jobsCountForMe = storeForMe.size();
 			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
-			for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt += 16)
+			for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt++)
 			{
-				Mask16 bounds = (int32x16::sequence() + myJobsPointerInt) < jobsCountForMe;
-				float32x16 group_rcpSignedArea = _mm512_maskz_loadu_ps(bounds, storeForMe.rcpSignedArea.data() + myJobsPointerInt);
-				int32x16 group_modelIndex = _mm512_maskz_loadu_epi32(bounds, storeForMe.modelIndex.data() + myJobsPointerInt);
+				const RenderJob& rj = storeForMe.jobs[myJobsPointerInt];
+				float xBeg = std::max(my_xMin, std::floor(std::min(rj.x[2], std::min(rj.x[0], rj.x[1]))));
+				float yBeg = std::max(my_yMin, std::floor(std::min(rj.y[2], std::min(rj.y[0], rj.y[1]))));
+				float xEnd = std::min(my_xMax, std::ceil(std::max(rj.x[2], std::max(rj.x[0], rj.x[1]))));
+				float yEnd = std::min(my_yMax, std::ceil(std::max(rj.y[2], std::max(rj.y[0], rj.y[1]))));
 
-				const std::array<VertexPack16, 3> vertices = storeForMe.loadVertices16(myJobsPointerInt, bounds);
-				float32x16 group_xBeg = _mm512_max_ps(float32x16(my_xMin), _mm512_floor_ps(_mm512_min_ps(vertices[2].space.x, _mm512_min_ps(vertices[0].space.x, vertices[1].space.x))));
-				float32x16 group_yBeg = _mm512_max_ps(float32x16(my_yMin), _mm512_floor_ps(_mm512_min_ps(vertices[2].space.y, _mm512_min_ps(vertices[0].space.y, vertices[1].space.y))));
-				float32x16 group_xEnd = _mm512_min_ps(float32x16(my_xMax), _mm512_ceil_ps(_mm512_max_ps(vertices[2].space.x, _mm512_max_ps(vertices[0].space.x, vertices[1].space.x))));
-				float32x16 group_yEnd = _mm512_min_ps(float32x16(my_yMax), _mm512_ceil_ps(_mm512_max_ps(vertices[2].space.y, _mm512_max_ps(vertices[0].space.y, vertices[1].space.y))));
+				int diffuseMapIndex = this->sceneModels[rj.modelIndex].diffuseMapIndex;
+				const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex);
+				Vec4f r1 = { rj.x[0], rj.y[0], rj.z[0],0.f };
+				Vec4f r2 = { rj.x[1], rj.y[1], rj.z[1],0.f };
+				Vec4f r3 = { rj.x[2], rj.y[2], rj.z[2],0.f };
 
-				float32x16 group_initialAlpha, group_initialBeta, group_initialGamma;
-				calculateBarycentricCoordinates({ group_xBeg, group_yBeg, 0.f,0.f }, vertices[0].space, vertices[1].space, vertices[2].space, group_rcpSignedArea, group_initialAlpha, group_initialBeta, group_initialGamma);
-				float32x16 group_dAlpha_dx = (vertices[1].space.y - vertices[2].space.y) * group_rcpSignedArea;
-				float32x16 group_dAlpha_dy = (vertices[2].space.x - vertices[1].space.x) * group_rcpSignedArea;
-				float32x16 group_dBeta_dx = (vertices[2].space.y - vertices[0].space.y) * group_rcpSignedArea;
-				float32x16 group_dBeta_dy = (vertices[0].space.x - vertices[2].space.x) * group_rcpSignedArea;
-				float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, can cause precision issues! (actually, doesn't do now)
-				float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //and this too
-
-				for (int i = 0; i < 16; ++i)
+				for (float y = yBeg; y <= yEnd; ++y)
 				{
-					if ((bounds.mask & (1 << i)) == 0) continue;
-					int diffuseMapIndex = this->sceneModels[group_modelIndex[i]].diffuseMapIndex;
-					const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex);
-
-					for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
+					size_t yInt = y;
+					size_t xInt = xBeg;
+					float32x16 dy = y - yBeg;
+					for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
 					{
-						size_t yInt = y;
-						size_t xInt = group_xBeg[i];
-						float32x16 dy = y - group_yBeg[i];
-						for (float32x16 x = float32x16::sequence() + group_xBeg[i]; Mask16 xBoundsMask = (x <= group_xEnd[i]); x += 16, xInt += 16)
+						float32x16 dx = x - xBeg;
+						/*
+						float32x16 alpha = _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dx[i]), dx, _mm512_set1_ps(group_initialAlpha[i])));
+						float32x16 beta = _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dx[i]), dx, _mm512_set1_ps(group_initialBeta[i])));
+						float32x16 gamma = _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dx[i]), dx, _mm512_set1_ps(group_initialGamma[i])));*/
+						float32x16 alpha, beta, gamma;
+						calculateBarycentricCoordinates({ x,y,0.f,0.f }, r1, r2, r3, rj.rcpSignedArea, alpha, beta, gamma);
+						if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
+
+						Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
+						if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						if (!pointsInsideTriangleMask) continue;
+
+						Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(rj.u[0], rj.v[0], rj.z[0], 0.f) * alpha +
+							Vec4_f32x16(rj.u[1], rj.v[1], rj.z[1], 0.f) * beta +
+							Vec4_f32x16(rj.u[2], rj.v[2], rj.z[2], 0.f) * gamma;
+						float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
+						if (Statsman::ENABLED)
 						{
-							float32x16 dx = x - group_xBeg[i];
-							float32x16 alpha = _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dx[i]), dx, _mm512_set1_ps(group_initialAlpha[i])));
-							float32x16 beta = _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dx[i]), dx, _mm512_set1_ps(group_initialBeta[i])));
-							float32x16 gamma = _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dx[i]), dx, _mm512_set1_ps(group_initialGamma[i])));
-							if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
-
-							Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
-							if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-							if (!pointsInsideTriangleMask) continue;
-
-							Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(vertices[0].u[i], vertices[0].v[i], vertices[0].space.z[i], 0.f) * alpha +
-								Vec4_f32x16(vertices[1].u[i], vertices[1].v[i], vertices[1].space.z[i], 0.f) * beta +
-								Vec4_f32x16(vertices[2].u[i], vertices[2].v[i], vertices[2].space.z[i], 0.f) * gamma;
-							float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, drawCmd.zBuffer + yInt * w + xInt);
-							if (Statsman::ENABLED)
-							{
-								MyStatsman.rendering.zBufferFetchLanes += 16;
-								MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-							}
-							//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
-							//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
-							Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
-							if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
-							if (!notOccludedPoints) continue; //if all points are occluded, then skip
+							MyStatsman.rendering.zBufferFetchLanes += 16;
+							MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						}
+						//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
+						//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
+						Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
+						if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+						if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
 							Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
 							Vec4_f32x16 texturePixels;
-							if (drawCmd.depthOnly)
+							if (depthOnly)
 							{
-								/*
+								
 								auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-								texturePixels.a = accessor.gatherA();*/
-								texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+								texturePixels.a = accessor.gatherA();
+								//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
 							}
 							else
 							{
@@ -801,25 +802,19 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 									if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
 									{
 										texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-										if (drawCmd.shadingMode != ShadingMode::NONE)
+										/*if (drawCmd.shadingMode != ShadingMode::NONE)
 										{
 											Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
 												Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
 												Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
 											Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
-											correctedNormals /= correctedNormals.len3d();
-											Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
-											Vec4_f32x16 lightDir = lightTo - lightFrom;
-											lightDir /= lightDir.len3d();
-											float32x16 normalDot = -correctedNormals.dot3d(lightDir);
-											texturePixels *= _mm512_max_ps(float32x16(0.05), normalDot);
-										}
+											
+										}*/
 										if (Statsman::ENABLED)
 										{
 											MyStatsman.rendering.textureGatheredLanes += 16;
 											MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
 										}
-										texturePixels *= 3;
 									}
 									else texturePixels.a = 0.f;
 								}
@@ -834,27 +829,34 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 							Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
 							if (!opaquePixelsMask) continue;
 
-							_mm512_mask_storeu_ps(drawCmd.zBuffer + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
+							_mm512_mask_storeu_ps(zBuffer + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
 
-							if (!drawCmd.depthOnly)
+							if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 							{
-								mask_store_vec4_f32x16_to_framebuffer(texturePixels, drawCmd.frameBuffer, xInt, yInt, w, opaquePixelsMask);
+								uint64_t currRjPtr = uint64_t(&rj);
+								_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjPtr));
+								_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjPtr));
+								//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(senderThreadIndex));
+								//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[3].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(myJobsPointerInt + i));
+								//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[4].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(threadIndex));
 							}
+							/*
+							if (!depthOnly)
+							{
+								mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
+							}*/
 
-							if (Statsman::ENABLED)
-							{
-								MyStatsman.rendering.zBufferWriteLanes += 16;
-								MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-								MyStatsman.rendering.frameBufWriteLanes += 16;
-								MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-								MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
-							}
+						if (Statsman::ENABLED)
+						{
+							MyStatsman.rendering.zBufferWriteLanes += 16;
+							MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+							MyStatsman.rendering.frameBufWriteLanes += 16;
+							MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+							MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
 						}
 					}
 				}
 			}
-
-
 		}
 		drawCmdInd++;
 	}
@@ -864,6 +866,14 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 	}
 }
 
+__m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512i ptrs8_15, int attrOffsetInRenderJob, Mask16 mask)
+{
+	__m512i addr0_7 = _mm512_add_epi64(ptrs0_7, _mm512_set1_epi64(attrOffsetInRenderJob));
+	__m512i addr8_15 = _mm512_add_epi64(ptrs8_15, _mm512_set1_epi64(attrOffsetInRenderJob));
+	__m256 attr0 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask, addr0_7, nullptr, 1);
+	__m256 attr1 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask >> 8, addr8_15, nullptr, 1);
+	return _mm512_insertf32x8(_mm512_castps256_ps512(attr0), attr1, 1);
+}
 void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 {
 	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, this->drawCommands[0].renderH);
@@ -873,6 +883,11 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	float my_xMin = 0;
 	float my_xMax = this->drawCommands[0].renderW - 1;
 	int w = this->drawCommands[0].renderW;
+
+	float* shadowMap_zBuffer = (float*)this->drawCommands[1].buffers[0].data;
+	float* main_zBuffer = (float*)this->drawCommands[0].buffers[0].data;
+	float* main_frameBuffer = (float*)this->drawCommands[0].buffers[1].data;
+	uint64_t* renderJobPtrsBuffer = (uint64_t*)this->drawCommands[0].buffers[2].data;
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;
@@ -886,24 +901,73 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				Mask16 sm_xBounds = x < smw;
 				if (sm_xBounds && y < smh)
 				{
-					float32x16 z = _mm512_maskz_loadu_ps(sm_xBounds, this->drawCommands[1].zBuffer + yInt * this->drawCommands[1].renderW + xInt);
+					float32x16 z = _mm512_maskz_loadu_ps(sm_xBounds, shadowMap_zBuffer + yInt * this->drawCommands[1].renderW + xInt);
 					float32x16 dz = float32x16(1) / z;
 					float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
 
 					Vec4_f32x16 colOut;
 					colOut.r = colOut.g = colOut.b = distIntensity;
 					colOut.a = 1;
-					mask_store_vec4_f32x16_to_framebuffer(colOut, this->drawCommands[0].frameBuffer, xInt, yInt, this->drawCommands[0].renderW, sm_xBounds);
+					mask_store_vec4_f32x16_to_framebuffer(colOut, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, sm_xBounds);
 					continue;
 				}
 			}
 
-			float32x16 zInvSrc = _mm512_maskz_loadu_ps(xBoundsMask, this->drawCommands[0].zBuffer + yInt * w + xInt);
+			float32x16 zInvSrc = _mm512_maskz_loadu_ps(xBoundsMask, main_zBuffer + yInt * w + xInt);
 
 			//float32x16 sy = y;
 			//float32x16 sy = this->drawCommands[0].renderH - y;
 			Vec4_f32x16 screenPos(x, y, 1, zInvSrc);
 			Vec4_f32x16 worldCoords = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPos);
+
+			__m512i rjPtrs0_7 = _mm512_maskz_loadu_epi64(xBoundsMask, renderJobPtrsBuffer + yInt * w + xInt);
+			__m512i rjPtrs8_15 = _mm512_maskz_loadu_epi64(xBoundsMask >> 8, renderJobPtrsBuffer + yInt * w + xInt + 8);
+			Mask16 filledPixels = _mm512_cmpneq_epi64_mask(rjPtrs0_7, _mm512_setzero_si512());
+			filledPixels |= uint16_t(_mm512_cmpneq_epi64_mask(rjPtrs8_15, _mm512_setzero_si512())) << 8;
+			filledPixels &= xBoundsMask;
+			VertexPack16 restoredVerts[3];
+
+			//constexpr uint64_t attr_offset_bytes[] = {offsetof(RenderJob, x[0]), offsetof(RenderJob, y[0]), offsetof(RenderJob, z[0]), offsetof(RenderJob, u[0]), offsetof(RenderJob, v[0]), offsetof(RenderJob, nx[0]), offsetof(RenderJob, ny[0]),offsetof(RenderJob, nz[0])};
+			//std::array<float32x16*, 8> attr_writeback_ptrs = {offsetof(VertexPack16, x)
+			for (int i = 0; i < 3; ++i)
+			{
+				restoredVerts[i].space.x = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, x[i]), filledPixels);
+				restoredVerts[i].space.y = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, y[i]), filledPixels);
+				restoredVerts[i].space.z = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, z[i]), filledPixels);
+				restoredVerts[i].u = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, u[i]), filledPixels);
+				restoredVerts[i].v = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, v[i]), filledPixels);
+				restoredVerts[i].normal.x = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, nx[i]), filledPixels);
+				restoredVerts[i].normal.y = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, ny[i]), filledPixels);
+				restoredVerts[i].normal.z = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, nz[i]), filledPixels);
+			}
+			float32x16 rcpSignedArea = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, rcpSignedArea), filledPixels);
+			int32x16 modelIndex = _mm512_castps_si512(gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, modelIndex), filledPixels));
+			float32x16 alpha, beta, gamma;
+			calculateBarycentricCoordinates({ x,y,0.f,0.f }, restoredVerts[0].space, restoredVerts[1].space, restoredVerts[2].space, rcpSignedArea, alpha, beta, gamma);
+
+			Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(restoredVerts[0].u, restoredVerts[0].v, restoredVerts[0].space.z, 0.f) * alpha +
+				Vec4_f32x16(restoredVerts[1].u, restoredVerts[1].v, restoredVerts[1].space.z, 0.f) * beta +
+				Vec4_f32x16(restoredVerts[2].u, restoredVerts[2].v, restoredVerts[2].space.z, 0.f) * gamma;
+			Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
+
+			Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(restoredVerts[0].normal.x, restoredVerts[0].normal.y, restoredVerts[0].normal.z, 0.f) * alpha +
+				Vec4_f32x16(restoredVerts[1].normal.x, restoredVerts[1].normal.y, restoredVerts[1].normal.z, 0.f) * beta +
+				Vec4_f32x16(restoredVerts[2].normal.x, restoredVerts[2].normal.y, restoredVerts[2].normal.z, 0.f) * gamma;
+			Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
+
+			Vec4_f32x16 texturePixels = this->skyColor;
+
+
+			for (int i = 0; i < 16; ++i)
+			{
+				if ((filledPixels.mask & (1 << i)) == 0) continue;
+				Vec4f pixel = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex[i]].diffuseMapIndex).getLinearIntensity(uvCorrected.x[i], uvCorrected.y[i]);
+				texturePixels.x[i] = pixel.x;
+				texturePixels.y[i] = pixel.y;
+				texturePixels.z[i] = pixel.z;
+				texturePixels.w[i] = 1;
+			}
+
 			const auto& currentShadowMap = this->drawCommands[1];
 			Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
 			float32x16 zInv = float32x16(1) / sunWorldPositions.z;
@@ -914,14 +978,23 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 
 			Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
 			int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
-			float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, this->drawCommands[1].zBuffer, 4);
+			float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
 			//float32x16 bias = 0.0001f;
 			float32x16 bias = 0.f;
 			Mask16 pointsInShadow = ~inShadowMapBounds | ((shadowMapDepths - bias) > sunScreenPositions.z);
 
-			Vec4_f32x16 originalColors = mask_load_vec4_f32x16_from_framebuffer(this->drawCommands[0].frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
+			Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
+			Vec4_f32x16 lightDir = lightTo - lightFrom;
+			lightDir /= lightDir.len3d();
+			float32x16 normalDot = -correctedNormals.dot3d(lightDir);
+			Vec4_f32x16 totalLight = Vec4_f32x16(this->ambientLightIntensity, this->ambientLightIntensity, this->ambientLightIntensity, 0.f) + _mm512_max_ps(_mm512_set1_ps(0), normalDot * this->lightIntesity);
+
+			for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
+			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
+			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
+			/*Vec4_f32x16 originalColors = mask_load_vec4_f32x16_from_framebuffer(main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
 			for (int i = 0; i < 3; ++i) originalColors[i] = _mm512_mask_mul_ps(originalColors[i], pointsInShadow, originalColors[i], float32x16(0.2));
-			mask_store_vec4_f32x16_to_framebuffer(originalColors, this->drawCommands[0].frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
+			mask_store_vec4_f32x16_to_framebuffer(originalColors, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);*/
 		}
 	}
 }
@@ -964,14 +1037,20 @@ std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t f
 	std::array<VertexPack16,3> ret;
 	for (int i = 0; i < 3; ++i) 
 	{
-		ret[i].space.x = _mm512_maskz_loadu_ps(mask, this->x[i].data() + firstInd);
-		ret[i].space.y = _mm512_maskz_loadu_ps(mask, this->y[i].data() + firstInd);
-		ret[i].space.z = _mm512_maskz_loadu_ps(mask, this->z[i].data() + firstInd);
-		ret[i].u = _mm512_maskz_loadu_ps(mask, this->u[i].data() + firstInd);
-		ret[i].v = _mm512_maskz_loadu_ps(mask, this->v[i].data() + firstInd);
-		ret[i].normal.x = _mm512_maskz_loadu_ps(mask, this->nx[i].data() + firstInd);
-		ret[i].normal.y = _mm512_maskz_loadu_ps(mask, this->ny[i].data() + firstInd);
-		ret[i].normal.z = _mm512_maskz_loadu_ps(mask, this->nz[i].data() + firstInd);
+		
+		for (int j = 0; j < 16; ++j)
+		{
+			if ((mask.mask & (1 << j)) == 0) continue;
+			int ind = firstInd + j;
+			ret[i].space.x[j] = this->jobs[ind].x[i];
+			ret[i].space.y[j] = this->jobs[ind].y[i];
+			ret[i].space.z[j] = this->jobs[ind].z[i];
+			ret[i].normal.x[j] = this->jobs[ind].nx[i];
+			ret[i].normal.y[j] = this->jobs[ind].ny[i];
+			ret[i].normal.z[j] = this->jobs[ind].nz[i];
+			ret[i].u[j] = this->jobs[ind].u[i];
+			ret[i].v[j] = this->jobs[ind].v[i];
+		}
 	}
 	return ret;
 }
@@ -986,79 +1065,41 @@ void Rasterizing::RenderJob_Store::clear(bool forceClear)
 	this->realSize = 0;
 	if (forceClear)
 	{
-		for (int i = 0; i < 3; ++i)
-		{
-			x[i].clear();
-			y[i].clear();
-			z[i].clear();
-			u[i].clear();
-			v[i].clear();
-			nx[i].clear();
-			ny[i].clear();
-			nz[i].clear();
-		}
-		modelIndex.clear();
-		rcpSignedArea.clear();
+		this->jobs.clear();
 		this->capacity = 0;
 	}
 }
 void Rasterizing::RenderJob_Store::makeSpace(size_t newSize)
 {
 	if (newSize <= this->capacity) return;
-	for (int i = 0; i < 3; ++i)
-	{
-		x[i].resize(newSize);
-		y[i].resize(newSize);
-		z[i].resize(newSize);
-		u[i].resize(newSize);
-		v[i].resize(newSize);
-		nx[i].resize(newSize);
-		ny[i].resize(newSize);
-		nz[i].resize(newSize);
-	}
-	modelIndex.resize(newSize);
-	rcpSignedArea.resize(newSize);
+	this->jobs.resize(newSize);
 	this->capacity = newSize;
 }
 void Rasterizing::RenderJob_Store::add(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask, const DrawCommand& subInfo)
 {
 	if (pEnd - pStart != 3) throw std::runtime_error("Vertex pack sizes not equal to 3 are not yet supported in RenderJob_Store::add");
-	//TODO: handle subInfo by eliding unused stores and resizes (normals/uvs/etc)
+	//TODO: handle subInfo by eliding unused stores and resizes (normals/uvs/etc) (actually, maybe better not with AoS layout, since we won't avoid much anyway)
 	if (!activeElementsMask) return;
+	this->makeSpace(this->realSize + 16);
 	size_t oldSz = this->realSize;
-	this->makeSpace(oldSz + 16);
-	if (activeElementsMask == 0xFFFF)
+	for (int j = 0; j < 16; ++j)
 	{
+		if ((activeElementsMask.mask & (1 << j)) == 0) continue;
+		//if (oldSz + j == 53958) __debugbreak();
+		RenderJob& rj = this->jobs[this->realSize++];
 		for (int i = 0; i < 3; ++i)
 		{
-			_mm512_storeu_ps(this->x[i].data() + oldSz, pStart[i].space.x);
-			_mm512_storeu_ps(this->y[i].data() + oldSz, pStart[i].space.y);
-			_mm512_storeu_ps(this->z[i].data() + oldSz, pStart[i].space.z);
-			_mm512_storeu_ps(this->u[i].data() + oldSz, pStart[i].u);
-			_mm512_storeu_ps(this->v[i].data() + oldSz, pStart[i].v);
-			_mm512_storeu_ps(this->nx[i].data() + oldSz, pStart[i].normal.x);
-			_mm512_storeu_ps(this->ny[i].data() + oldSz, pStart[i].normal.y);
-			_mm512_storeu_ps(this->nz[i].data() + oldSz, pStart[i].normal.z);
+			rj.x[i] = pStart[i].space.x[j];
+			rj.y[i] = pStart[i].space.y[j];
+			rj.z[i] = pStart[i].space.z[j];
+			rj.u[i] = pStart[i].u[j];
+			rj.v[i] = pStart[i].v[j];
+			rj.nx[i] = pStart[i].normal.x[j];
+			rj.ny[i] = pStart[i].normal.y[j];
+			rj.nz[i] = pStart[i].normal.z[j];
 		}
-		_mm512_storeu_epi32(this->modelIndex.data() + oldSz, modelIndex);
-		_mm512_storeu_ps(this->rcpSignedArea.data() + oldSz, rcpSignedArea);
+		rj.modelIndex = modelIndex[j];
+		rj.rcpSignedArea = rcpSignedArea[j];
 	}
-	else
-	{
-		//since render job store resize does 16 overprovisioning on resize, it's OK not to mask these stores. Some architectures have awful compress store unaligned performance, so store compressed register
-		for (int i = 0; i < 3; ++i)
-		{
-			_mm512_storeu_ps(this->x[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, pStart[i].space.x));
-			_mm512_storeu_ps(this->y[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, pStart[i].space.y));
-			_mm512_storeu_ps(this->z[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, pStart[i].space.z));
-			_mm512_storeu_ps(this->u[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, pStart[i].u));
-			_mm512_storeu_ps(this->v[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, pStart[i].v));
-			_mm512_storeu_ps(this->nx[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, pStart[i].normal.x));
-			_mm512_storeu_ps(this->ny[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, pStart[i].normal.y));
-			_mm512_storeu_ps(this->nz[i].data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, pStart[i].normal.z));
-		}
-		_mm512_storeu_epi32(this->modelIndex.data() + oldSz, _mm512_maskz_compress_epi32(activeElementsMask, modelIndex));
-		_mm512_storeu_ps(this->rcpSignedArea.data() + oldSz, _mm512_maskz_compress_ps(activeElementsMask, rcpSignedArea));
-	}
-	this->realSize += _mm_popcnt_u32(activeElementsMask);
+	assert(this->realSize - oldSz == std::popcount(activeElementsMask.mask));
 }
