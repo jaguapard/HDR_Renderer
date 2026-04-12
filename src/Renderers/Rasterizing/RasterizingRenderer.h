@@ -153,7 +153,6 @@ namespace Rasterizing
 	enum class DrawRecipe
 	{
 		MAIN_DEPTH_PREPASS,
-		SHADOW_MAP_DEPTH,
 	};
 	struct DrawCommand
 	{
@@ -182,7 +181,7 @@ private:
 	Rasterizing::Vertice_Store original_verticeStore;
 	Rasterizing::Triangle_Store original_triangleStore;
 
-	std::array<Rasterizing::DrawCommand, 2> drawCommands;
+	std::array<Rasterizing::DrawCommand, 1> drawCommands;
 
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;
@@ -191,11 +190,13 @@ private:
 	std::vector<std::vector<Rasterizing::ModelSlice>> makeModelSliceList() const;
 	void doTransformationsAndClipping(int threadIndex);
 	void drawRenderJobs(int threadIndex);
-	void joinMainWithShadowMap(int threadIndex);
+	void buildShadowVolumeStencil();
+	void joinMainWithShadowVolumes(int threadIndex);
 
-	std::vector<float> zBuffer, shadowMap_zBuffer;
+	std::vector<float> zBuffer;
+	std::vector<uint8_t> shadowVolumeStencilBuffer;
 	std::vector<uint64_t> deferrendRenderJobPtrs;
-	std::vector<Rasterizing::RenderJob_Store> mainRenderJobs, shadowMapRenderJobs;
+	std::vector<Rasterizing::RenderJob_Store> mainRenderJobs;
 
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
@@ -203,6 +204,6 @@ private:
 	Vec4f lightPos, lightAng, lightColor, skyColor = Vec4f(0.3, 0.7, 1, 1);
 	//float lightIntensity, skyLightIntensity;
 	float ambientLightIntensity = 0.3, lightIntesity = 3;
-	bool drawShadowMapDebug = false, missingTexturesSetToPlaceholder = true;
+	bool drawShadowVolumeDebug = false, missingTexturesSetToPlaceholder = true;
 	Rasterizing::FaceCullingType faceCullingType = Rasterizing::FaceCullingType::NONE;
 };
