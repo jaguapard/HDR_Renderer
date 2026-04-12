@@ -1,8 +1,13 @@
 #include "ColorPixelBuffer.h"
 #include <stdexcept>
+#include <string>
 #include "../../Threadpool.h"
 #include "../../helpers.h"
-Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
+
+using Rasterizing::ColorPixelBuffer;
+using Rasterizing::ColorPixelBufferGatherAccessor;
+
+ColorPixelBuffer::ColorPixelBuffer(PixelBuffer&& dying) :
     packedColors(std::move(dying.packedColors)),
     opacityMap(std::move(dying.opacityMap)),
     sizes(dying.sizes),
@@ -10,11 +15,10 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
 {
 }
 
-Rasterizing::ColorPixelBuffer::ColorPixelBuffer(int w, int h)
+ColorPixelBuffer::ColorPixelBuffer(int w, int h)
 {
     this->init(w, h);
 }
-
 
 int32x16 morton_half(int32x16 v)
 {
@@ -25,13 +29,33 @@ int32x16 morton_half(int32x16 v)
     return v;
 }
 
-//only works for 16 bit x and y!!!
 int32x16 morton(int32x16 x, int32x16 y)
 {
     return morton_half(x) | (morton_half(y) << 1);
 }
 
-Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
+int32x16 ColorPixelBuffer::getLinearIndices(float32x16 u, float32x16 v, const Sizes& sizes, Mask16 mask)
+{
+    //clamp out of bounds. These can sometimes still return one, but there's some margin, since maxSafeX/Y are 1 less than width and height
+    u -= _mm512_floor_ps(u);
+    v -= _mm512_floor_ps(v);
+    float32x16 pixelsX = u * sizes.float_maxSafeX;
+    float32x16 pixelsY = v * sizes.float_maxSafeY;
+    //Mask16 inBoundsMask = u >= 0.f & u < 1.f & v >= 0.f & v < 1.f;
+    int32x16 intX = pixelsX.trunc();
+    int32x16 intY = pixelsY.trunc();
+    for (int i = 0; i < 16; ++i)
+    {
+        if (mask.mask & (1 << i))
+        {
+            assert(intX[i] >= 0 && intX[i] < sizes.w);
+            assert(intY[i] >= 0 && intY[i] < sizes.h);
+        }
+    }
+    return intY * sizes.w + intX;
+}
+
+ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
 {
     int w = s->w;
     int h = s->h;
@@ -40,13 +64,13 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
     {
         const uint32_t* srcPixels = std::bit_cast<uint32_t*>(s->pixels);
         this->init(w, h);
-        
-        std::vector<task_id> tasks;
+
+        //std::vector<task_id> tasks;
         int tCount = Threadpool::instance->getThreadCount();
         for (int tIndex = 0; tIndex < tCount; ++tIndex)
         {
             //TODO: this kills everything. Threadpool is not ready for tasks within tasks yet
-            //tasks.push_back(Threadpool::instance->addTask([&, tIndex, this] 
+            //tasks.push_back(Threadpool::instance->addTask([&, tIndex, this]
             {
                 auto [low, high] = Threadpool::instance->getLimitsForThread(tIndex, 0, h, tCount);
                 for (int y = low; y < high; ++y)
@@ -69,9 +93,9 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                         float32x16 encodedR, encodedG, encodedB;
                         for (int i = 0; i < 16; ++i)
                         {
-                            encodedR[i] = powf(floatR[i], 1.1) * 1023;
-                            encodedG[i] = powf(floatG[i], 1.1) * 2047;
-                            encodedB[i] = powf(floatB[i], 1.1) * 1023;
+                            encodedR[i] = powf(floatR[i], 1.1f) * 1023;
+                            encodedG[i] = powf(floatG[i], 1.1f) * 2047;
+                            encodedB[i] = powf(floatB[i], 1.1f) * 1023;
                         }
 
                         encodedR = encodedR.clamp(0, 1023);
@@ -93,6 +117,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             //));
         }
         //Threadpool::instance->waitForMultipleTasks(tasks);
+
         int totalPixels = w * h;
         for (int i = 0; i < totalPixels; i += 32)
         {
@@ -107,7 +132,6 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             if (~mt) this->isFullyOpaque = false;
         }
     }
-
     /*
     * This format supplies linear intensities. Alpha uncertain. Don't use for now
     if (s->format == SDL_PIXELFORMAT_RGBA128_FLOAT)
@@ -124,7 +148,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                 Vec4f gammaEncoded = _mm_pow_ps(linear, _mm_set1_ps(1/2.2));
                 gammaEncoded *= 255;
                 uint32_t dstR = gammaEncoded.x, dstG = gammaEncoded.y, dstB = gammaEncoded.z, dstA = linear.w*255;
-                
+
                 //TODO: gamma 2 and expansion to R/G/B 11/11/10 bits and 1 bit alpha. For now, just save back
                 //TODO: seems a bit bright?
                 this->packedColors[y * w + x] = dstR | (dstG << 8) | (dstB << 16) | (dstA << 24);
@@ -133,38 +157,20 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
     }*/
     else
     {
-        throw std::runtime_error("Unsupported pixel format for ColorPixelBuffer import: ");
+        const char* formatName = SDL_GetPixelFormatName(s->format);
+        throw std::runtime_error(std::string("Unsupported pixel format for PixelBuffer diffuse import: ") + (formatName ? formatName : "unknown"));
     }
 }
 
-Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
+Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
 {
     /*
     __m512d xd_low = _mm512_cvtpslo_pd(x);
     __m512d xd_high = _mm512_cvtps_pd(_mm512_extractf32x8_ps(x, 1));
     __m512d yd_low = _mm512_cvtpslo_pd(y);
     __m512d yd_high = _mm512_cvtps_pd(_mm512_extractf32x8_ps(y, 1));*/
-    //clamp out of bounds. These can sometimes still return one, but there's some margin, since maxSafeX/Y are 1 less than width and height
-    x -= _mm512_floor_ps(x);
-    y -= _mm512_floor_ps(y);
-    //x = _mm512_fmod_ps(x, float32x16(1));
-    //y = _mm512_fmod_ps(y, float32x16(1));
-    float32x16 pixelsX = x * this->sizes.float_maxSafeX;
-    float32x16 pixelsY = y * this->sizes.float_maxSafeY;
-    //Mask16 inBoundsMask = x >= 0.f & x < 1.f & y >= 0.f & y < 1.f;
-    int32x16 intX = pixelsX.trunc();
-    int32x16 intY = pixelsY.trunc();
-    for (int i = 0; i < 16; ++i)
-    {
-        if (mask.mask & (1 << i))
-        {
-            assert(intX[i] >= 0 && intX[i] < sizes.w);
-            assert(intY[i] >= 0 && intY[i] < sizes.h);
-        }
-    }
-    int32x16 pixelsIndices = intY * sizes.w + intX;
-    Mask16 gatherMask = mask;
-    int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), gatherMask, pixelsIndices, this->packedColors.get(), 4);
+    int32x16 pixelsIndices = getLinearIndices(x, y, this->sizes, mask);
+    int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), mask, pixelsIndices, this->packedColors.get(), 4);
 
     int32x16 r = gathered & 1023;
     int32x16 g = _mm512_srli_epi32(gathered, 10);
@@ -189,33 +195,16 @@ Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x,
     return ret;*/
 }
 
-Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
+ColorPixelBufferGatherAccessor ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
 {
-    //clamp out of bounds. These can sometimes still return one, but there's some margin, since maxSafeX/Y are 1 less than width and height
-    u -= _mm512_floor_ps(u);
-    v -= _mm512_floor_ps(v);
-    float32x16 pixelsX = u * this->sizes.float_maxSafeX;
-    float32x16 pixelsY = v * this->sizes.float_maxSafeY;
-    //Mask16 inBoundsMask = x >= 0.f & x < 1.f & y >= 0.f & y < 1.f;
-    int32x16 intX = pixelsX.trunc();
-    int32x16 intY = pixelsY.trunc();
-    for (int i = 0; i < 16; ++i)
-    {
-        if (mask.mask & (1 << i))
-        {
-            assert(intX[i] >= 0 && intX[i] < sizes.w);
-            assert(intY[i] >= 0 && intY[i] < sizes.h);
-        }
-    }
-
     ColorPixelBufferGatherAccessor accessor;
-    accessor.gatherInd = intY * sizes.w + intX;
+    accessor.gatherInd = getLinearIndices(u, v, this->sizes, mask);
     accessor.gatherMask = mask;
     accessor.buf = this;
     return accessor;
 }
 
-Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
+Vec4f ColorPixelBuffer::getLinearIntensity(float u, float v) const
 {
     u -= std::floor(u);
     v -= std::floor(v);
@@ -235,10 +224,10 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
     y2 -= y2 >= sizes.h ? sizes.h : 0;
 
     uint32_t packed[4];
-    packed[0] = this->packedColors[y1 * this->sizes.w + x1]; //top left
-    packed[1] = this->packedColors[y1 * this->sizes.w + x2]; //top right
-    packed[2] = this->packedColors[y2 * this->sizes.w + x1]; //bottom left
-    packed[3] = this->packedColors[y2 * this->sizes.w + x2]; //bottom right
+    packed[0] = this->packedColors[y1 * this->sizes.w + x1];
+    packed[1] = this->packedColors[y1 * this->sizes.w + x2];
+    packed[2] = this->packedColors[y2 * this->sizes.w + x1];
+    packed[3] = this->packedColors[y2 * this->sizes.w + x2];
 
     Vec4f linear[4];
     for (int i = 0; i < 4; ++i)
@@ -250,16 +239,16 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
         Vec4f normalized = gammaEncodedChannels * Vec4f(_mm_setr_ps(1.f / 1023, 1.f / 2047, 1.f / 1023, 1)); //TODO: alpha will get messed up if it's not 0 or 1!
         linear[i] = normalized * normalized;
     }
-    
+
     //TODO: what about alpha?
-    float tx = std::fmod(fx, 1);
-    float ty = std::fmod(fy, 1);
+    float tx = std::fmod(fx, 1.f);
+    float ty = std::fmod(fy, 1.f);
     Vec4f ler1 = lerp(linear[0], linear[1], tx);
     Vec4f ler2 = lerp(linear[2], linear[3], tx);
     return lerp(ler1, ler2, ty);
 }
 
-bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
+bool ColorPixelBuffer::areAllPixelsOpaque() const
 {
     return this->isFullyOpaque;
 }
@@ -267,10 +256,10 @@ bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
 /*
 void Rasterizing::ColorPixelBuffer::setPixelLinearIntensityUnsafe(int x, int y, float r, float g, float b, float a)
 {
-    //float 
+    //float
 }*/
 
-void Rasterizing::ColorPixelBuffer::init(int w, int h)
+void ColorPixelBuffer::init(int w, int h)
 {
     int totalPixels = w * h;
     this->packedColors = std::make_unique<uint32_t[]>(totalPixels);
@@ -283,10 +272,9 @@ void Rasterizing::ColorPixelBuffer::init(int w, int h)
     this->sizes.float_maxSafeY = h - 1;
     this->sizes.rcp_maxSafeX = float(1) / this->sizes.float_maxSafeX;
     this->sizes.rcp_maxSafeY = float(1) / this->sizes.float_maxSafeY;
-
 }
 
-void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& output) const
+void ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& output) const
 {
     int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0).zmm, this->gatherMask, this->gatherInd.zmm, this->buf->packedColors.get(), 4);
 
@@ -299,17 +287,16 @@ void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& o
     float32x16 fr = _mm512_cvtepu32_ps(r.zmm);
     float32x16 fg = _mm512_cvtepu32_ps(g.zmm);
     float32x16 fb = _mm512_cvtepu32_ps(b.zmm);
-    float32x16 fa = _mm512_maskz_mov_ps(gathered < 0, float32x16(1)); //if uppermost bit is 1 (i.e. sign bit is 1, i.e negative), then alpha is 1
     fr *= 1.f / 1023;
     fg *= 1.f / 2047;
     fb *= 1.f / 1023;
-    
+
     output.r = fr * fr;
     output.g = fg * fg;
     output.b = fb * fb;
 }
 
-float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
+float32x16 ColorPixelBufferGatherAccessor::gatherA() const
 {
     int32x16 gathered = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), this->gatherMask, (this->gatherInd >> 5).zmm, this->buf->opacityMap.get(), 4);
     int32x16 shifts = this->gatherInd & 31;
