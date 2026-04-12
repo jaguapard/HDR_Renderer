@@ -182,7 +182,7 @@ private:
 	Rasterizing::Vertice_Store original_verticeStore;
 	Rasterizing::Triangle_Store original_triangleStore;
 
-	std::array<Rasterizing::DrawCommand, 2> drawCommands;
+	std::array<Rasterizing::DrawCommand, 1> drawCommands;
 
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;
@@ -193,16 +193,20 @@ private:
 	void drawRenderJobs(int threadIndex);
 	void joinMainWithShadowMap(int threadIndex);
 
-	std::vector<float> zBuffer, shadowMap_zBuffer;
+	std::vector<float> zBuffer;
 	std::vector<uint64_t> deferrendRenderJobPtrs;
-	std::vector<Rasterizing::RenderJob_Store> mainRenderJobs, shadowMapRenderJobs;
+	std::vector<Rasterizing::RenderJob_Store> mainRenderJobs;
 
 	Rasterizing::TextureManager textureManager;
+
+	std::vector<float> shadowVolume_v0x, shadowVolume_v0y, shadowVolume_v0z;
+	std::vector<float> shadowVolume_v1x, shadowVolume_v1y, shadowVolume_v1z;
+	std::vector<float> shadowVolume_v2x, shadowVolume_v2y, shadowVolume_v2z;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
 
 	Vec4f lightPos, lightAng, lightColor, skyColor = Vec4f(0.3, 0.7, 1, 1);
 	//float lightIntensity, skyLightIntensity;
 	float ambientLightIntensity = 0.3, lightIntesity = 3;
-	bool drawShadowMapDebug = false, missingTexturesSetToPlaceholder = true;
+	bool missingTexturesSetToPlaceholder = true;
 	Rasterizing::FaceCullingType faceCullingType = Rasterizing::FaceCullingType::NONE;
 };
