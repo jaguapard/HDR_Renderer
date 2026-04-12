@@ -137,14 +137,12 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	this->modelSlicesForThreads = this->makeModelSliceList();
 	int mainBufSize = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
 	this->zBuffer.resize(mainBufSize);
-	int shadowMapW = 512*3;
-	int shadowMapH = 288*3;
-	this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
+	this->shadowVolumeStencilBuffer.resize(mainBufSize);
 	this->deferrendRenderJobPtrs.resize(mainBufSize);
 	
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
-	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
+	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowVolumeDebug ^= 1;
 	if (inp.wasCharPressedOnThisFrame('B')) this->faceCullingType = EnumCycler::next(this->faceCullingType);
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_9)) this->missingTexturesSetToPlaceholder ^= 1;
 
@@ -171,27 +169,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.recipe = DrawRecipe::MAIN_DEPTH_PREPASS;
 	this->drawCommands[0] = mainDrawCmd;
 
-	DrawCommand shadowMapDrawCmd;
-	shadowMapDrawCmd.ctr = { (int)shadowMapW, (int)shadowMapH };
-	shadowMapDrawCmd.ctr.prepare(Vec4f(1281.845703, 2235.967773, 178.236572, 0.000000), Vec4f(0.000000, 4.523108, 0.797002, 0.000000));
-	//shadowMapDrawCmd.ctr.prepare(Vec4f(-86.050537, 1644.088623, 710.859253, 0.000000), Vec4f(0.000000, -3.165947,0.366014,0.000000));
-	//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
-	//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
-	//shadowMapDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
-	shadowMapDrawCmd.transformedVertices = &this->shadowMapRenderJobs;
-	shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
-	shadowMapDrawCmd.renderH = shadowMapH;
-	shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
-	shadowMapDrawCmd.needsUVs = true;
-	shadowMapDrawCmd.needsNormals = false;
-	shadowMapDrawCmd.faceCullingType = FaceCullingType::FRONTFACE; //FaceCullingType::FRONT
-	shadowMapDrawCmd.transformedVertices = &this->shadowMapRenderJobs;
-	shadowMapDrawCmd.threadCount = threadCount;
-	shadowMapDrawCmd.renderW = shadowMapW;
-	shadowMapDrawCmd.renderH = shadowMapH;
-	shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
-	this->drawCommands[1] = shadowMapDrawCmd;
-
 	int tCntSq = threadCount * threadCount;
 	for (auto& currSub : this->drawCommands)
 	{
@@ -210,7 +187,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
 	for (auto& it : zBuffer) it = -INFINITY;
-	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
+	for (auto& it : shadowVolumeStencilBuffer) it = 0;
 	for (auto& it : this->deferrendRenderJobPtrs) it = 0;
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
@@ -237,12 +214,13 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		));
 	}
 	threadpool->waitForMultipleTasks(drawTasks);
+	this->buildShadowVolumeStencil();
 	drawTasks.clear();
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
 		drawTasks.emplace_back(threadpool->addTask(
 			[&, threadIndex]() {
-				this->joinMainWithShadowMap(threadIndex);
+				this->joinMainWithShadowVolumes(threadIndex);
 			}
 		));
 	}
@@ -731,7 +709,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		float my_xMax = drawCmd.renderW - 1;
 		bool texturingEnabled = this->currGs->texturingEnabled;
 		int w = drawCmd.renderW;
-		bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
+		bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS;
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
 			RenderJob_Store& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
@@ -874,49 +852,183 @@ __m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512
 	__m256 attr1 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask >> 8, addr8_15, nullptr, 1);
 	return _mm512_insertf32x8(_mm512_castps256_ps512(attr0), attr1, 1);
 }
-void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
+struct ShadowVolumeTriangle
+{
+	Vec4f v0, v1, v2;
+};
+
+static void rasterizeShadowVolumeTriangle(
+	const ShadowVolumeTriangle& tri,
+	const CoordinateTransformer& ctr,
+	float clippingZ,
+	int w,
+	int h,
+	const float* mainZ,
+	uint8_t* stencil)
+{
+	Vec4f t0 = ctr.rotateAndTranslate(tri.v0);
+	Vec4f t1 = ctr.rotateAndTranslate(tri.v1);
+	Vec4f t2 = ctr.rotateAndTranslate(tri.v2);
+	if (t0.z <= clippingZ || t1.z <= clippingZ || t2.z <= clippingZ) return;
+
+	Vec4f p0 = ctr.screenSpaceToPixels(t0 / t0.z);
+	Vec4f p1 = ctr.screenSpaceToPixels(t1 / t1.z);
+	Vec4f p2 = ctr.screenSpaceToPixels(t2 / t2.z);
+	p0.z = 1.f / t0.z;
+	p1.z = 1.f / t1.z;
+	p2.z = 1.f / t2.z;
+
+	float minX = std::floor(std::min({ p0.x, p1.x, p2.x }));
+	float minY = std::floor(std::min({ p0.y, p1.y, p2.y }));
+	float maxX = std::ceil(std::max({ p0.x, p1.x, p2.x }));
+	float maxY = std::ceil(std::max({ p0.y, p1.y, p2.y }));
+	if (maxX < 0 || maxY < 0 || minX >= w || minY >= h) return;
+
+	minX = std::clamp(minX, 0.f, float(w - 1));
+	maxX = std::clamp(maxX, 0.f, float(w - 1));
+	minY = std::clamp(minY, 0.f, float(h - 1));
+	maxY = std::clamp(maxY, 0.f, float(h - 1));
+
+	float signedArea = (p0 - p2).cross2d(p1 - p2);
+	if (signedArea == 0.f) return;
+	float rcpArea = 1.f / signedArea;
+	for (int y = int(minY); y <= int(maxY); ++y)
+	{
+		for (int x = int(minX); x <= int(maxX); ++x)
+		{
+			Vec4f p = { float(x), float(y), 0.f, 0.f };
+			float alpha = (p - p2).cross2d(p1 - p2) * rcpArea;
+			float beta = (p - p2).cross2d(p2 - p0) * rcpArea;
+			float gamma = (p - p0).cross2d(p0 - p1) * rcpArea;
+			if (alpha < 0.f || beta < 0.f || gamma < 0.f) continue;
+
+			float zInv = alpha * p0.z + beta * p1.z + gamma * p2.z;
+			int idx = y * w + x;
+			if (zInv >= mainZ[idx]) stencil[idx] ^= 1;
+		}
+	}
+}
+
+void RasterizingRenderer::buildShadowVolumeStencil()
+{
+	int w = this->drawCommands[0].renderW;
+	int h = this->drawCommands[0].renderH;
+	Vec4f lightPos = { 13.978434f,1933.787476f,117.000008f };
+	constexpr float extrusionDist = 12000.f;
+
+	std::vector<std::array<uint32_t, 3>> triIndices;
+	std::vector<uint8_t> triFacingLight;
+	std::unordered_map<uint64_t, std::array<int, 2>> edgeToTriangles;
+
+	for (const auto& model : this->sceneModels)
+	{
+		int triCount = int(model.triangleStore.size());
+		for (int i = 0; i < triCount; ++i)
+		{
+			uint32_t i0 = model.triangleStore.vertInd[0][i];
+			uint32_t i1 = model.triangleStore.vertInd[1][i];
+			uint32_t i2 = model.triangleStore.vertInd[2][i];
+			triIndices.push_back({ i0, i1, i2 });
+			Vec4f v0 = { this->original_verticeStore.x[i0], this->original_verticeStore.y[i0], this->original_verticeStore.z[i0], 0.f };
+			Vec4f v1 = { this->original_verticeStore.x[i1], this->original_verticeStore.y[i1], this->original_verticeStore.z[i1], 0.f };
+			Vec4f v2 = { this->original_verticeStore.x[i2], this->original_verticeStore.y[i2], this->original_verticeStore.z[i2], 0.f };
+			Vec4f n = (v1 - v0).cross3d(v2 - v0);
+			Vec4f toLight = lightPos - v0;
+			triFacingLight.push_back(n.dot3d(toLight) > 0.f ? 1 : 0);
+		}
+	}
+
+	auto makeEdgeKey = [](uint32_t a, uint32_t b) -> uint64_t {
+		uint32_t lo = std::min(a, b), hi = std::max(a, b);
+		return (uint64_t(lo) << 32) | hi;
+	};
+
+	for (int tri = 0; tri < int(triIndices.size()); ++tri)
+	{
+		for (int e = 0; e < 3; ++e)
+		{
+			uint32_t a = triIndices[tri][e];
+			uint32_t b = triIndices[tri][(e + 1) % 3];
+			uint64_t key = makeEdgeKey(a, b);
+			auto& slot = edgeToTriangles[key];
+			if (slot[0] == 0 && slot[1] == 0) slot = { tri + 1, 0 };
+			else if (slot[1] == 0) slot[1] = tri + 1;
+		}
+	}
+
+	std::vector<ShadowVolumeTriangle> volumeTriangles;
+	volumeTriangles.reserve(edgeToTriangles.size() * 2);
+
+	auto getVertex = [&](uint32_t i) -> Vec4f {
+		return { this->original_verticeStore.x[i], this->original_verticeStore.y[i], this->original_verticeStore.z[i], 0.f };
+	};
+	auto extrude = [&](const Vec4f& v) -> Vec4f {
+		Vec4f dir = v - lightPos;
+		float len = std::max(0.001f, dir.len3d());
+		return v + dir * (extrusionDist / len);
+	};
+
+	for (const auto& [key, triPair] : edgeToTriangles)
+	{
+		int t0 = triPair[0] - 1;
+		int t1 = triPair[1] - 1;
+		bool front0 = t0 >= 0 ? triFacingLight[t0] != 0 : false;
+		bool front1 = t1 >= 0 ? triFacingLight[t1] != 0 : false;
+		if (front0 == front1) continue;
+
+		uint32_t a = uint32_t(key >> 32);
+		uint32_t b = uint32_t(key & 0xFFFFFFFF);
+		Vec4f va = getVertex(a), vb = getVertex(b);
+		Vec4f ea = extrude(va), eb = extrude(vb);
+		volumeTriangles.push_back({ va, vb, eb });
+		volumeTriangles.push_back({ va, eb, ea });
+	}
+
+	for (int tri = 0; tri < int(triIndices.size()); ++tri)
+	{
+		if (!triFacingLight[tri]) continue;
+		Vec4f v0 = getVertex(triIndices[tri][0]);
+		Vec4f v1 = getVertex(triIndices[tri][1]);
+		Vec4f v2 = getVertex(triIndices[tri][2]);
+		Vec4f e0 = extrude(v0), e1 = extrude(v1), e2 = extrude(v2);
+		volumeTriangles.push_back({ v0, v1, v2 });
+		volumeTriangles.push_back({ e2, e1, e0 });
+	}
+
+	for (const auto& tri : volumeTriangles)
+	{
+		rasterizeShadowVolumeTriangle(
+			tri,
+			this->drawCommands[0].ctr,
+			this->currGs->cameraPlane_zDist,
+			w,
+			h,
+			this->zBuffer.data(),
+			this->shadowVolumeStencilBuffer.data());
+	}
+}
+
+void RasterizingRenderer::joinMainWithShadowVolumes(int threadIndex)
 {
 	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, this->drawCommands[0].renderH);
-	int threadCount = this->currGs->threadpool->getThreadCount();
 	float my_yMin = floor(d_low);
 	float my_yMax = std::min<float>(floor(d_high), this->drawCommands[0].renderH - 1);
 	float my_xMin = 0;
 	float my_xMax = this->drawCommands[0].renderW - 1;
 	int w = this->drawCommands[0].renderW;
 
-	float* shadowMap_zBuffer = (float*)this->drawCommands[1].buffers[0].data;
-	float* main_zBuffer = (float*)this->drawCommands[0].buffers[0].data;
 	float* main_frameBuffer = (float*)this->drawCommands[0].buffers[1].data;
 	uint64_t* renderJobPtrsBuffer = (uint64_t*)this->drawCommands[0].buffers[2].data;
+	Vec4f lightFrom = { 13.978434f,1933.787476f,117.000008f };
+	Vec4f lightTo = { -874.297729f,136.884766f,0.909166f };
+	Vec4f lightDir = lightTo - lightFrom;
+	lightDir /= lightDir.len3d();
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;
 		for (float32x16 x = float32x16::sequence() + my_xMin; Mask16 xBoundsMask = x <= my_xMax; x += 16)
 		{
 			size_t xInt = x[0];
-			if (this->drawShadowMapDebug) //debug draw shadow map to screen
-			{
-				float smw = this->drawCommands[1].renderW;
-				float smh = this->drawCommands[1].renderH;
-				Mask16 sm_xBounds = x < smw;
-				if (sm_xBounds && y < smh)
-				{
-					float32x16 z = _mm512_maskz_loadu_ps(sm_xBounds, shadowMap_zBuffer + yInt * this->drawCommands[1].renderW + xInt);
-					float32x16 dz = float32x16(1) / z;
-					float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
-
-					Vec4_f32x16 colOut;
-					colOut.r = colOut.g = colOut.b = distIntensity;
-					colOut.a = 1;
-					mask_store_vec4_f32x16_to_framebuffer(colOut, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, sm_xBounds);
-					continue;
-				}
-			}
-
-			float32x16 zInvSrc = _mm512_maskz_loadu_ps(xBoundsMask, main_zBuffer + yInt * w + xInt);
-			Vec4_f32x16 screenPos(x, y, 1, zInvSrc);
-			Vec4_f32x16 worldCoords = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPos);
-
 			__m512i rjPtrs0_7 = _mm512_maskz_loadu_epi64(xBoundsMask, renderJobPtrsBuffer + yInt * w + xInt);
 			__m512i rjPtrs8_15 = _mm512_maskz_loadu_epi64(xBoundsMask >> 8, renderJobPtrsBuffer + yInt * w + xInt + 8);
 			Mask16 filledPixels = _mm512_cmpneq_epi64_mask(rjPtrs0_7, _mm512_setzero_si512());
@@ -970,26 +1082,22 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
 			texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
 			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
-
-			const auto& currentShadowMap = this->drawCommands[1];
-			Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
-			float32x16 zInv = float32x16(1) / sunWorldPositions.z;
-			Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
-			sunScreenPositions.z = zInv;
-			sunScreenPositions.y = sunScreenPositions.y;
-
-			Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
-			int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
-			float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
-			//float32x16 bias = 0.0001f;
-			float32x16 bias = 0.f;
-			Mask16 pointsInShadow = ~inShadowMapBounds | ((shadowMapDepths - bias) > sunScreenPositions.z);
-
-			Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
-			Vec4_f32x16 lightDir = lightTo - lightFrom;
-			lightDir /= lightDir.len3d();
+			int32x16 linearInd = int32x16(yInt * w) + int32x16(xInt) + int32x16::sequence();
+			int32x16 stencilVals = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), xBoundsMask, linearInd, this->shadowVolumeStencilBuffer.data(), 1);
+			Mask16 pointsInShadow = filledPixels & (stencilVals != 0);
 			float32x16 normalDot = -correctedNormals.dot3d(lightDir);
 			Vec4_f32x16 totalLight = Vec4_f32x16(this->ambientLightIntensity, this->ambientLightIntensity, this->ambientLightIntensity, 0.f) + _mm512_max_ps(_mm512_set1_ps(0), normalDot * this->lightIntesity);
+
+			if (this->drawShadowVolumeDebug)
+			{
+				Vec4_f32x16 dbg;
+				dbg.r = _mm512_mask_mov_ps(_mm512_set1_ps(0.2f), pointsInShadow, _mm512_set1_ps(1.f));
+				dbg.g = _mm512_set1_ps(0.2f);
+				dbg.b = _mm512_mask_mov_ps(_mm512_set1_ps(1.f), pointsInShadow, _mm512_set1_ps(0.2f));
+				dbg.a = _mm512_set1_ps(1.f);
+				mask_store_vec4_f32x16_to_framebuffer(dbg, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
+				continue;
+			}
 
 			for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
 			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
