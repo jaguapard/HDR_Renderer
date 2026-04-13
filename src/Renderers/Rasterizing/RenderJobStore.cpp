@@ -127,3 +127,20 @@ void Rasterizing::RenderJobStore::add(const VertexPack16* pStart, const VertexPa
 	}
 	//assert(this->realSize - oldSz == std::popcount(activeElementsMask.mask));
 }
+
+RenderJobStore::RenderJobStoreForwardIterator Rasterizing::RenderJobStore::getIteratorFromStart()
+{
+	return RenderJobStoreForwardIterator(*this, 0, 0);
+}
+
+RenderJob* Rasterizing::RenderJobStore::RenderJobStoreForwardIterator::getAndIncrement()
+{
+	while (this->currBlockIndex < this->parent.elementCountInBlock.size())
+	{
+		size_t occupiedElementsInBlock = this->parent.elementCountInBlock[this->currBlockIndex];
+		if (occupiedElementsInBlock > this->currElementIndex) return &this->parent.blocks[currBlockIndex][currElementIndex++];
+		this->currBlockIndex++;
+		this->currElementIndex = 0;
+	}
+	return nullptr;
+}

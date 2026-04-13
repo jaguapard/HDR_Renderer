@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include <optional>
 #include "../../Vec.h"
 namespace Rasterizing
 {
@@ -35,5 +36,21 @@ namespace Rasterizing
 		RenderJob& operator[](size_t i); 
 		//void makeSpace(size_t newSize);
 		void add(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& diffuseMapIndex, Mask16 activeElementsMask, const DrawCommand& subInfo);
+
+		//TODO: can be remade into std-compatible iterator
+		class RenderJobStoreForwardIterator
+		{
+		public:
+			RenderJobStoreForwardIterator(RenderJobStore& parent, size_t startBlockIndex, size_t startElementIndex) : parent(parent), currBlockIndex(startBlockIndex), currElementIndex(startElementIndex) {};
+			//std::optional<RenderJob&> get();
+			RenderJob* getAndIncrement();
+			//void increment();
+		private:
+			size_t currBlockIndex, currElementIndex;
+			RenderJobStore& parent;
+			friend struct RenderJobStore;
+		};
+
+		RenderJobStoreForwardIterator getIteratorFromStart();
 	};
 }
