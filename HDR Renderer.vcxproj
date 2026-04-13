@@ -312,6 +312,7 @@
     <ClCompile Include="src\Renderers\Rasterizing\ColorPixelBuffer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp" />
+    <ClCompile Include="src\Renderers\Rasterizing\RenderJobStore.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\TextureManager.cpp" />
     <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp" />
     <ClCompile Include="src\Statsman.cpp" />
@@ -337,7 +338,9 @@
     <ClInclude Include="src\OSD.h" />
     <ClInclude Include="src\Renderers\Rasterizing\ColorPixelBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\CoordinateTransformer.h" />
+    <ClInclude Include="src\Renderers\Rasterizing\primitives.h" />
     <ClInclude Include="src\Renderers\Rasterizing\RasterizingRenderer.h" />
+    <ClInclude Include="src\Renderers\Rasterizing\RenderJobStore.h" />
     <ClInclude Include="src\Renderers\Rasterizing\TextureManager.h" />
     <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h" />
     <ClInclude Include="src\Renderers\RendererBase.h" />

@@ -5,16 +5,11 @@
 #include <array>
 #include "TextureManager.h"
 #include "../../helpers.h"
-
+#include "RenderJobStore.h"
+#include "primitives.h"
 namespace Rasterizing
 {
-	enum class ShadingMode
-	{
-		SMOOTH,
-		FLAT,
-		NONE,
-		COUNT,
-	};
+	
 	/*
 	struct Triangle
 	{
@@ -65,110 +60,7 @@ namespace Rasterizing
 		int modelIndex;
 		//std::vector<SequentialRange> global_xyz_indices, global_uv_indices;
 		//std::vector<SequentialRange> 
-	};
-
-
-	struct VertexPack16
-	{
-		Vec4_f32x16 space, normal;
-		float32x16 u, v;
-		//VertexPack16(float32x16 x, )
-		VertexPack16() {};
-		static __forceinline VertexPack16 lerpVertices(const VertexPack16& from, const VertexPack16& to, const float32x16& alpha)
-		{
-			VertexPack16 ret;
-			ret.space.x = lerp(from.space.x, to.space.x, alpha);
-			ret.space.y = lerp(from.space.y, to.space.y, alpha);
-			ret.space.z = lerp(from.space.z, to.space.z, alpha);
-			ret.normal.x = lerp(from.normal.x, to.normal.x, alpha);
-			ret.normal.y = lerp(from.normal.y, to.normal.y, alpha);
-			ret.normal.z = lerp(from.normal.z, to.normal.z, alpha);
-			ret.normal /= ret.normal.len3d();
-			ret.u = lerp(from.u, to.u, alpha);
-			ret.v = lerp(from.v, to.v, alpha);
-			return ret;
-		}
-
-		static __forceinline VertexPack16 maskMove(const VertexPack16& zero, const VertexPack16& one, Mask16 mask)
-		{
-			VertexPack16 ret;
-			ret.space.x = _mm512_mask_mov_ps(zero.space.x, mask, one.space.x);
-			ret.space.y = _mm512_mask_mov_ps(zero.space.y, mask, one.space.y);
-			ret.space.z = _mm512_mask_mov_ps(zero.space.z, mask, one.space.z);
-			ret.normal.x = _mm512_mask_mov_ps(zero.normal.x, mask, one.normal.x);
-			ret.normal.y = _mm512_mask_mov_ps(zero.normal.y, mask, one.normal.y);
-			ret.normal.z = _mm512_mask_mov_ps(zero.normal.z, mask, one.normal.z);
-			ret.u = _mm512_mask_mov_ps(zero.u, mask, one.u);
-			ret.v = _mm512_mask_mov_ps(zero.v, mask, one.v);
-			return ret;
-		}
-
-		static __forceinline VertexPack16 lerpToClippingZ(const VertexPack16& from, const VertexPack16& to, const float32x16& clippingZ)
-		{
-			float32x16 alpha = (clippingZ - from.space.z) / (to.space.z - from.space.z);
-			return VertexPack16::lerpVertices(from, to, alpha);
-		}
-	};
-
-	struct DrawCommand;
-
-	struct RenderJob
-	{
-		float x[3], y[3], z[3], u[3], v[3], nx[3], ny[3], nz[3], rcpSignedArea;
-		int modelIndex;
-
-		RenderJob() {};
-	};
-
-	struct RenderJob_Store
-	{
-		std::vector<RenderJob> jobs;
-		size_t realSize = 0;
-		size_t capacity = 0;
-
-		std::array<VertexPack16, 3> loadVertices16(size_t firstInd, Mask16 mask) const;
-		//VertexPack16 gatherVertices16(int32x16 indices) const;
-
-		size_t size() const;
-		void clear(bool forceClear = false); //sets the realSize to 0. If forceClear is true also cleans the vectors.
-		void makeSpace(size_t newSize);
-		void add(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask, const DrawCommand& subInfo);
-	};
-
-	enum class FaceCullingType
-	{
-		NONE,
-		BACKFACE,
-		FRONTFACE,
-		COUNT,
-	};
-
-	struct GenericBuffer
-	{
-		void* data = nullptr;
-		int w, h;
-		GenericBuffer(void* p, int w, int h) : data(p), w(w), h(h) {};
-	};
-
-	enum class DrawRecipe
-	{
-		MAIN_DEPTH_PREPASS,
-		SHADOW_MAP_DEPTH,
-	};
-	struct DrawCommand
-	{
-		CoordinateTransformer ctr;
-		bool needsUVs = true, needsNormals = true;
-		FaceCullingType faceCullingType = FaceCullingType::NONE;
-		Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
-
-		std::vector<Rasterizing::RenderJob_Store>* transformedVertices = nullptr;
-		std::vector<GenericBuffer> buffers;
-		uint32_t renderW, renderH;
-		uint32_t threadCount = -1;
-		DrawRecipe recipe;
-	};
-	
+	};	
 }
 class RasterizingRenderer : public RendererBase
 {
@@ -195,7 +87,7 @@ private:
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint64_t> deferrendRenderJobPtrs;
-	std::vector<Rasterizing::RenderJob_Store> mainRenderJobs, shadowMapRenderJobs;
+	std::vector<Rasterizing::RenderJobStore> mainRenderJobs, shadowMapRenderJobs;
 
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;

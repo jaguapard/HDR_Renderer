@@ -11,6 +11,7 @@
 #include "../../helpers.h"
 #include "../../C_Input.h"
 #include "../../EnumCycler.h"
+#include "RenderJobStore.h"
 using namespace Rasterizing;
 
 std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
@@ -362,6 +363,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 		//const float* xData = 
 		seenTris += slice.modelTriangleIndexEnd - slice.modelTriangleIndexBegin;
 		int myRenderJobCount = 0;
+		int diffuseMapIndex = this->sceneModels[slice.modelIndex].diffuseMapIndex;
 		//bool doBackfaceCulling = this->currGs->backfaceCullingEnabled && 
 		for (int currModelTriangleIndex = slice.modelTriangleIndexBegin;
 			currModelTriangleIndex < slice.modelTriangleIndexEnd; 
@@ -641,7 +643,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					{
 						auto& targetStore = (*currCmd.transformedVertices)[threadIndex * threadCount + currReceiverThread];
 						Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
-						targetStore.add(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, slice.modelIndex, currMask, currCmd);
+						targetStore.add(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, diffuseMapIndex, currMask, currCmd);
 					}
 				}
 			}
@@ -734,18 +736,18 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
-			RenderJob_Store& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
+			RenderJobStore& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
 			int jobsCountForMe = storeForMe.size();
 			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
 			for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt++)
 			{
-				const RenderJob& rj = storeForMe.jobs[myJobsPointerInt];
+				const RenderJob& rj = storeForMe[myJobsPointerInt];
 				float xBeg = std::max(my_xMin, std::floor(std::min(rj.x[2], std::min(rj.x[0], rj.x[1]))));
 				float yBeg = std::max(my_yMin, std::floor(std::min(rj.y[2], std::min(rj.y[0], rj.y[1]))));
 				float xEnd = std::min(my_xMax, std::ceil(std::max(rj.x[2], std::max(rj.x[0], rj.x[1]))));
 				float yEnd = std::min(my_yMax, std::ceil(std::max(rj.y[2], std::max(rj.y[0], rj.y[1]))));
 
-				int diffuseMapIndex = this->sceneModels[rj.modelIndex].diffuseMapIndex;
+				int diffuseMapIndex = rj.diffuseMapIndex;
 				const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex);
 				Vec4f r1 = { rj.x[0], rj.y[0], rj.z[0],0.f };
 				Vec4f r2 = { rj.x[1], rj.y[1], rj.z[1],0.f };
@@ -938,8 +940,8 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				restoredVerts[i].normal.z = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, nz[i]), filledPixels);
 			}
 			float32x16 rcpSignedArea = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, rcpSignedArea), filledPixels);
-			int32x16 modelIndex = _mm512_castps_si512(gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, modelIndex), filledPixels));
-			int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, modelIndex * sizeof(Model) + offsetof(Model, diffuseMapIndex), this->sceneModels.data(), 1);
+			int32x16 diffuseMapIndices = _mm512_castps_si512(gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, diffuseMapIndex), filledPixels));
+			//int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, modelIndex * sizeof(Model) + offsetof(Model, diffuseMapIndex), this->sceneModels.data(), 1);
 			float32x16 alpha, beta, gamma;
 			calculateBarycentricCoordinates({ x,y,0.f,0.f }, restoredVerts[0].space, restoredVerts[1].space, restoredVerts[2].space, rcpSignedArea, alpha, beta, gamma);
 
@@ -1031,6 +1033,7 @@ size_t Rasterizing::Triangle_Store::size() const
 	return vertInd[0].size();
 }
 
+/*
 std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t firstInd, Mask16 mask) const
 {
 	std::array<VertexPack16,3> ret;
@@ -1053,106 +1056,4 @@ std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t f
 	}
 	return ret;
 }
-
-size_t Rasterizing::RenderJob_Store::size() const
-{
-	return this->realSize;
-}
-
-void Rasterizing::RenderJob_Store::clear(bool forceClear)
-{
-	this->realSize = 0;
-	if (forceClear)
-	{
-		this->jobs.clear();
-		this->capacity = 0;
-	}
-}
-void Rasterizing::RenderJob_Store::makeSpace(size_t newSize)
-{
-	if (newSize <= this->capacity) return;
-	this->jobs.resize(newSize);
-	this->capacity = newSize;
-}
-void Rasterizing::RenderJob_Store::add(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& modelIndex, Mask16 activeElementsMask, const DrawCommand& subInfo)
-{
-	if (pEnd - pStart != 3) throw std::runtime_error("Vertex pack sizes not equal to 3 are not yet supported in RenderJob_Store::add");
-	//TODO: handle subInfo by eliding unused stores and resizes (normals/uvs/etc) (actually, maybe better not with AoS layout, since we won't avoid much anyway)
-	if (!activeElementsMask) return;
-	this->makeSpace(this->realSize + 16);
-	size_t oldSz = this->realSize;
-
-
-	//The next code expects exactly this layout and may break if it changes, so have strict checks for it! You'll have to tweak it when changing stuff!
-	{
-		static_assert(sizeof(RenderJob) == 104);
-		static_assert(offsetof(RenderJob, x[0]) == 0);
-		static_assert(offsetof(RenderJob, x[1]) == 4);
-		static_assert(offsetof(RenderJob, x[2]) == 8);
-		static_assert(offsetof(RenderJob, y[0]) == 12);
-		static_assert(offsetof(RenderJob, y[1]) == 16);
-		static_assert(offsetof(RenderJob, y[2]) == 20);
-		static_assert(offsetof(RenderJob, z[0]) == 24);
-		static_assert(offsetof(RenderJob, z[1]) == 28);
-		static_assert(offsetof(RenderJob, z[2]) == 32);
-		static_assert(offsetof(RenderJob, u[0]) == 36);
-		static_assert(offsetof(RenderJob, u[1]) == 40);
-		static_assert(offsetof(RenderJob, u[2]) == 44);
-		static_assert(offsetof(RenderJob, v[0]) == 48);
-		static_assert(offsetof(RenderJob, v[1]) == 52);
-		static_assert(offsetof(RenderJob, v[2]) == 56);
-		static_assert(offsetof(RenderJob, nx[0]) == 60);
-		static_assert(offsetof(RenderJob, nx[1]) == 64);
-		static_assert(offsetof(RenderJob, nx[2]) == 68);
-		static_assert(offsetof(RenderJob, ny[0]) == 72);
-		static_assert(offsetof(RenderJob, ny[1]) == 76);
-		static_assert(offsetof(RenderJob, ny[2]) == 80);
-		static_assert(offsetof(RenderJob, nz[0]) == 84);
-		static_assert(offsetof(RenderJob, nz[1]) == 88);
-		static_assert(offsetof(RenderJob, nz[2]) == 92);
-		static_assert(offsetof(RenderJob, rcpSignedArea) == 96);
-		static_assert(offsetof(RenderJob, modelIndex) == 100);
-	}
-
-	for (int j = 0; j < 16; ++j)
-	{
-		if ((activeElementsMask.mask & (1 << j)) == 0) continue;
-		//if (oldSz + j == 53958) __debugbreak();
-		RenderJob& rj = this->jobs[this->realSize++];
-
-		int32x16 gatherInd_first = _mm512_setr_epi32(
-			sizeof(VertexPack16)*0 + offsetof(VertexPack16,space.x),
-			sizeof(VertexPack16)*1 + offsetof(VertexPack16, space.x),
-			sizeof(VertexPack16)*2 + offsetof(VertexPack16, space.x),
-			sizeof(VertexPack16)*0 + offsetof(VertexPack16, space.y),
-			sizeof(VertexPack16)*1 + offsetof(VertexPack16, space.y),
-			sizeof(VertexPack16)*2 + offsetof(VertexPack16, space.y),
-			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, space.z),
-			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, space.z),
-			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, space.z),
-			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, u),
-			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, u),
-			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, u),
-			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, v),
-			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, v),
-			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, v),
-			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, normal.x)
-		);
-		int32x16 gatherInd_second = _mm512_setr_epi32(
-			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, normal.x),
-			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, normal.x),
-			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, normal.y),
-			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, normal.y),
-			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, normal.y),
-			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, normal.z),
-			sizeof(VertexPack16) * 1 + offsetof(VertexPack16, normal.z),
-			sizeof(VertexPack16) * 2 + offsetof(VertexPack16, normal.z),
-			0, 0, 0, 0, 0, 0, 0, 0
-		);
-		_mm512_storeu_ps(&rj,_mm512_i32gather_ps(gatherInd_first + j*4, pStart, 1));
-		_mm512_mask_storeu_ps(reinterpret_cast<__m512*>(&rj) + 1, 0xFF, _mm512_mask_i32gather_ps(_mm512_setzero_ps(), 0xFF, gatherInd_second + j*4, pStart, 1));
-		rj.modelIndex = modelIndex[j];
-		rj.rcpSignedArea = rcpSignedArea[j];
-	}
-	assert(this->realSize - oldSz == std::popcount(activeElementsMask.mask));
-}
+*/
