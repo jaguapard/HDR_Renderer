@@ -739,9 +739,11 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 			RenderJobStore& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
 			int jobsCountForMe = storeForMe.size();
 			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
-			for (int myJobsPointerInt = 0; myJobsPointerInt < jobsCountForMe; myJobsPointerInt++)
+			auto iter = storeForMe.getIteratorFromStart();
+
+			while (RenderJob* nextRenderJob = iter.getAndIncrement())
 			{
-				const RenderJob& rj = storeForMe[myJobsPointerInt];
+				const RenderJob& rj = *nextRenderJob;
 				float xBeg = std::max(my_xMin, std::floor(std::min(rj.x[2], std::min(rj.x[0], rj.x[1]))));
 				float yBeg = std::max(my_yMin, std::floor(std::min(rj.y[2], std::min(rj.y[0], rj.y[1]))));
 				float xEnd = std::min(my_xMax, std::ceil(std::max(rj.x[2], std::max(rj.x[0], rj.x[1]))));
@@ -788,65 +790,65 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 						if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
 						if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
-							Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
-							Vec4_f32x16 texturePixels;
-							if (depthOnly)
+						Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
+						Vec4_f32x16 texturePixels;
+						if (depthOnly)
+						{
+
+							auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+							texturePixels.a = accessor.gatherA();
+							//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+						}
+						else
+						{
+							if (texturingEnabled)
 							{
-								
-								auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-								texturePixels.a = accessor.gatherA();
-								//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+								if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
+								{
+									texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+									/*if (drawCmd.shadingMode != ShadingMode::NONE)
+									{
+										Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
+											Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
+											Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
+										Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
+
+									}*/
+									if (Statsman::ENABLED)
+									{
+										MyStatsman.rendering.textureGatheredLanes += 16;
+										MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
+									}
+								}
+								else texturePixels.a = 0.f;
 							}
 							else
 							{
-								if (texturingEnabled)
-								{
-									if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
-									{
-										texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-										/*if (drawCmd.shadingMode != ShadingMode::NONE)
-										{
-											Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
-												Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
-												Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
-											Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
-											
-										}*/
-										if (Statsman::ENABLED)
-										{
-											MyStatsman.rendering.textureGatheredLanes += 16;
-											MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
-										}
-									}
-									else texturePixels.a = 0.f;
-								}
-								else
-								{
-									float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
-									float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
-									texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
-									texturePixels.a = 1;
-								}
+								float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
+								float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
+								texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
+								texturePixels.a = 1;
 							}
-							Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
-							if (!opaquePixelsMask) continue;
+						}
+						Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
+						if (!opaquePixelsMask) continue;
 
-							_mm512_mask_storeu_ps(zBuffer + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
+						_mm512_mask_storeu_ps(zBuffer + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
 
-							if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
-							{
-								uint64_t currRjPtr = uint64_t(&rj);
-								_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjPtr));
-								_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjPtr));
-								//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(senderThreadIndex));
-								//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[3].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(myJobsPointerInt + i));
-								//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[4].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(threadIndex));
-							}
-							/*
-							if (!depthOnly)
-							{
-								mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
-							}*/
+						if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
+						{
+							uint64_t currRjPtr = uint64_t(&rj);
+							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjPtr));
+							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjPtr));
+							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(senderThreadIndex));
+							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[3].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(myJobsPointerInt + i));
+							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[4].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(threadIndex));
+						}
+						/*
+						if (!depthOnly)
+						{
+							mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
+						}*/
 
 						if (Statsman::ENABLED)
 						{
