@@ -643,7 +643,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					{
 						auto& targetStore = (*currCmd.transformedVertices)[threadIndex * threadCount + currReceiverThread];
 						Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
-						targetStore.add(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, diffuseMapIndex, currMask, currCmd);
+						targetStore.addMany(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, diffuseMapIndex, currMask, currCmd);
 					}
 				}
 			}
@@ -737,13 +737,12 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
 			RenderJobStore& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
-			int jobsCountForMe = storeForMe.size();
-			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobsCountForMe;
-			auto iter = storeForMe.getIteratorFromStart();
+			size_t jobCountForMe = storeForMe.size();
+			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobCountForMe;
 
-			while (RenderJob* nextRenderJob = iter.getAndIncrement())
+			for (size_t jobIndex = 0; jobIndex < jobCountForMe; ++jobIndex)
 			{
-				const RenderJob& rj = *nextRenderJob;
+				const RenderJob& rj = storeForMe[jobIndex];
 				float xBeg = std::max(my_xMin, std::floor(std::min(rj.x[2], std::min(rj.x[0], rj.x[1]))));
 				float yBeg = std::max(my_yMin, std::floor(std::min(rj.y[2], std::min(rj.y[0], rj.y[1]))));
 				float xEnd = std::min(my_xMax, std::ceil(std::max(rj.x[2], std::max(rj.x[0], rj.x[1]))));

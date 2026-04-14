@@ -2,52 +2,25 @@
 #include "primitives.h"
 
 using namespace Rasterizing;
-std::pair<std::unique_ptr<RenderJob[]>&, size_t&> Rasterizing::RenderJobStore::getInsertTarget(size_t countToInsert)
-{
-	assert(countToInsert <= ELEMENTS_PER_BLOCK);
-	if (this->elementCountInBlock.empty()) this->elementCountInBlock.push_back(0);
-	
-	size_t currBlockOccupiedCount = this->elementCountInBlock.back();
-	if (currBlockOccupiedCount + countToInsert > ELEMENTS_PER_BLOCK) this->elementCountInBlock.push_back(0);
-	
-	size_t blockIndexToReturn = this->elementCountInBlock.size() - 1;
-	while (this->blocks.size() <= blockIndexToReturn) this->blocks.emplace_back(std::make_unique<RenderJob[]>(ELEMENTS_PER_BLOCK));
-	return std::make_pair(std::ref(this->blocks[blockIndexToReturn]), std::ref(this->elementCountInBlock.back()));
-}
-
 RenderJob& Rasterizing::RenderJobStore::operator[](size_t i)
 {
 	assert(i < this->size());
-	size_t passed = 0, j = 0;
-	while (true)
-	{
-		if (j >= this->elementCountInBlock.size()) break;
-		size_t s = this->elementCountInBlock[j];
-		if (passed + s <= i)
-		{
-			passed += s;
-			++j;
-		}
-		else break;
-	}
-	return this->blocks[j][i - passed];
+	return this->blocks[i / ELEMENTS_PER_BLOCK][i % ELEMENTS_PER_BLOCK];
 }
 
 size_t Rasterizing::RenderJobStore::size() const
 {
-	size_t acc = 0;
-	for (auto& it : this->elementCountInBlock) acc += it;
-	return acc;
+	return this->elementCount;
 }
 
 void Rasterizing::RenderJobStore::clear(bool forceClear)
 {
-	this->elementCountInBlock.clear();
+	this->elementCount = 0;
 	if (forceClear) this->blocks.clear();
 }
 
 
-void Rasterizing::RenderJobStore::add(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& diffuseMapIndex, Mask16 activeElementsMask, const DrawCommand& subInfo)
+void Rasterizing::RenderJobStore::addMany(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& diffuseMapIndex, Mask16 activeElementsMask, const DrawCommand& subInfo)
 {
 	if (pEnd - pStart != 3) throw std::runtime_error("Vertex pack sizes not equal to 3 are not yet supported in RenderJob_Store::add");
 	//TODO: handle subInfo by eliding unused stores and resizes (normals/uvs/etc) (actually, maybe better not with AoS layout, since we won't avoid much anyway)
@@ -84,12 +57,11 @@ void Rasterizing::RenderJobStore::add(const VertexPack16* pStart, const VertexPa
 	}
 
 	int toAddCount = _mm_popcnt_u32(activeElementsMask);
-	auto [blockToInsert, pushIndex] = this->getInsertTarget(toAddCount);
 	
 	for (int j = 0; j < 16; ++j)
 	{
 		if ((activeElementsMask.mask & (1 << j)) == 0) continue;
-		RenderJob& rj = blockToInsert[pushIndex++];
+		RenderJob rj;
 
 		int32x16 gatherInd_first = _mm512_setr_epi32(
 			sizeof(VertexPack16) * 0 + offsetof(VertexPack16, space.x),
@@ -124,9 +96,21 @@ void Rasterizing::RenderJobStore::add(const VertexPack16* pStart, const VertexPa
 		_mm512_mask_storeu_ps(reinterpret_cast<__m512*>(&rj) + 1, 0xFF, _mm512_mask_i32gather_ps(_mm512_setzero_ps(), 0xFF, gatherInd_second + j * 4, pStart, 1));
 		rj.diffuseMapIndex = diffuseMapIndex[j];
 		rj.rcpSignedArea = rcpSignedArea[j];
+		this->addOne(rj);
 	}
 	//assert(this->realSize - oldSz == std::popcount(activeElementsMask.mask));
 }
+
+void Rasterizing::RenderJobStore::addOne(const RenderJob& rj)
+{
+	size_t blockIndex = this->elementCount / ELEMENTS_PER_BLOCK;
+	size_t elementIndex = this->elementCount % ELEMENTS_PER_BLOCK;
+	while (blockIndex >= this->blocks.size()) this->blocks.emplace_back(std::make_unique<RenderJob[]>(ELEMENTS_PER_BLOCK));
+	this->blocks[blockIndex][elementIndex] = rj;
+	this->elementCount++;
+}
+
+/*
 
 RenderJobStore::RenderJobStoreForwardIterator Rasterizing::RenderJobStore::getIteratorFromStart()
 {
@@ -144,3 +128,4 @@ RenderJob* Rasterizing::RenderJobStore::RenderJobStoreForwardIterator::getAndInc
 	}
 	return nullptr;
 }
+*/
