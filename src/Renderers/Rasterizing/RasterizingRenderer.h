@@ -26,16 +26,7 @@ namespace Rasterizing
 	};
 	struct Model
 	{
-		Triangle_Store triangleStore;
-		int diffuseMapIndex = 0;
-		bool noBackfaceCulling = true;
-	};
-
-	struct ModelSlice
-	{
-		int modelIndex;
-		int modelTriangleIndexBegin;
-		int modelTriangleIndexEnd;
+		SequentialRange globalTriangleRange;
 	};
 
 	struct ModelGlobalTrianglesDescriptor
@@ -61,9 +52,7 @@ private:
 
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;
-	std::vector<std::vector<Rasterizing::ModelSlice>> modelSlicesForThreads;
 
-	std::vector<std::vector<Rasterizing::ModelSlice>> makeModelSliceList() const;
 	void doTransformationsAndClipping(int threadIndex);
 	void drawRenderJobs(int threadIndex);
 	void joinMainWithShadowMap(int threadIndex);

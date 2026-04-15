@@ -103,9 +103,17 @@ namespace Rasterizing
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
 	};
 
+	enum ModelFlags : uint32_t
+	{
+		NONE = 0,
+		NO_BACKFACE_CULLING = 1 << 0,
+		NO_FRONTFACE_CULLING = 1 << 1,
+	};
 	struct Triangle_Store
 	{
 		std::vector<uint32_t> vertInd[3];
+		std::vector<int> diffuseMapIndex, modelIndex;
+		std::vector<ModelFlags> modelFlags;
 		size_t size() const;
 		//std::vector<uint32_t> modelInd;
 	};
