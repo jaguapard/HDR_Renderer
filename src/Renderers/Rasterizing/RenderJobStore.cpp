@@ -2,23 +2,6 @@
 #include "primitives.h"
 
 using namespace Rasterizing;
-RenderJob& Rasterizing::RenderJobStore::operator[](size_t i)
-{
-	assert(i < this->size());
-	return this->blocks[i / ELEMENTS_PER_BLOCK][i % ELEMENTS_PER_BLOCK];
-}
-
-size_t Rasterizing::RenderJobStore::size() const
-{
-	return this->elementCount;
-}
-
-void Rasterizing::RenderJobStore::clear(bool forceClear)
-{
-	this->elementCount = 0;
-	if (forceClear) this->blocks.clear();
-}
-
 
 void Rasterizing::RenderJobStore::addMany(const VertexPack16* pStart, const VertexPack16* pEnd, const float32x16& rcpSignedArea, const int32x16& diffuseMapIndex, Mask16 activeElementsMask, const DrawCommand& subInfo)
 {
@@ -103,11 +86,7 @@ void Rasterizing::RenderJobStore::addMany(const VertexPack16* pStart, const Vert
 
 void Rasterizing::RenderJobStore::addOne(const RenderJob& rj)
 {
-	size_t blockIndex = this->elementCount / ELEMENTS_PER_BLOCK;
-	size_t elementIndex = this->elementCount % ELEMENTS_PER_BLOCK;
-	while (blockIndex >= this->blocks.size()) this->blocks.emplace_back(std::make_unique<RenderJob[]>(ELEMENTS_PER_BLOCK));
-	this->blocks[blockIndex][elementIndex] = rj;
-	this->elementCount++;
+	this->append(rj);
 }
 
 /*

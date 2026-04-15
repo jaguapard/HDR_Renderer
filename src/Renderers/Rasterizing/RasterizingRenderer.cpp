@@ -252,7 +252,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	for (auto& currSub : this->drawCommands)
 	{
 		for (auto& store : *currSub.transformedVertices)
-			store.clear();
+			store.reset();
 	}
 	//for (auto& it : renderJobsFromThreads) it.clear();
 }
