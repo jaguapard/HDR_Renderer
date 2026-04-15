@@ -197,6 +197,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	for (auto& currSub : this->drawCommands)
 	{
 		if (currSub.transformedVertices->size() != tCntSq) currSub.transformedVertices->resize(tCntSq);
+		for (auto& it : *currSub.transformedVertices) it.verticeStore = &this->original_verticeStore;
 	}
 
 	std::vector<task_id> transformTasks, drawTasks;
@@ -212,7 +213,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
 	for (auto& it : zBuffer) it = -INFINITY;
 	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
-	for (auto& it : this->deferrendRenderJobPtrs) it = 0;
+	for (auto& it : this->deferrendRenderJobPtrs) it = -1;
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
 	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
@@ -643,7 +644,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 					{
 						auto& targetStore = (*currCmd.transformedVertices)[threadIndex * threadCount + currReceiverThread];
 						Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
-						targetStore.addMany(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, diffuseMapIndex, currMask, currCmd);
+						targetStore.addMany(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, diffuseMapIndex, currMask, currCmd, verticeIndicesCache, verticeIndicesCache+3, behindPlaneCount > 0);
 					}
 				}
 			}
@@ -736,7 +737,8 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
-			RenderJobStore& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
+			uint32_t sourceStoreIndex = senderThreadIndex * threadCount + threadIndex;
+			RenderJobStore& storeForMe = (*drawCmd.transformedVertices)[sourceStoreIndex];
 			size_t jobCountForMe = storeForMe.size();
 			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobCountForMe;
 
@@ -836,9 +838,9 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 
 						if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 						{
-							uint64_t currRjPtr = uint64_t(&rj);
-							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjPtr));
-							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjPtr));
+							uint64_t currRjKey = (uint64_t(sourceStoreIndex) << 32) | jobIndex;
+							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjKey));
+							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjKey));
 							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(senderThreadIndex));
 							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[3].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(myJobsPointerInt + i));
 							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[4].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(threadIndex));
@@ -922,27 +924,36 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 
 			__m512i rjPtrs0_7 = _mm512_maskz_loadu_epi64(xBoundsMask, renderJobPtrsBuffer + yInt * w + xInt);
 			__m512i rjPtrs8_15 = _mm512_maskz_loadu_epi64(xBoundsMask >> 8, renderJobPtrsBuffer + yInt * w + xInt + 8);
-			Mask16 filledPixels = _mm512_cmpneq_epi64_mask(rjPtrs0_7, _mm512_setzero_si512());
-			filledPixels |= uint16_t(_mm512_cmpneq_epi64_mask(rjPtrs8_15, _mm512_setzero_si512())) << 8;
+			Mask16 filledPixels = _mm512_cmpneq_epi64_mask(rjPtrs0_7, _mm512_set1_epi64(-1));
+			filledPixels |= uint16_t(_mm512_cmpneq_epi64_mask(rjPtrs8_15, _mm512_set1_epi64(-1))) << 8;
 			filledPixels &= xBoundsMask;
 			VertexPack16 restoredVerts[3];
-
-			//constexpr uint64_t attr_offset_bytes[] = {offsetof(RenderJob, x[0]), offsetof(RenderJob, y[0]), offsetof(RenderJob, z[0]), offsetof(RenderJob, u[0]), offsetof(RenderJob, v[0]), offsetof(RenderJob, nx[0]), offsetof(RenderJob, ny[0]),offsetof(RenderJob, nz[0])};
-			//std::array<float32x16*, 8> attr_writeback_ptrs = {offsetof(VertexPack16, x)
-			for (int i = 0; i < 3; ++i)
+			float32x16 rcpSignedArea;
+			int32x16 diffuseMapIndices;
+			for (int j = 0; j < 16; ++j)
 			{
-				restoredVerts[i].space.x = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, x[i]), filledPixels);
-				restoredVerts[i].space.y = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, y[i]), filledPixels);
-				restoredVerts[i].space.z = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, z[i]), filledPixels);
-				restoredVerts[i].u = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, u[i]), filledPixels);
-				restoredVerts[i].v = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, v[i]), filledPixels);
-				restoredVerts[i].normal.x = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, nx[i]), filledPixels);
-				restoredVerts[i].normal.y = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, ny[i]), filledPixels);
-				restoredVerts[i].normal.z = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, nz[i]), filledPixels);
+				auto bit = filledPixels.mask & (1 << j);
+				if (!bit) continue;
+				uint64_t key = renderJobPtrsBuffer[yInt * w + xInt + j];
+				uint32_t sourceStoreIndex = key >> 32;
+				uint32_t jobIndex = key;
+				RenderJob rj = (*this->drawCommands[0].transformedVertices)[sourceStoreIndex][jobIndex];
+
+				for (int i = 0; i < 3; ++i)
+				{
+					restoredVerts[i].space.x[j] = rj.x[i];
+					restoredVerts[i].space.y[j] = rj.y[i];
+					restoredVerts[i].space.z[j] = rj.z[i];
+					restoredVerts[i].u[j] = rj.u[i];
+					restoredVerts[i].v[j] = rj.v[i];
+					restoredVerts[i].normal.x[j] = rj.nx[i];
+					restoredVerts[i].normal.y[j] = rj.ny[i];
+					restoredVerts[i].normal.z[j] = rj.nz[i];
+				}
+				rcpSignedArea[j] = rj.rcpSignedArea;
+				diffuseMapIndices[j] = rj.diffuseMapIndex;
 			}
-			float32x16 rcpSignedArea = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, rcpSignedArea), filledPixels);
-			int32x16 diffuseMapIndices = _mm512_castps_si512(gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, diffuseMapIndex), filledPixels));
-			//int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, modelIndex * sizeof(Model) + offsetof(Model, diffuseMapIndex), this->sceneModels.data(), 1);
+	
 			float32x16 alpha, beta, gamma;
 			calculateBarycentricCoordinates({ x,y,0.f,0.f }, restoredVerts[0].space, restoredVerts[1].space, restoredVerts[2].space, rcpSignedArea, alpha, beta, gamma);
 
