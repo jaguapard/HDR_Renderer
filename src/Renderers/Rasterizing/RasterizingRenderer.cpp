@@ -308,10 +308,14 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
+	Mask16 storeBounds = 0xFFFF;
 	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
 	{
-		int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
-		Mask16 storeBounds = triangleIndices < stopInd;
+		if (currTriangleIndex + 15 >= stopInd)
+		{
+			int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
+			storeBounds = triangleIndices < stopInd;
+		}
 		std::array<int32x16, 3> vertexIndices;
 		std::array<VertexPack16, 3> originalVertices;
 
@@ -371,7 +375,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 			Mask16 activeTrianglesMask = storeBounds & behindPlaneCount != 3;
 			if (!activeTrianglesMask) continue;
 
-			int32x16 modelFlags = _mm512_maskz_loadu_epi32(activeTrianglesMask, this->original_triangleStore.modelFlags.data() + currTriangleIndex);
+			int32x16 modelFlags = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.modelFlags.data() + currTriangleIndex);
 			if (currCmd.faceCullingType == FaceCullingType::BACKFACE)
 			{
 				Mask16 cullingAllowed = (modelFlags & NO_BACKFACE_CULLING) == 0;
@@ -572,7 +576,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
 				int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
 				activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
-				int32x16 diffuseMapIndex = _mm512_maskz_loadu_epi32(activeTrianglesMask, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
+				int32x16 diffuseMapIndex = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
 
 				//vecFirstThread = _mm512_mask_compress_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
 				//vecLastThread = _mm512_mask_compress_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
