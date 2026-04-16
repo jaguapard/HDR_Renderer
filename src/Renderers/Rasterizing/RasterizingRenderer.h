@@ -59,7 +59,7 @@ private:
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint64_t> deferrendRenderJobPtrs;
-	std::vector<Rasterizing::RenderJobStore> mainRenderJobs, shadowMapRenderJobs;
+	std::array<std::vector<Rasterizing::TriangleIndexStore>,2> trianglesByZones;
 
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;

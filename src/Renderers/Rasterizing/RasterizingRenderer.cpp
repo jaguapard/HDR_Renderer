@@ -172,7 +172,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = true;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
-	mainDrawCmd.transformedVertices = &this->mainRenderJobs;
+	mainDrawCmd.trianglesToZones = &this->trianglesByZones[0];
 	mainDrawCmd.threadCount = threadCount;
 	mainDrawCmd.renderW = w;
 	mainDrawCmd.renderH = h;
@@ -186,14 +186,13 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
 	//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
 	//shadowMapDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
-	shadowMapDrawCmd.transformedVertices = &this->shadowMapRenderJobs;
+	shadowMapDrawCmd.trianglesToZones = &this->trianglesByZones[1];
 	shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
 	shadowMapDrawCmd.renderH = shadowMapH;
 	shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
 	shadowMapDrawCmd.needsUVs = true;
 	shadowMapDrawCmd.needsNormals = false;
 	shadowMapDrawCmd.faceCullingType = FaceCullingType::FRONTFACE; //FaceCullingType::FRONT
-	shadowMapDrawCmd.transformedVertices = &this->shadowMapRenderJobs;
 	shadowMapDrawCmd.threadCount = threadCount;
 	shadowMapDrawCmd.renderW = shadowMapW;
 	shadowMapDrawCmd.renderH = shadowMapH;
@@ -203,8 +202,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	int tCntSq = threadCount * threadCount;
 	for (auto& currSub : this->drawCommands)
 	{
-		if (currSub.transformedVertices->size() != tCntSq) currSub.transformedVertices->resize(tCntSq);
-		for (auto& it : *currSub.transformedVertices) it.verticeStore = &this->original_verticeStore;
+		if (currSub.trianglesToZones->size() != tCntSq) currSub.trianglesToZones->resize(tCntSq);
+		//for (auto& it : *currSub.trianglesToZones) it.verticeStore = &this->original_verticeStore;
 	}
 
 	std::vector<task_id> transformTasks, drawTasks;
@@ -259,7 +258,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	for (auto& currSub : this->drawCommands)
 	{
-		for (auto& store : *currSub.transformedVertices)
+		for (auto& store : *currSub.trianglesToZones)
 			store.reset();
 	}
 	//for (auto& it : renderJobsFromThreads) it.clear();
@@ -319,7 +318,6 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 		std::array<int32x16, 3> vertexIndices;
 		std::array<VertexPack16, 3> originalVertices;
 
-		bool UVs_loaded = false, normalsLoaded = false;
 		for (int i = 0; i < 3; ++i)
 		{
 			int32x16 currVertexIndices = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
@@ -389,52 +387,6 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(output[0].space, output[1].space, output[2].space);
 				Mask16 culled = output[0].space.dot3d(transformedFaceNormals) < 0.f;
 				activeTrianglesMask &= ~(cullingAllowed & culled);
-			}
-
-			if (currCmd.needsUVs)
-			{
-				if (!UVs_loaded)
-				{
-					for (int i = 0; i < 3; ++i)
-					{
-						originalVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.u.data(), 4);
-						originalVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.v.data(), 4);
-					}
-					UVs_loaded = true;
-				}
-				for (int i = 0; i < 3; ++i)
-				{
-					output[i].u = originalVertices[i].u;
-					output[i].v = originalVertices[i].v;
-				}
-			}
-
-			if (currCmd.needsNormals) //TODO: split this distinction into needs triangle normals and needs vertex normals?
-			{
-				if (!normalsLoaded)
-				{
-					for (int i = 0; i < 3; ++i)
-					{
-						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.nx.data(), 4);
-						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.ny.data(), 4);
-						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.nz.data(), 4);
-					}
-					normalsLoaded = true;
-				}
-				for (int i = 0; i < 3; ++i)
-				{
-					switch (currCmd.shadingMode)
-					{
-					default:
-						output[i].normal = originalVertices[i].normal;
-						break;
-					case ShadingMode::FLAT: //this mode is mostly an afterthought, so it's low priority to elude normal gathers in this case
-						output[i].normal = getFaceNormalsForTriangles16(originalVertices[0].space, originalVertices[1].space, originalVertices[2].space);
-						break;
-					case ShadingMode::NONE:
-						break;
-					}
-				}
 			}
 
 			if (behindPlaneCount > 0) //near plane clipping
@@ -517,13 +469,6 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 
 				float32x16 fovMult = 1; //TODO: adjustable game setting?
 				float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
-				/*
-				for (int j = 0; j < 3; ++j)
-				{
-					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.x)) > 5000.f) & activeTrianglesMask) == 0));
-					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.y)) > 5000.f) & activeTrianglesMask) == 0));
-					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.z)) > 5000.f) & activeTrianglesMask) == 0));
-				}*/
 				for (int i = 0; i < 3; ++i)
 				{
 					auto& currVertex = output[i + ouputStartIndex];
@@ -576,7 +521,7 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
 				int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
 				activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
-				int32x16 diffuseMapIndex = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
+				
 
 				//vecFirstThread = _mm512_mask_compress_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
 				//vecLastThread = _mm512_mask_compress_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
