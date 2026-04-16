@@ -61,6 +61,12 @@ private:
 	std::vector<uint64_t> deferrendRenderJobPtrs;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
 
+	//Performs binning of the triangles to rasterizer threads' zones
+	void transformerRoutine(int threadIndex);
+	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
+
+	//Performs transformations and rasterization of binned triangles
+	void rasterizerRoutine(int threadIndex);
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
 
