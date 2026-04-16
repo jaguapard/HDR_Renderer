@@ -527,16 +527,21 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 				//vecLastThread = _mm512_mask_compress_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
 				vecFirstThread = _mm512_mask_mov_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
 				vecLastThread = _mm512_mask_mov_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
-				int groupFirstThread = std::clamp(_mm512_reduce_min_epi32(vecFirstThread), 0, threadCount - 1);
-				int groupLastThread = std::clamp(_mm512_reduce_max_epi32(vecLastThread), 0, threadCount - 1);
+				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
+				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
+				//int groupFirstThread = std::clamp(_mm512_reduce_min_epi32(vecFirstThread), 0, threadCount - 1);
+				//int groupLastThread = std::clamp(_mm512_reduce_max_epi32(vecLastThread), 0, threadCount - 1);
 
 				int activeJobs = _mm_popcnt_u32(activeTrianglesMask);
 				if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountProducer += activeJobs;
-				for (int currReceiverThread = groupFirstThread; currReceiverThread <= groupLastThread; ++currReceiverThread)
+				for (int i = 0; i < 16; ++i)
 				{
-					auto& targetStore = (*currCmd.transformedVertices)[threadIndex * threadCount + currReceiverThread];
-					Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
-					targetStore.addMany(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, diffuseMapIndex, currMask, currCmd, vertexIndices.data(), vertexIndices.data() + 3, behindPlaneCount > 0);
+					if ((activeTrianglesMask.mask & (1 << i)) == 0) continue;
+					for (int currReceiverThread = vecFirstThread[i]; currReceiverThread <= vecLastThread[i]; ++currReceiverThread)
+					{
+						auto& targetStore = (*currCmd.trianglesToZones)[threadIndex * threadCount + currReceiverThread];
+						targetStore.append(currTriangleIndex + i);
+					}
 				}
 			}
 		}
@@ -629,7 +634,7 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
 			uint32_t sourceStoreIndex = senderThreadIndex * threadCount + threadIndex;
-			RenderJobStore& storeForMe = (*drawCmd.transformedVertices)[sourceStoreIndex];
+			RenderJobStore& storeForMe = (*drawCmd.trianglesToZones)[sourceStoreIndex];
 			size_t jobCountForMe = storeForMe.size();
 			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobCountForMe;
 
