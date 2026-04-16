@@ -650,6 +650,7 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 						{
 							activeTrianglesMask = oldActiveTriangles & (behindPlaneCount == 1);
 							validOutputPacks = 6;
+							for (int i = 0; i < 3; ++i) output[i] = output[i + 3];
 						}
 						else break;
 					}
