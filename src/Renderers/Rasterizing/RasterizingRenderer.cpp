@@ -720,7 +720,7 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 									float32x16 dx = x - group_xBeg[i];
 
 									float32x16 alpha, beta, gamma;
-									calculateBarycentricCoordinates({ x,y,0.f,0.f }, r1.extractHorizontalVector(i), r2.extractHorizontalVector(i), r3.extractHorizontalVector(i), rcpSignedArea, alpha, beta, gamma);
+									calculateBarycentricCoordinates({ x,y,0.f,0.f }, r1.extractHorizontalVector(i), r2.extractHorizontalVector(i), r3.extractHorizontalVector(i), rcpSignedArea[i], alpha, beta, gamma);
 									if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 									Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
