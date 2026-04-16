@@ -39,7 +39,7 @@ std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
 void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 {
 	Uint64 ticksBegin = SDL_GetTicksNS();
-	if (false)
+	if (true)
 	{
 		Model& m = this->sceneModels.emplace_back();
 		Vec4f vertices[3] = {
@@ -51,8 +51,9 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		{
 			uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, 0.5, -0.5, 0, 0, 0);
 			this->original_triangleStore.vertInd[k].push_back(vertInd);
-			this->original_triangleStore.diffuseMapIndex.push_back(0);
 		}
+		this->original_triangleStore.diffuseMapIndex.push_back(0);
+		this->original_triangleStore.modelFlags.push_back(NONE);
 		return;
 	}
 
@@ -211,7 +212,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	{
 		transformTasks.emplace_back(threadpool->addTask(
 			[&, threadIndex]() {
-				this->doTransformationsAndClipping(threadIndex);
+				this->transformerRoutine(threadIndex);
 			}
 		));
 	}
@@ -223,9 +224,9 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
 	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
-	//uint64_t skyColor = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_NO_EXC), 0);
-	//uint64_t* pp = (uint64_t*)(settings.graphicsOutputBuffer);
-	//for (int i = 0; i < sz; ++i) pp[i] = skyColor;
+	uint64_t skyColor = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_NO_EXC), 0);
+	uint64_t* pp = (uint64_t*)(settings.graphicsOutputBuffer);
+	for (int i = 0; i < sz; ++i) pp[i] = skyColor;
 	uint64_t framebufCleanTicks = SDL_GetTicksNS();
 
 	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
@@ -240,12 +241,13 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	{
 		drawTasks.emplace_back(threadpool->addTask(
 			[&, threadIndex]() {
-				this->drawRenderJobs(threadIndex);
+				this->rasterizerRoutine(threadIndex);
 			}
 		));
 	}
 	threadpool->waitForMultipleTasks(drawTasks);
 	drawTasks.clear();
+	/*
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
 		drawTasks.emplace_back(threadpool->addTask(
@@ -255,7 +257,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		));
 	}
 	threadpool->waitForMultipleTasks(drawTasks);
-
+	*/
 	for (auto& currSub : this->drawCommands)
 	{
 		for (auto& store : *currSub.trianglesToZones)
@@ -498,6 +500,65 @@ void RasterizingRenderer::transformerRoutine(int threadIndex)
 	}
 }
 
+__forceinline void calculateBarycentricCoordinates(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
+{
+	alpha = (r - r3).cross2d(r2 - r3) * rcpSignedArea;
+	beta = (r - r3).cross2d(r3 - r1) * rcpSignedArea;
+	gamma = (r - r1).cross2d(r1 - r2) * rcpSignedArea; //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures
+}
+
+void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask)
+{
+	//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
+	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
+	//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
+	//Second - 4-7, third - 8-11, fourth - 12-15
+	constexpr int DC = 0xDEADDEAD; //garbage value
+	//duplicate each opaquePixelsMask bit 4 times, i.e: 0123 -> 0000111122223333, 16 bits -> 64
+	__m512i expanded = _mm512_maskz_mov_epi32(mask, _mm512_set1_epi32(-1));
+	__mmask64 duplicated = _mm512_cmpneq_epi8_mask(expanded, _mm512_set1_epi32(0));
+
+	__m256i ph_r = _mm512_cvtps_ph(pack.r, _MM_FROUND_NO_EXC);
+	__m256i ph_g = _mm512_cvtps_ph(pack.g, _MM_FROUND_NO_EXC);
+	__m256i ph_b = _mm512_cvtps_ph(pack.b, _MM_FROUND_NO_EXC);
+	__m256i ph_a = _mm512_cvtps_ph(pack.a, _MM_FROUND_NO_EXC);
+	for (int i = 0; i < 16; i += 4)
+	{
+		__m256i rg_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19, DC, DC));
+		__m256i ba_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(DC, DC, 0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19));
+		__m256i rgxx = _mm256_permutex2var_epi16(ph_r, rg_ind, ph_g);
+		__m256i xxba = _mm256_permutex2var_epi16(ph_b, ba_ind, ph_a);
+		__m256i rgba = _mm256_mask_mov_epi16(rgxx, 0b1100110011001100, xxba);
+		int storeInd = (y * w + x + i) * 4;
+		_mm256_mask_storeu_epi16((int16_t*)frameBuffer + storeInd, duplicated >> (i * 4), rgba);
+	}
+}
+
+#ifdef VS_CLANG
+__m512i _mm512_setr_epi16(int16_t i0, int16_t i1, int16_t i2, int16_t i3, int16_t i4, int16_t i5, int16_t i6, int16_t i7, int16_t i8, int16_t i9, int16_t i10, int16_t i11, int16_t i12, int16_t i13, int16_t i14, int16_t i15, int16_t i16, int16_t i17, int16_t i18, int16_t i19, int16_t i20, int16_t i21, int16_t i22, int16_t i23, int16_t i24, int16_t i25, int16_t i26, int16_t i27, int16_t i28, int16_t i29, int16_t i30, int16_t i31)
+{
+	return _mm512_set_epi16(i31, i30, i29, i28, i27, i26, i25, i24, i23, i22, i21, i20, i19, i18, i17, i16, i15, i14, i13, i12, i11, i10, i9, i8, i7, i6, i5, i4, i3, i2, i1, i0);
+}
+#endif
+
+Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask)
+{
+	int loadInd = y * w + x;
+	const int64_t* p = (const int64_t*)frameBuffer;
+	__m512i rgba0_7 = _mm512_maskz_loadu_epi64(mask, p + loadInd);
+	__m512i rgba8_15 = _mm512_maskz_loadu_epi64(mask >> 8, p + loadInd + 8);
+
+	__m512i r0_15_g0_15_ph = _mm512_permutex2var_epi16(rgba0_7, _mm512_setr_epi16(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61), rgba8_15);
+	__m512i b0_15_a0_15_ph = _mm512_permutex2var_epi16(rgba0_7, _mm512_setr_epi16(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), rgba8_15);
+
+	Vec4_f32x16 ret;
+	ret.r = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(r0_15_g0_15_ph, 0));
+	ret.g = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(r0_15_g0_15_ph, 1));
+	ret.b = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(b0_15_a0_15_ph, 0));
+	ret.a = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(b0_15_a0_15_ph, 1));
+	return ret;
+}
+
 void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 {
 	int threadCount = this->currGs->threadpool->getThreadCount();
@@ -550,16 +611,17 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 				{
 					if (currCmd.needsUVs)
 					{
-						originalVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), storeBounds, vertexIndices[i], this->original_verticeStore.u.data(), 4);
-						originalVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), storeBounds, vertexIndices[i], this->original_verticeStore.v.data(), 4);
+						originalVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.u.data(), 4);
+						originalVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.v.data(), 4);
 					}
 					if (currCmd.needsNormals)
 					{
-						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), storeBounds, vertexIndices[i], this->original_verticeStore.nx.data(), 4);
-						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), storeBounds, vertexIndices[i], this->original_verticeStore.ny.data(), 4);
-						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), storeBounds, vertexIndices[i], this->original_verticeStore.nz.data(), 4);
+						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.nx.data(), 4);
+						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.ny.data(), 4);
+						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.nz.data(), 4);
 					}
 				}
+				int32x16 diffuseMapIndex = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), activeTrianglesMask, triangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
 
 				float32x16 fovMult = 1; //TODO: adjustable game setting?
 				float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
@@ -592,250 +654,134 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 				maxX = _mm512_ceil_ps(maxX);
 				maxY = _mm512_ceil_ps(maxY);
 
-				//TODO: rasterize the triangles
-				for (int i = 0; i < 16; ++i)
 				{
-					if ((activeTrianglesMask.mask & (1 << i)) == 0) continue;
-					
-				}
-			}
-		}
-	}
-}
+					const auto& drawCmd = currCmd;
+					float* zBuffer = (float*)drawCmd.buffers[0].data;
+					uint64_t* frameBuffer = drawCmd.buffers.size() >= 2 ? (uint64_t*)drawCmd.buffers[1].data : nullptr;
+					auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, drawCmd.renderH);
+					int threadCount = this->currGs->threadpool->getThreadCount();
+					float my_yMin = floor(d_low);
+					float my_yMax = std::min<float>(floor(d_high), drawCmd.renderH - 1);
+					float my_xMin = 0;
+					float my_xMax = drawCmd.renderW - 1;
+					bool texturingEnabled = this->currGs->texturingEnabled;
+					int w = drawCmd.renderW;
+					//bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
+					bool depthOnly = drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
 
-
-void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
-{
-
-
-		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
-		{
-			auto& currCmd = this->drawCommands[cmdIndex];
-			float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / currCmd.renderH;
-			float w = currCmd.renderW;
-			float h = currCmd.renderH;
-
-	
-			
-
-		//StatCount(threadIndex, trianges.ver)
-
-	}
-	
-	if (Statsman::ENABLED) {
-		uint64_t ticksEnd = SDL_GetTicksNS();
-		MyStatsman.time.transformMs = (ticksEnd - ticksBegin) / 1e6;
-	}
-}
-
-__forceinline void calculateBarycentricCoordinates(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
-{
-	alpha = (r - r3).cross2d(r2 - r3) * rcpSignedArea;
-	beta = (r - r3).cross2d(r3 - r1) * rcpSignedArea;
-	gamma = (r - r1).cross2d(r1 - r2) * rcpSignedArea; //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures
-}
-
-void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask)
-{
-	//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
-	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
-	//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
-	//Second - 4-7, third - 8-11, fourth - 12-15
-	constexpr int DC = 0xDEADDEAD; //garbage value
-	//duplicate each opaquePixelsMask bit 4 times, i.e: 0123 -> 0000111122223333, 16 bits -> 64
-	__m512i expanded = _mm512_maskz_mov_epi32(mask, _mm512_set1_epi32(-1));
-	__mmask64 duplicated = _mm512_cmpneq_epi8_mask(expanded, _mm512_set1_epi32(0));
-
-	__m256i ph_r = _mm512_cvtps_ph(pack.r, _MM_FROUND_NO_EXC);
-	__m256i ph_g = _mm512_cvtps_ph(pack.g, _MM_FROUND_NO_EXC);
-	__m256i ph_b = _mm512_cvtps_ph(pack.b, _MM_FROUND_NO_EXC);
-	__m256i ph_a = _mm512_cvtps_ph(pack.a, _MM_FROUND_NO_EXC);
-	for (int i = 0; i < 16; i += 4)
-	{
-		__m256i rg_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19, DC, DC));
-		__m256i ba_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(DC, DC, 0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19));
-		__m256i rgxx = _mm256_permutex2var_epi16(ph_r, rg_ind, ph_g);
-		__m256i xxba = _mm256_permutex2var_epi16(ph_b, ba_ind, ph_a);
-		__m256i rgba = _mm256_mask_mov_epi16(rgxx, 0b1100110011001100, xxba);
-		int storeInd = (y * w + x + i) * 4;
-		_mm256_mask_storeu_epi16((int16_t*)frameBuffer + storeInd, duplicated >> (i * 4), rgba);
-	}
-}
-
-#ifdef VS_CLANG
-__m512i _mm512_setr_epi16(int16_t i0, int16_t i1, int16_t i2, int16_t i3, int16_t i4, int16_t i5, int16_t i6, int16_t i7, int16_t i8, int16_t i9, int16_t i10, int16_t i11, int16_t i12, int16_t i13, int16_t i14, int16_t i15, int16_t i16, int16_t i17, int16_t i18, int16_t i19, int16_t i20, int16_t i21, int16_t i22, int16_t i23, int16_t i24, int16_t i25, int16_t i26, int16_t i27, int16_t i28, int16_t i29, int16_t i30, int16_t i31)
-{
-	return _mm512_set_epi16(i31, i30, i29, i28, i27, i26, i25, i24, i23, i22, i21, i20, i19, i18, i17, i16, i15, i14, i13, i12, i11, i10, i9, i8, i7, i6, i5, i4, i3, i2, i1, i0);
-}
-#endif
-
-Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask)
-{
-	int loadInd = y * w + x;
-	const int64_t* p = (const int64_t*)frameBuffer;
-	__m512i rgba0_7 = _mm512_maskz_loadu_epi64(mask, p + loadInd);
-	__m512i rgba8_15 = _mm512_maskz_loadu_epi64(mask >> 8, p + loadInd + 8);
-
-	__m512i r0_15_g0_15_ph = _mm512_permutex2var_epi16(rgba0_7, _mm512_setr_epi16(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61), rgba8_15);
-	__m512i b0_15_a0_15_ph = _mm512_permutex2var_epi16(rgba0_7, _mm512_setr_epi16(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), rgba8_15);
-	
-	Vec4_f32x16 ret;
-	ret.r = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(r0_15_g0_15_ph, 0));
-	ret.g = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(r0_15_g0_15_ph, 1));
-	ret.b = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(b0_15_a0_15_ph, 0));
-	ret.a = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(b0_15_a0_15_ph, 1));
-	return ret;
-}
-void RasterizingRenderer::drawRenderJobs(int threadIndex)
-{
-	auto ticksBegin = SDL_GetTicksNS();
-	int drawCmdInd = 0;
-	for (auto& drawCmd : this->drawCommands)
-	{
-		float* zBuffer = (float*)drawCmd.buffers[0].data;
-		uint64_t* frameBuffer = drawCmd.buffers.size() >= 2 ? (uint64_t*)drawCmd.buffers[1].data : nullptr;
-		auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, drawCmd.renderH);
-		int threadCount = this->currGs->threadpool->getThreadCount();
-		float my_yMin = floor(d_low);
-		float my_yMax = std::min<float>(floor(d_high), drawCmd.renderH - 1);
-		float my_xMin = 0;
-		float my_xMax = drawCmd.renderW - 1;
-		bool texturingEnabled = this->currGs->texturingEnabled;
-		int w = drawCmd.renderW;
-		bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
-		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
-		{
-			uint32_t sourceStoreIndex = senderThreadIndex * threadCount + threadIndex;
-			RenderJobStore& storeForMe = (*drawCmd.trianglesToZones)[sourceStoreIndex];
-			size_t jobCountForMe = storeForMe.size();
-			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobCountForMe;
-
-			for (size_t jobIndex = 0; jobIndex < jobCountForMe; ++jobIndex)
-			{
-				const RenderJob& rj = storeForMe[jobIndex];
-				float xBeg = std::max(my_xMin, std::floor(std::min(rj.x[2], std::min(rj.x[0], rj.x[1]))));
-				float yBeg = std::max(my_yMin, std::floor(std::min(rj.y[2], std::min(rj.y[0], rj.y[1]))));
-				float xEnd = std::min(my_xMax, std::ceil(std::max(rj.x[2], std::max(rj.x[0], rj.x[1]))));
-				float yEnd = std::min(my_yMax, std::ceil(std::max(rj.y[2], std::max(rj.y[0], rj.y[1]))));
-
-				int diffuseMapIndex = rj.diffuseMapIndex;
-				const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex);
-				Vec4f r1 = { rj.x[0], rj.y[0], rj.z[0],0.f };
-				Vec4f r2 = { rj.x[1], rj.y[1], rj.z[1],0.f };
-				Vec4f r3 = { rj.x[2], rj.y[2], rj.z[2],0.f };
-
-				for (float y = yBeg; y <= yEnd; ++y)
-				{
-					size_t yInt = y;
-					size_t xInt = xBeg;
-					float32x16 dy = y - yBeg;
-					for (float32x16 x = float32x16::sequence() + xBeg; Mask16 xBoundsMask = (x <= xEnd); x += 16, xInt += 16)
+					//const auto& 
+					float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), minX);
+					float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), minY);
+					float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), maxX);
+					float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), maxY);
+					for (int i = 0; i < 16; ++i)
 					{
-						float32x16 dx = x - xBeg;
-						/*
-						float32x16 alpha = _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dAlpha_dx[i]), dx, _mm512_set1_ps(group_initialAlpha[i])));
-						float32x16 beta = _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dBeta_dx[i]), dx, _mm512_set1_ps(group_initialBeta[i])));
-						float32x16 gamma = _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dy[i]), dy, _mm512_fmadd_ps(_mm512_set1_ps(group_dGamma_dx[i]), dx, _mm512_set1_ps(group_initialGamma[i])));*/
-						float32x16 alpha, beta, gamma;
-						calculateBarycentricCoordinates({ x,y,0.f,0.f }, r1, r2, r3, rj.rcpSignedArea, alpha, beta, gamma);
-						if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
-
-						Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
-						if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-						if (!pointsInsideTriangleMask) continue;
-
-						Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(rj.u[0], rj.v[0], rj.z[0], 0.f) * alpha +
-							Vec4_f32x16(rj.u[1], rj.v[1], rj.z[1], 0.f) * beta +
-							Vec4_f32x16(rj.u[2], rj.v[2], rj.z[2], 0.f) * gamma;
-						float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
-						if (Statsman::ENABLED)
+						if ((activeTrianglesMask.mask & (1 << i)) == 0) continue;
+						const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex[i]);
+						for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
 						{
-							MyStatsman.rendering.zBufferFetchLanes += 16;
-							MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-						}
-						//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
-						//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
-						Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
-						if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
-						if (!notOccludedPoints) continue; //if all points are occluded, then skip
-
-						Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
-						Vec4_f32x16 texturePixels;
-						if (depthOnly)
-						{
-
-							auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-							texturePixels.a = accessor.gatherA();
-							//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-						}
-						else
-						{
-							if (texturingEnabled)
+							size_t yInt = y;
+							size_t xInt = group_xBeg[i];
+							float32x16 dy = y - group_yBeg[i];
+							for (float32x16 x = float32x16::sequence() + group_xBeg[i]; Mask16 xBoundsMask = (x <= group_xEnd[i]); x += 16, xInt += 16)
 							{
-								if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
-								{
-									texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-									/*if (drawCmd.shadingMode != ShadingMode::NONE)
-									{
-										Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
-											Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
-											Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
-										Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
+								float32x16 dx = x - group_xBeg[i];
 
-									}*/
-									if (Statsman::ENABLED)
+								float32x16 alpha, beta, gamma;
+								calculateBarycentricCoordinates({ x,y,0.f,0.f }, r1, r2, r3, rcpSignedArea, alpha, beta, gamma);
+								if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
+
+								Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
+								if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+								if (!pointsInsideTriangleMask) continue;
+
+								Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(output[0].u[i], output[0].v[i], output[0].space.z[i], 0.f) * alpha +
+									Vec4_f32x16(output[1].u[i], output[1].v[i], output[1].space.z[i], 0.f) * beta +
+									Vec4_f32x16(output[2].u[i], output[2].v[i], output[2].space.z[i], 0.f) * gamma;
+								float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
+								if (Statsman::ENABLED)
+								{
+									MyStatsman.rendering.zBufferFetchLanes += 16;
+									MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+								}
+								//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
+								//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
+								Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
+								if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+								if (!notOccludedPoints) continue; //if all points are occluded, then skip
+
+								Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
+								Vec4_f32x16 texturePixels;
+								if (depthOnly)
+								{
+									auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+									texturePixels.a = accessor.gatherA();
+									//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+								}
+								else
+								{
+									if (texturingEnabled)
 									{
-										MyStatsman.rendering.textureGatheredLanes += 16;
-										MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
+										if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
+										{
+											texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+											/*if (drawCmd.shadingMode != ShadingMode::NONE)
+											{
+												Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
+													Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
+													Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
+												Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
+
+											}*/
+											if (Statsman::ENABLED)
+											{
+												MyStatsman.rendering.textureGatheredLanes += 16;
+												MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
+											}
+										}
+										else texturePixels.a = 0.f;
+									}
+									else
+									{
+										float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
+										float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
+										texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
+										texturePixels.a = 1;
 									}
 								}
-								else texturePixels.a = 0.f;
+								Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
+								if (!opaquePixelsMask) continue;
+
+								_mm512_mask_storeu_ps(zBuffer + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
+
+								if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
+								{
+									mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
+									/*
+									uint64_t currRjKey = (uint64_t(sourceStoreIndex) << 32) | jobIndex;
+									_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjKey));
+									_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjKey));*/
+								}
+								/*
+								if (!depthOnly)
+								{
+									mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
+								}*/
+
+								if (Statsman::ENABLED)
+								{
+									MyStatsman.rendering.zBufferWriteLanes += 16;
+									MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+									MyStatsman.rendering.frameBufWriteLanes += 16;
+									MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+									MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+								}
 							}
-							else
-							{
-								float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
-								float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
-								texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
-								texturePixels.a = 1;
-							}
-						}
-						Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
-						if (!opaquePixelsMask) continue;
-
-						_mm512_mask_storeu_ps(zBuffer + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
-
-						if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
-						{
-							uint64_t currRjKey = (uint64_t(sourceStoreIndex) << 32) | jobIndex;
-							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjKey));
-							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjKey));
-							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(senderThreadIndex));
-							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[3].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(myJobsPointerInt + i));
-							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[4].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(threadIndex));
-						}
-						/*
-						if (!depthOnly)
-						{
-							mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
-						}*/
-
-						if (Statsman::ENABLED)
-						{
-							MyStatsman.rendering.zBufferWriteLanes += 16;
-							MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-							MyStatsman.rendering.frameBufWriteLanes += 16;
-							MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-							MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
 						}
 					}
 				}
 			}
 		}
-		drawCmdInd++;
-	}
-	if (Statsman::ENABLED) {
-		auto ticksEnd = SDL_GetTicksNS();
-		MyStatsman.time.drawMs = (ticksEnd - ticksBegin) / 1e6;
 	}
 }
 
@@ -847,6 +793,8 @@ __m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512
 	__m256 attr1 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask >> 8, addr8_15, nullptr, 1);
 	return _mm512_insertf32x8(_mm512_castps256_ps512(attr0), attr1, 1);
 }
+
+/*
 void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 {
 	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, this->drawCommands[0].renderH);
@@ -979,6 +927,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 		}
 	}
 }
+*/
 
 uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, float v, float nx, float ny, float nz)
 {
