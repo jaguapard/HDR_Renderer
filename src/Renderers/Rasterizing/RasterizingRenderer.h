@@ -71,8 +71,9 @@ private:
 		std::array<int32x16, 3> vertexIndices;
 		Mask16 validInputs;
 		float nearPlaneZ;
-		double threadCount;
-		int threadIndex, stage;
+		//double threadCount;
+		//int threadIndex, stage;
+		int stage;
 	};
 
 	struct VertexStageOutput
@@ -92,6 +93,8 @@ private:
 	//Stage 1 assumes sequential input triangle indices, doesn't gather UVs and normals, doesn't return min/max(X,Y) and rcpSignedArea
 	//Stage 2 does and doesn't assume any order for input triangle indices
 	void transformVertices(const VertexStageInput& input, VertexStageOutput* output) const;
+
+	void binTrianglesIntoZones(int threadIndex);
 
 	//Performs transformations and rasterization of binned triangles
 	void rasterizerRoutine(int threadIndex);

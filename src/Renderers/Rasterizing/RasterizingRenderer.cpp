@@ -431,9 +431,10 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 		}
 		this->performNearPlaneClipping(input.nearPlaneZ, currOutput.output, behindNearPlaneCount, currOutput.behindNearPlaneMasks);
 
+		/*
 		float w = currCmd.renderW;
 		float h = currCmd.renderH;
-		float rcpScreenHeightPerThread = input.threadCount / h;
+		float rcpScreenHeightPerThread = input.threadCount / h;*/
 
 		Mask16 oldActiveTriangles = activeTriangles;
 		for (int ouputStartIndex = 0; ouputStartIndex < 6; ouputStartIndex += 3)
@@ -495,53 +496,50 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	}
 }
 
-
-void RasterizingRenderer::transformerRoutine(int threadIndex)
+void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
 	Mask16 storeBounds = 0xFFFF;
-	const float clippingZ = this->currGs->cameraPlane_zDist;
 	int threadCount = this->currGs->threadpool->getThreadCount();
 
+	VertexStageInput inp;
+	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
+	inp.stage = 1;
+	std::array<VertexStageOutput, 2> transformedResults;
+	assert(2 == this->drawCommands.size());
+	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
+	{
+		int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
+		if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
 
+		inp.triangleIndices = triangleIndices;
+		inp.validInputs = storeBounds;
+		for (int i = 0; i < 3; ++i)
+		{
+			inp.vertexIndices[i] = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
+		}
+
+		this->transformVertices(inp, transformedResults.data());
+		
 		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
 		{
-			auto& currCmd = this->drawCommands[cmdIndex];
-			float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
-			float w = currCmd.renderW;
-			float h = currCmd.renderH;
+			for (int outputTriangleIndex = 0; outputTriangleIndex < 2; ++outputTriangleIndex)
+			{
+				Mask16 currActiveTriangles = transformedResults[cmdIndex].activeTriangles[outputTriangleIndex];
+				if (!currActiveTriangles) break; //yes, break, not continue. If first outputted triangle is invalid, then none are (at least in current pipeline)
+				auto& currCmd = this->drawCommands[cmdIndex];
+				float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
+				auto& currOutput = transformedResults[cmdIndex];
 
+				int32x16 vecFirstThread = _mm512_cvttps_epi32(currOutput.minY[outputTriangleIndex] * rcpScreenHeightPerThread);
+				int32x16 vecLastThread = _mm512_cvttps_epi32(currOutput.maxY[outputTriangleIndex] * rcpScreenHeightPerThread);
+				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
+				if (!currActiveTriangles) continue;
 
-
-			this->performNearPlaneClipping(clippingZ, output, behindPlaneCount, behindPlaneMasks);
-			//this stage needs to run again for new triangle created by clipping in 1 vertex behind plane case
-
-				//float32x16 rcpSignedArea = float32x16(1) / signedArea;
-
-				minX = _mm512_floor_ps(minX);
-				minY = _mm512_floor_ps(minY);
-				maxX = _mm512_ceil_ps(maxX);
-				maxY = _mm512_ceil_ps(maxY);
-				int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
-				int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
-				activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
-
-
-				//vecFirstThread = _mm512_mask_compress_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
-				//vecLastThread = _mm512_mask_compress_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
-				vecFirstThread = _mm512_mask_mov_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
-				vecLastThread = _mm512_mask_mov_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
-				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
-				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
-				//int groupFirstThread = std::clamp(_mm512_reduce_min_epi32(vecFirstThread), 0, threadCount - 1);
-				//int groupLastThread = std::clamp(_mm512_reduce_max_epi32(vecLastThread), 0, threadCount - 1);
-
-				int activeJobs = _mm_popcnt_u32(activeTrianglesMask);
-				if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountProducer += activeJobs;
 				for (int i = 0; i < 16; ++i)
 				{
-					if ((activeTrianglesMask.mask & (1 << i)) == 0) continue;
+					if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
 					for (int currReceiverThread = vecFirstThread[i]; currReceiverThread <= vecLastThread[i]; ++currReceiverThread)
 					{
 						auto& targetStore = (*currCmd.trianglesToZones)[threadIndex * threadCount + currReceiverThread];
@@ -550,7 +548,6 @@ void RasterizingRenderer::transformerRoutine(int threadIndex)
 				}
 			}
 		}
-		
 	}
 }
 
