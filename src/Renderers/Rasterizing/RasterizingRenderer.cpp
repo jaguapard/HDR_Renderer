@@ -937,23 +937,24 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Vec4_f32x16 texturePixels;
 
 			//TODO: refactor repeated barycentric interpolations into a class
+#if defined(VS_CLANG) //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
+
 			for (int j = 0; j < 16; ++j)
 			{
 				if (!(filledPixels.mask & (1 << j))) continue;
 				int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
 
-#if defined(VS_CLANG) || 1 //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
 
 				Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
 				texturePixels.x[j] = pixel.x;
 				texturePixels.y[j] = pixel.y;
 				texturePixels.z[j] = pixel.z;
 				texturePixels.w[j] = 1;
-
-#else
-				//texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uvCorrected.x, uvCorrected.y, currMask);
-#endif
 			}
+#else
+			int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), filledPixels, triangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
+			texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uv.x, uv.y, filledPixels);
+#endif
 			texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
 			texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
 			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
