@@ -54,16 +54,11 @@ private:
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;
 
-	void doTransformationsAndClipping(int threadIndex);
-	void drawRenderJobs(int threadIndex);
 	void joinMainWithShadowMap(int threadIndex);
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint32_t> deferrendTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
-
-	//Performs binning of the triangles to rasterizer threads' zones
-	void transformerRoutine(int threadIndex);
 	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 
 	struct VertexStageInput
