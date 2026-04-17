@@ -86,7 +86,18 @@ private:
 		//int validOutputVertexPackCount;
 		std::array<Mask16, 2> activeTriangles; //Masks that mark which triangles are valid post-transform. Values returned in other fields of this struct are garbage for inactive triangles
 		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
+	};
 
+	struct PixelStageInput
+	{
+		int32x16 progenitorTriangleIndices;
+		const Rasterizing::DrawCommand* cmd;
+		const VertexStageOutput* vertexStageOutput;
+		float my_xMin, my_yMin, my_xMax, my_yMax;
+	};
+
+	struct PixelStageOutput
+	{
 	};
 
 	//Transforms vertices by data supplied via input for all draw commands.
@@ -96,10 +107,12 @@ private:
 	//Stage 2 processes ONLY the draw command at inputted index and gathers it's required attributes for vertices. Doesn't assume any order for input triangle indices.
 	void transformVertices(const VertexStageInput& input, VertexStageOutput* output) const;
 
-	void binTrianglesIntoZones(int threadIndex);
+	void binTrianglesIntoZones(const int threadIndex);
+
+	void drawTriangleBatch(const PixelStageInput& inp, const int threadIndex);
 
 	//Performs transformations and rasterization of binned triangles
-	void rasterizerRoutine(int threadIndex);
+	void rasterizerRoutine(const int threadIndex);
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
 
