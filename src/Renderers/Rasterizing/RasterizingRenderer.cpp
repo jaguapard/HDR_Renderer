@@ -426,7 +426,7 @@ void RasterizingRenderer::transformerRoutine(int threadIndex)
 				Mask16 culled = output[0].space.dot3d(transformedFaceNormals) < 0.f;
 				activeTrianglesMask &= ~(cullingAllowed & culled);
 			}
-
+			this->performNearPlaneClipping(clippingZ, output, behindPlaneCount, behindPlaneMasks);
 			//this stage needs to run again for new triangle created by clipping in 1 vertex behind plane case
 			Mask16 oldActiveTriangles = activeTrianglesMask;
 			int validOutputPacks = 3;
@@ -651,7 +651,7 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 						{
 							activeTrianglesMask = oldActiveTriangles & (behindPlaneCount == 1);
 							validOutputPacks = 6;
-							for (int i = 0; i < 3; ++i) output[i] = output[i + 3];
+							//for (int i = 0; i < 3; ++i) output[i] = output[i + 3];
 						}
 						else break;
 					}
@@ -659,7 +659,7 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 					float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
 					for (int i = 0; i < 3; ++i)
 					{
-						auto& currVertex = output[i];
+						auto& currVertex = output[i + ouputStartIndex];
 						float32x16 zInv = fovMult / currVertex.space.z;
 						currVertex.u *= zInv;
 						currVertex.v *= zInv;
@@ -674,9 +674,9 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 						maxY = _mm512_max_ps(maxY, currVertex.space.y);
 					}
 
-					const Vec4_f32x16& r1 = output[0].space;
-					const Vec4_f32x16& r2 = output[1].space;
-					const Vec4_f32x16& r3 = output[2].space;
+					const Vec4_f32x16& r1 = output[ouputStartIndex].space;
+					const Vec4_f32x16& r2 = output[1 + ouputStartIndex].space;
+					const Vec4_f32x16& r3 = output[2 + ouputStartIndex].space;
 					//now transformedVertices hold screen coordinates (in pixels) and UVs are Z divided
 					float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
 					float32x16 rcpSignedArea = float32x16(1) / signedArea;
@@ -691,7 +691,6 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 						float* zBuffer = (float*)drawCmd.buffers[0].data;
 						uint64_t* frameBuffer = drawCmd.buffers.size() >= 2 ? (uint64_t*)drawCmd.buffers[1].data : nullptr;
 						auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, drawCmd.renderH);
-						int threadCount = this->currGs->threadpool->getThreadCount();
 						float my_yMin = floor(d_low);
 						float my_yMax = std::min<float>(floor(d_high), drawCmd.renderH - 1);
 						float my_xMin = 0;
@@ -727,9 +726,9 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 									if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 									if (!pointsInsideTriangleMask) continue;
 
-									Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(output[0].u[i], output[0].v[i], output[0].space.z[i], 0.f) * alpha +
-										Vec4_f32x16(output[1].u[i], output[1].v[i], output[1].space.z[i], 0.f) * beta +
-										Vec4_f32x16(output[2].u[i], output[2].v[i], output[2].space.z[i], 0.f) * gamma;
+									Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(output[0+ouputStartIndex].u[i], output[0 + ouputStartIndex].v[i], output[0 + ouputStartIndex].space.z[i], 0.f) * alpha +
+										Vec4_f32x16(output[1 + ouputStartIndex].u[i], output[1 + ouputStartIndex].v[i], output[1 + ouputStartIndex].space.z[i], 0.f) * beta +
+										Vec4_f32x16(output[2 + ouputStartIndex].u[i], output[2 + ouputStartIndex].v[i], output[2 + ouputStartIndex].space.z[i], 0.f) * gamma;
 									float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
 									if (Statsman::ENABLED)
 									{
