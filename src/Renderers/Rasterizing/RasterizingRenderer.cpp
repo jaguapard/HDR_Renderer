@@ -597,13 +597,21 @@ __forceinline void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const
 
 __forceinline void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, float32x16& alpha, float32x16& beta, float32x16& gamma)
 {
+	
+	Vec4_f32x16 v0 = B - A;
+	Vec4_f32x16 v1 = C - A;
+	Vec4_f32x16 v2 = P - A;
+
+	float32x16 d00 = v0.dot3d(v0);
+	float32x16 d01 = v0.dot3d(v1);
+	float32x16 d11 = v1.dot3d(v1);
+	float32x16 d20 = v2.dot3d(v0);
+	float32x16 d21 = v2.dot3d(v1);
+	float32x16 den = d00 * d11 - (d01 * d01);
+	beta = (d11 * d20 - d01 * d21) / den;
+	gamma = (d00 * d21 - d01 * d20) / den;
+	alpha = float32x16(1) - beta - gamma; //really?
 	/*
-	Vec4_f32x16 v0 = r2 - r1;
-	Vec4_f32x16 v1 = r3 - r1;
-	Vec4_f32x16 v2 = r - r1;
-
-	float32x16 d00 = */
-
 	float32x16 sABC = (B - A).cross3d(C - A).len3d();
 	float32x16 sPBC = (B - P).cross3d(C - P).len3d();
 	float32x16 sPCA = (C - P).cross3d(A - P).len3d();
@@ -611,7 +619,7 @@ __forceinline void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const
 	alpha = sPBC / sABC;
 	beta = sPCA / sABC;
 	//gamma = float32x16(1) - alpha - beta; //actually, seems fine now
-	gamma = sPAB / sABC;  //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures
+	gamma = sPAB / sABC;  //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures*/
 }
 
 void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask)
