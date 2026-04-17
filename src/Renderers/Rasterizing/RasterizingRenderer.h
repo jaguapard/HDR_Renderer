@@ -58,7 +58,7 @@ private:
 	void joinMainWithShadowMap(int threadIndex);
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
-	std::vector<uint64_t> deferrendRenderJobPtrs;
+	std::vector<uint32_t> deferrendTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
 
 	//Performs binning of the triangles to rasterizer threads' zones

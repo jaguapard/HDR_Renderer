@@ -153,7 +153,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	int shadowMapW = 512*3;
 	int shadowMapH = 288*3;
 	this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
-	this->deferrendRenderJobPtrs.resize(mainBufSize);
+	this->deferrendTriangleIndices.resize(mainBufSize);
 	
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
@@ -173,7 +173,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.shadingMode = this->shadingMode;
 	mainDrawCmd.buffers.emplace_back(this->zBuffer.data(), w, h);
 	mainDrawCmd.buffers.emplace_back(this->currGs->graphicsOutputBuffer, w, h);
-	mainDrawCmd.buffers.emplace_back(this->deferrendRenderJobPtrs.data(), w, h);
+	mainDrawCmd.buffers.emplace_back(this->deferrendTriangleIndices.data(), w, h);
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = true;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
@@ -224,7 +224,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
 	for (auto& it : zBuffer) it = -INFINITY;
 	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
-	for (auto& it : this->deferrendRenderJobPtrs) it = -1;
+	for (auto& it : this->deferrendTriangleIndices) it = -1;
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
 	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
@@ -752,6 +752,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 					{
 						mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
+						_mm512_mask_storeu_epi32((uint32_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]));
 						/*
 						uint64_t currRjKey = (uint64_t(sourceStoreIndex) << 32) | jobIndex;
 						_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjKey));
