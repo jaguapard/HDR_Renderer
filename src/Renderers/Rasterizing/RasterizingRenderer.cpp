@@ -892,41 +892,41 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				const VertexPack16& v2 = vertexStageOut.output[outputTriangleIndex * 3 + 2];
 				const float32x16& rcpSignedArea = vertexStageOut.rcpSignedArea[outputTriangleIndex];
 
+				float32x16 alpha, beta, gamma;
+				calculateBarycentricCoordinates({ x,y,0.f,0.f }, v0.space, v1.space, v2.space, rcpSignedArea, alpha, beta, gamma);
+
+				Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u, v0.v, v0.space.z, 0.f) * alpha +
+					Vec4_f32x16(v1.u, v1.v, v1.space.z, 0.f) * beta +
+					Vec4_f32x16(v2.u, v2.v, v2.space.z, 0.f) * gamma;
+				Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
+
+				Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(v0.normal.x, v0.normal.y, v0.normal.z, 0.f) * alpha +
+					Vec4_f32x16(v1.normal.x, v1.normal.y, v1.normal.z, 0.f) * beta +
+					Vec4_f32x16(v2.normal.x, v2.normal.y, v2.normal.z, 0.f) * gamma;
+				Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
+
+				Vec4_f32x16 texturePixels;
+
 				//TODO: refactor repeated barycentric interpolations into a class
 				for (int j = 0; j < 16; ++j)
 				{
 					if (!(currMask.mask & (1 << j))) continue;
 					int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
-					float32x16 alpha, beta, gamma;
-					calculateBarycentricCoordinates({ x,y,0.f,0.f }, v0.space.extractHorizontalVector(j), v1.space.extractHorizontalVector(j), v2.space.extractHorizontalVector(j), rcpSignedArea[j], alpha, beta, gamma);
 
-					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u, v0.v, v0.space.z, 0.f) * alpha +
-						Vec4_f32x16(v1.u, v1.v, v1.space.z, 0.f) * beta +
-						Vec4_f32x16(v2.u, v2.v, v2.space.z, 0.f) * gamma;
-					Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
-
-					Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(v0.normal.x, v0.normal.y, v0.normal.z, 0.f) * alpha +
-						Vec4_f32x16(v1.normal.x, v1.normal.y, v1.normal.z, 0.f) * beta +
-						Vec4_f32x16(v2.normal.x, v2.normal.y, v2.normal.z, 0.f) * gamma;
-					Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
-
-					Vec4_f32x16 texturePixels;
 #ifdef VS_CLANG //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
-					for (int i = 0; i < 16; ++i)
-					{
-						if ((filledPixels.mask & (1 << i)) == 0) continue;
-						Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uvCorrected.x[i], uvCorrected.y[i]);
-						texturePixels.x[i] = pixel.x;
-						texturePixels.y[i] = pixel.y;
-						texturePixels.z[i] = pixel.z;
-						texturePixels.w[i] = 1;
-					}
+
+					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uvCorrected.x[j], uvCorrected.y[j]);
+					texturePixels.x[j] = pixel.x;
+					texturePixels.y[j] = pixel.y;
+					texturePixels.z[j] = pixel.z;
+					texturePixels.w[j] = 1;
+
 #else
-					texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uvCorrected.x, uvCorrected.y, filledPixels);
+					texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uvCorrected.x, uvCorrected.y, currMask);
 #endif
-					texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
-					texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
-					texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
+					texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), currMask, texturePixels.x);
+					texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), currMask, texturePixels.y);
+					texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), currMask, texturePixels.z);
 
 					const auto& currentShadowMap = this->drawCommands[1];
 					Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
@@ -949,7 +949,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 					Vec4_f32x16 totalLight = Vec4_f32x16(this->ambientLightIntensity, this->ambientLightIntensity, this->ambientLightIntensity, 0.f) + _mm512_max_ps(_mm512_set1_ps(0), normalDot * this->lightIntesity);
 
 					for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
-					for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
+					for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], currMask, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
 					mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
 				}
 
