@@ -155,8 +155,13 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	}
 	int mainBufSize = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
 	this->zBuffer.resize(mainBufSize);
+#ifdef NDEBUG
 	int shadowMapW = 512*3;
 	int shadowMapH = 288*3;
+#else
+	int shadowMapW = 51;
+	int shadowMapH = 28;
+#endif
 	this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
 	this->deferrendTriangleIndices.resize(mainBufSize);
 	
