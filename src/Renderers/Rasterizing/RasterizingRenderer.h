@@ -57,7 +57,7 @@ private:
 	void joinMainWithShadowMap(int threadIndex);
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
-	std::vector<uint32_t> deferrendTriangleIndices;
+	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
 	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 

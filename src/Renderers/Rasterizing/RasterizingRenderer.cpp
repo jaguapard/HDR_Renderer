@@ -163,7 +163,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	int shadowMapH = 28;
 #endif
 	this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
-	this->deferrendTriangleIndices.resize(mainBufSize);
+	this->deferredTriangleIndices.resize(mainBufSize);
 	
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
@@ -183,7 +183,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.shadingMode = this->shadingMode;
 	mainDrawCmd.buffers.emplace_back(this->zBuffer.data(), w, h);
 	mainDrawCmd.buffers.emplace_back(this->currGs->graphicsOutputBuffer, w, h);
-	mainDrawCmd.buffers.emplace_back(this->deferrendTriangleIndices.data(), w, h);
+	mainDrawCmd.buffers.emplace_back(this->deferredTriangleIndices.data(), w, h);
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = true;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
@@ -234,7 +234,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
 	for (auto& it : zBuffer) it = -INFINITY;
 	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
-	for (auto& it : this->deferrendTriangleIndices) it = -1;
+	for (auto& it : this->deferredTriangleIndices) it = -1;
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
 	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
