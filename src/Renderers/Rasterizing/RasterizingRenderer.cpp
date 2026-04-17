@@ -39,7 +39,7 @@ std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
 void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 {
 	Uint64 ticksBegin = SDL_GetTicksNS();
-	if (false)
+	if (true)
 	{
 		this->skyColor = { 0,0,0,1 };
 		Model& m = this->sceneModels.emplace_back();
@@ -56,8 +56,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		this->original_triangleStore.diffuseMapIndex.push_back(0);
 		this->original_triangleStore.modelFlags.push_back(NONE);
 		//GS are not yet set, so this ptr is null at this time
-		//const_cast<GameSettings*>(this->currGs)->camPos = { 13.475824, -1.453772, 69.824371, 0.000000 };
-		//const_cast<GameSettings*>(this->currGs)->camAng = { 0.000000, -2.604962, 0.182000, 0.000000 };
+		this->singleTriangleDebugMode = true;
 		return;
 	}
 
@@ -148,6 +147,12 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 void RasterizingRenderer::renderFrame(const GameSettings& settings)
 {
 	this->currGs = &settings;
+	if (this->singleTriangleDebugMode)
+	{
+		const_cast<GameSettings*>(this->currGs)->camPos = { 13.475824, -1.453772, 69.824371, 0.000000 };
+		const_cast<GameSettings*>(this->currGs)->camAng = { 0.000000, -2.604962, 0.182000, 0.000000 };
+		this->singleTriangleDebugMode = false;
+	}
 	int mainBufSize = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
 	this->zBuffer.resize(mainBufSize);
 	int shadowMapW = 512*3;
@@ -899,6 +904,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 					Vec4_f32x16(v1.u, v1.v, v1.space.z, 0.f) * beta +
 					Vec4_f32x16(v2.u, v2.v, v2.space.z, 0.f) * gamma;
 				Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
+				if (interpolatedDividedUv.z < 0.99) __debugbreak(); //why is this always 1?
 
 				Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(v0.normal.x, v0.normal.y, v0.normal.z, 0.f) * alpha +
 					Vec4_f32x16(v1.normal.x, v1.normal.y, v1.normal.z, 0.f) * beta +
@@ -913,7 +919,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 					if (!(currMask.mask & (1 << j))) continue;
 					int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
 
-#ifdef VS_CLANG //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
+#if defined(VS_CLANG) || 1 //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
 
 					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uvCorrected.x[j], uvCorrected.y[j]);
 					texturePixels.x[j] = pixel.x;
@@ -922,7 +928,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 					texturePixels.w[j] = 1;
 
 #else
-					texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uvCorrected.x, uvCorrected.y, currMask);
+					//texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uvCorrected.x, uvCorrected.y, currMask);
 #endif
 					texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), currMask, texturePixels.x);
 					texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), currMask, texturePixels.y);

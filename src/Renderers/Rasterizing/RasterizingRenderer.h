@@ -43,6 +43,7 @@ public:
 	virtual void renderFrame(const GameSettings& settings);
 	//virtual void handleInputEvent(const SDL_Event& ev, C_Input& input);
 private:
+	bool singleTriangleDebugMode = false;
 	Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 	std::vector<Rasterizing::Model> sceneModels;
 	Rasterizing::Vertice_Store original_verticeStore;
