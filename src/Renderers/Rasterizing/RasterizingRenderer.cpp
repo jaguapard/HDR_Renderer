@@ -361,6 +361,21 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<R
 	input = clipOutput;
 }
 
+
+void RasterizingRenderer::transformVertices(const VertexStageInput& input, VertexStageOutput* output, int stage) const
+{
+	for (int i = 0; i < 3; ++i)
+	{
+		output[0].untransformedVertices[i].space.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.x.data(), 4);
+		output[0].untransformedVertices[i].space.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.y.data(), 4);
+		output[0].untransformedVertices[i].space.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.z.data(), 4);
+		output[0].untransformedVertices[i].space.w = 1;
+	}
+
+
+}
+
+
 void RasterizingRenderer::transformerRoutine(int threadIndex)
 {
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());

@@ -65,6 +65,30 @@ private:
 	void transformerRoutine(int threadIndex);
 	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 
+	struct VertexStageInput
+	{
+		std::array<int32x16, 3> vertexIndices;
+		Mask16 validInputs;
+		float nearPlaneZ;
+	};
+
+	struct VertexStageOutput
+	{
+		std::array<Rasterizing::VertexPack16, 3> untransformedVertices; //some fields may be empty due to input flags. World X, Y, Z are guaranteed to be filled 
+		std::array<Rasterizing::VertexPack16, 6> output; //up to 6 vertices may be returned by the transform (2 triangles for single vertex behind near plane case). Use activeTriangles mask to mask off invalid ones
+		int32x16 behindNearPlaneCount; //counts of vertices behind near plane for each triangle composed by input vertices
+		float32x16 minX, minY, maxX, maxY;
+		//int validOutputVertexPackCount;
+		std::array<Mask16, 2> activeTriangles; //returns the triangles that are valid post-transform
+		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
+
+	};
+
+	//Transforms vertices by data supplied via input for all draw commands.
+	//output pointer must be large enough to contain at least (count of draw commands) VertexStageOutput structs.
+	//Stage 1 doesn't gather UVs and normals, doesn't return out min/max(X,Y) and rcpSignedArea
+	void transformVertices(const VertexStageInput& input, VertexStageOutput* output, int stage) const;
+
 	//Performs transformations and rasterization of binned triangles
 	void rasterizerRoutine(int threadIndex);
 	Rasterizing::TextureManager textureManager;
