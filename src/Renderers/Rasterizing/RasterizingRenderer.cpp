@@ -373,10 +373,12 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 		originalVertices[i].space.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.z.data(), 4);
 		originalVertices[i].space.w = 1;
 	}
-	bool extraAttributesLoaded = false;
+	bool UVs_loaded = false, normals_loaded = false;
 
-	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
+	int cmdIndex = input.stage == 1 ? 0 : input.drawCommandIndex;
+	for (; cmdIndex < this->drawCommands.size(); ++cmdIndex)
 	{
+		if (input.stage != 1 && cmdIndex != input.drawCommandIndex) break; //process input command if not on first stage, else process all
 		auto& currCmd = this->drawCommands[cmdIndex];
 		auto& currOutput = output[cmdIndex];
 		for (auto& it : currOutput.activeTriangles) it = 0;
@@ -416,30 +418,53 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 		}
 		if (!activeTriangles) continue;
 
-		if (input.stage == 2 && !extraAttributesLoaded) //avoid gathering more than once (since it's the same values anyway, all commands share input vertices)
+		if (input.stage == 2)
 		{
-			for (int i = 0; i < 3; ++i)
+			if (currCmd.needsUVs)
 			{
-				//activeTriangles may be different between commands, so gather by least restrictive valid mask, which is the input valid mask
-				currOutput.output[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.u.data(), 4);
-				currOutput.output[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.v.data(), 4);
-				currOutput.output[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.nx.data(), 4);
-				currOutput.output[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.ny.data(), 4);
-				currOutput.output[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.nz.data(), 4);
+				if (!UVs_loaded)
+				{
+					for (int i = 0; i < 3; ++i)
+					{
+						//activeTriangles may be different between commands, so gather by least restrictive valid mask, which is the input valid mask
+						originalVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.u.data(), 4);
+						originalVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.v.data(), 4);
+					}
+					UVs_loaded = true;
+				}
+
+				for (int i = 0; i < 3; ++i)
+				{
+					currOutput.output[i].u = originalVertices[i].u;
+					currOutput.output[i].v = originalVertices[i].v;
+				}
 			}
-			extraAttributesLoaded = true;
+
+			if (currCmd.needsNormals)
+			{
+				if (!normals_loaded)
+				{
+					for (int i = 0; i < 3; ++i)
+					{
+						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.nx.data(), 4);
+						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.ny.data(), 4);
+						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.nz.data(), 4);
+					}
+					normals_loaded = true;
+				}
+				for (int i = 0; i < 3; ++i) currOutput.output[i].normal = originalVertices[i].normal;
+			}
 		}
 		this->performNearPlaneClipping(input.nearPlaneZ, currOutput.output, behindNearPlaneCount, currOutput.behindNearPlaneMasks);
 
-		/*
 		float w = currCmd.renderW;
 		float h = currCmd.renderH;
-		float rcpScreenHeightPerThread = input.threadCount / h;*/
+		//float rcpScreenHeightPerThread = input.threadCount / h;*/
 
 		Mask16 oldActiveTriangles = activeTriangles;
 		for (int ouputStartIndex = 0; ouputStartIndex < 6; ouputStartIndex += 3)
 		{
-			if (ouputStartIndex == 3) //put it here since some of the continues may jump back to the beginning of the loop (like all triangles with 0 area)
+			if (ouputStartIndex == 3) //put it here since some of the continues may jump back to the beginning of this loop (like all triangles with 0 area)
 			{
 				if (behindNearPlaneCount == 1) //load new triangle if there is new
 				{
@@ -630,7 +655,8 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 			for (int currIndex = 0; currIndex < storeSize; currIndex += 16)
 			{
 				Mask16 storeBounds = (int32x16::sequence() + currIndex) < storeSize;
-				int32x16 triangleIndices = _mm512_maskz_loadu_epi32(storeBounds, &currStore[currIndex]); //TODO: it is safe if BlockStore's element count per block % 16 == 0, which is case here. Can't put static assert here, so be warned
+				static_assert(currStore.ELEMENTS_PER_BLOCK % 16 == 0, "Triangle bin block store is expected to be 16-element aligned.");
+				int32x16 triangleIndices = _mm512_maskz_loadu_epi32(storeBounds, &currStore[currIndex]); //this will read out of block's bounds if ELEMENTS_PER_BLOCK is not divisible by 16.
 
 				std::array<int32x16, 3> vertexIndices;
 				std::array<VertexPack16, 3> originalVertices;

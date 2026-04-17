@@ -74,6 +74,7 @@ private:
 		//double threadCount;
 		//int threadIndex, stage;
 		int stage;
+		int drawCommandIndex;
 	};
 
 	struct VertexStageOutput
@@ -89,9 +90,10 @@ private:
 	};
 
 	//Transforms vertices by data supplied via input for all draw commands.
-	//output pointer must be large enough to contain at least (count of draw commands) VertexStageOutput structs.
-	//Stage 1 assumes sequential input triangle indices, doesn't gather UVs and normals, doesn't return min/max(X,Y) and rcpSignedArea
-	//Stage 2 does and doesn't assume any order for input triangle indices
+	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
+	//For draw command i the output will be written to output[i]
+	//Stage 1 assumes sequential input triangle indices, gathers only vertices' world coords and processes all draw commands.
+	//Stage 2 processes ONLY the draw command at inputted index and gathers it's required attributes for vertices. Doesn't assume any order for input triangle indices.
 	void transformVertices(const VertexStageInput& input, VertexStageOutput* output) const;
 
 	void binTrianglesIntoZones(int threadIndex);
