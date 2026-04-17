@@ -213,7 +213,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	{
 		transformTasks.emplace_back(threadpool->addTask(
 			[&, threadIndex]() {
-				this->transformerRoutine(threadIndex);
+				this->binTrianglesIntoZones(threadIndex);
 			}
 		));
 	}
@@ -364,7 +364,7 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<R
 
 void RasterizingRenderer::transformVertices(const VertexStageInput& input, VertexStageOutput* output) const
 {
-	assert(std::fmod(input.threadCount, 1) == 0);
+	//assert(std::fmod(input.threadCount, 1) == 0);
 	std::array<VertexPack16, 3> originalVertices;
 	for (int i = 0; i < 3; ++i)
 	{
@@ -561,6 +561,9 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
 				if (!currActiveTriangles) continue;
 
+				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
+				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
+
 				for (int i = 0; i < 16; ++i)
 				{
 					if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
@@ -676,7 +679,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					float32x16 dx = x - group_xBeg[i];
 
 					float32x16 alpha, beta, gamma;
-					calculateBarycentricCoordinates({ x,y,0.f,0.f }, v0.space.extractHorizontalVector(i), v1.space.extractHorizontalVector(i), v2.space.extractHorizontalVector(i), inp.vertexStageOutput->rcpSignedArea[i], alpha, beta, gamma);
+					calculateBarycentricCoordinates({ x,y,0.f,0.f }, v0.space.extractHorizontalVector(i), v1.space.extractHorizontalVector(i), v2.space.extractHorizontalVector(i), inp.vertexStageOutput->rcpSignedArea[outputTriangleIndex][i], alpha, beta, gamma);
 					if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
