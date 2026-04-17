@@ -67,27 +67,31 @@ private:
 
 	struct VertexStageInput
 	{
+		int32x16 triangleIndices;
 		std::array<int32x16, 3> vertexIndices;
 		Mask16 validInputs;
 		float nearPlaneZ;
+		double threadCount;
+		int threadIndex, stage;
 	};
 
 	struct VertexStageOutput
 	{
-		std::array<Rasterizing::VertexPack16, 3> untransformedVertices; //some fields may be empty due to input flags. World X, Y, Z are guaranteed to be filled 
+		//std::array<Rasterizing::VertexPack16, 3> untransformedVertices; //some fields may be empty due to input flags. World X, Y, Z are guaranteed to be filled 
 		std::array<Rasterizing::VertexPack16, 6> output; //up to 6 vertices may be returned by the transform (2 triangles for single vertex behind near plane case). Use activeTriangles mask to mask off invalid ones
 		int32x16 behindNearPlaneCount; //counts of vertices behind near plane for each triangle composed by input vertices
-		float32x16 minX, minY, maxX, maxY;
+		std::array<float32x16, 2> minX, minY, maxX, maxY, rcpSignedArea;
 		//int validOutputVertexPackCount;
-		std::array<Mask16, 2> activeTriangles; //returns the triangles that are valid post-transform
+		std::array<Mask16, 2> activeTriangles; //Masks that mark which triangles are valid post-transform. Values returned in other fields of this struct are garbage for inactive triangles
 		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
 
 	};
 
 	//Transforms vertices by data supplied via input for all draw commands.
 	//output pointer must be large enough to contain at least (count of draw commands) VertexStageOutput structs.
-	//Stage 1 doesn't gather UVs and normals, doesn't return out min/max(X,Y) and rcpSignedArea
-	void transformVertices(const VertexStageInput& input, VertexStageOutput* output, int stage) const;
+	//Stage 1 assumes sequential input triangle indices, doesn't gather UVs and normals, doesn't return min/max(X,Y) and rcpSignedArea
+	//Stage 2 does and doesn't assume any order for input triangle indices
+	void transformVertices(const VertexStageInput& input, VertexStageOutput* output) const;
 
 	//Performs transformations and rasterization of binned triangles
 	void rasterizerRoutine(int threadIndex);
