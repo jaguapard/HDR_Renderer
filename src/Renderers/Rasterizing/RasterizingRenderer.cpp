@@ -55,6 +55,9 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		}
 		this->original_triangleStore.diffuseMapIndex.push_back(0);
 		this->original_triangleStore.modelFlags.push_back(NONE);
+		//GS are not yet set, so this ptr is null at this time
+		//const_cast<GameSettings*>(this->currGs)->camPos = { 13.475824, -1.453772, 69.824371, 0.000000 };
+		//const_cast<GameSettings*>(this->currGs)->camAng = { 0.000000, -2.604962, 0.182000, 0.000000 };
 		return;
 	}
 
@@ -658,13 +661,14 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		if (!currActiveTriangles) break; //yes, break, not continue. If first triangle is invalid, then all are (at least in current pipeline)
 		int32x16 diffuseMapIndex = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), currActiveTriangles, inp.progenitorTriangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
 
+		//TODO: doubling triangles if they are clipped!
 		float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), inp.vertexStageOutput->minX[outputTriangleIndex]);
 		float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), inp.vertexStageOutput->minY[outputTriangleIndex]);
 		float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), inp.vertexStageOutput->maxX[outputTriangleIndex]);
 		float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), inp.vertexStageOutput->maxY[outputTriangleIndex]);
-		const VertexPack16& v0 = inp.vertexStageOutput->output[outputTriangleIndex];
-		const VertexPack16& v1 = inp.vertexStageOutput->output[outputTriangleIndex + 1];
-		const VertexPack16& v2 = inp.vertexStageOutput->output[outputTriangleIndex + 2];
+		const VertexPack16& v0 = inp.vertexStageOutput->output[outputTriangleIndex*3];
+		const VertexPack16& v1 = inp.vertexStageOutput->output[outputTriangleIndex*3 + 1];
+		const VertexPack16& v2 = inp.vertexStageOutput->output[outputTriangleIndex*3 + 2];
 		for (int i = 0; i < 16; ++i)
 		{
 			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
