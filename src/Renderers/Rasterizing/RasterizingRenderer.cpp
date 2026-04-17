@@ -588,11 +588,30 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 	}
 }
 
-__forceinline void calculateBarycentricCoordinates(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
+__forceinline void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
 {
 	alpha = (r - r3).cross2d(r2 - r3) * rcpSignedArea;
 	beta = (r - r3).cross2d(r3 - r1) * rcpSignedArea;
 	gamma = (r - r1).cross2d(r1 - r2) * rcpSignedArea; //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures
+}
+
+__forceinline void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, float32x16& alpha, float32x16& beta, float32x16& gamma)
+{
+	/*
+	Vec4_f32x16 v0 = r2 - r1;
+	Vec4_f32x16 v1 = r3 - r1;
+	Vec4_f32x16 v2 = r - r1;
+
+	float32x16 d00 = */
+
+	float32x16 sABC = (B - A).cross3d(C - A).len3d();
+	float32x16 sPBC = (B - P).cross3d(C - P).len3d();
+	float32x16 sPCA = (C - P).cross3d(A - P).len3d();
+	float32x16 sPAB = (A - P).cross3d(B - P).len3d();
+	alpha = sPBC / sABC;
+	beta = sPCA / sABC;
+	//gamma = float32x16(1) - alpha - beta; //actually, seems fine now
+	gamma = sPAB / sABC;  //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures
 }
 
 void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask)
@@ -689,7 +708,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					float32x16 dx = x - group_xBeg[i];
 
 					float32x16 alpha, beta, gamma;
-					calculateBarycentricCoordinates({ x,y,0.f,0.f }, v0.space.extractHorizontalVector(i), v1.space.extractHorizontalVector(i), v2.space.extractHorizontalVector(i), inp.vertexStageOutput->rcpSignedArea[outputTriangleIndex][i], alpha, beta, gamma);
+					calculateBarycentricCoordinates2D({ x,y,0.f,0.f }, v0.space.extractHorizontalVector(i), v1.space.extractHorizontalVector(i), v2.space.extractHorizontalVector(i), inp.vertexStageOutput->rcpSignedArea[outputTriangleIndex][i], alpha, beta, gamma);
 					if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
@@ -880,91 +899,83 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Mask16 filledPixels = xBoundsMask & (triangleIndices != -1);
 			if (!filledPixels) continue;
 
-			VertexStageInput inp;
-			inp.stage = 3;
-			inp.triangleIndices = triangleIndices;
-			inp.validInputs = filledPixels;
-			inp.drawCommandIndex = 0;
-			inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
+			VertexPack16 untransformedVerts[3];
 			for (int i = 0; i < 3; ++i)
 			{
-				inp.vertexIndices[i] = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), filledPixels, triangleIndices, this->original_triangleStore.vertInd[i].data(), 4);
+				int32x16 vInd = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, triangleIndices, this->original_triangleStore.vertInd[i].data(), 4);
+				untransformedVerts[i].space.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.x.data(), 4);
+				untransformedVerts[i].space.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.y.data(), 4);
+				untransformedVerts[i].space.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.z.data(), 4);
+				untransformedVerts[i].u = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.u.data(), 4);
+				untransformedVerts[i].v = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.v.data(), 4);
+				untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nx.data(), 4);
+				untransformedVerts[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.ny.data(), 4);
+				untransformedVerts[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nz.data(), 4);
 			}
-			VertexStageOutput vertexStageOut;
-			this->transformVertices(inp, &vertexStageOut);//TODO: this will break if main draw command index is non-zero!
 
-			for (int outputTriangleIndex = 0; outputTriangleIndex < 2; ++outputTriangleIndex)
+			const Vec4_f32x16& r1 = untransformedVerts[0].space;
+			const Vec4_f32x16& r2 = untransformedVerts[1].space;
+			const Vec4_f32x16& r3 = untransformedVerts[2].space;
+
+			float32x16 alpha, beta, gamma;
+			calculateBarycentricCoordinates3D(worldCoords, r1, r2, r3, alpha, beta, gamma);
+
+			Vec4_f32x16 uv = Vec4_f32x16(untransformedVerts[0].u, untransformedVerts[0].v, 0.f, 0.f) * alpha +
+				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
+				Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
+			//Vec4_f32x16 normals = Vec4_f32x16(untransformedVerts[0].normal.x, untransformedVerts[0].normal.y, 0.f, 0.f) * alpha +
+			//	Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
+			//	Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
+			Vec4_f32x16 normals = untransformedVerts[0].normal * alpha + untransformedVerts[1].normal * beta + untransformedVerts[2].normal * gamma;
+			normals /= normals.len3d();
+
+			Vec4_f32x16 texturePixels;
+
+			//TODO: refactor repeated barycentric interpolations into a class
+			for (int j = 0; j < 16; ++j)
 			{
-				Mask16 currMask = filledPixels & (vertexStageOut.activeTriangles[outputTriangleIndex]);
-				if (!currMask) break; //yes, break, not continute. Change this if changing clipping, since now first tris invalid = everything invalid
-
-				const VertexPack16& v0 = vertexStageOut.output[outputTriangleIndex * 3];
-				const VertexPack16& v1 = vertexStageOut.output[outputTriangleIndex * 3 + 1];
-				const VertexPack16& v2 = vertexStageOut.output[outputTriangleIndex * 3 + 2];
-				const float32x16& rcpSignedArea = vertexStageOut.rcpSignedArea[outputTriangleIndex];
-
-				float32x16 alpha, beta, gamma;
-				calculateBarycentricCoordinates({ x,y,0.f,0.f }, v0.space, v1.space, v2.space, rcpSignedArea, alpha, beta, gamma);
-
-				Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u, v0.v, v0.space.z, 0.f) * alpha +
-					Vec4_f32x16(v1.u, v1.v, v1.space.z, 0.f) * beta +
-					Vec4_f32x16(v2.u, v2.v, v2.space.z, 0.f) * gamma;
-				Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
-				//if (interpolatedDividedUv.z < 0.99) __debugbreak(); //why is this always 1?
-
-				Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(v0.normal.x, v0.normal.y, v0.normal.z, 0.f) * alpha +
-					Vec4_f32x16(v1.normal.x, v1.normal.y, v1.normal.z, 0.f) * beta +
-					Vec4_f32x16(v2.normal.x, v2.normal.y, v2.normal.z, 0.f) * gamma;
-				Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
-
-				Vec4_f32x16 texturePixels;
-
-				//TODO: refactor repeated barycentric interpolations into a class
-				for (int j = 0; j < 16; ++j)
-				{
-					if (!(currMask.mask & (1 << j))) continue;
-					int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
+				if (!(filledPixels.mask & (1 << j))) continue;
+				int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
 
 #if defined(VS_CLANG) || 1 //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
 
-					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uvCorrected.x[j], uvCorrected.y[j]);
-					texturePixels.x[j] = pixel.x;
-					texturePixels.y[j] = pixel.y;
-					texturePixels.z[j] = pixel.z;
-					texturePixels.w[j] = 1;
+				Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
+				texturePixels.x[j] = pixel.x;
+				texturePixels.y[j] = pixel.y;
+				texturePixels.z[j] = pixel.z;
+				texturePixels.w[j] = 1;
 
 #else
-					//texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uvCorrected.x, uvCorrected.y, currMask);
+				//texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uvCorrected.x, uvCorrected.y, currMask);
 #endif
-				}
-				texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), currMask, texturePixels.x);
-				texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), currMask, texturePixels.y);
-				texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), currMask, texturePixels.z);
-
-				const auto& currentShadowMap = this->drawCommands[1];
-				Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
-				float32x16 zInv = float32x16(1) / sunWorldPositions.z;
-				Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
-				sunScreenPositions.z = zInv;
-				sunScreenPositions.y = sunScreenPositions.y;
-
-				Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
-				int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
-				float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
-				//float32x16 bias = 0.0001f;
-				float32x16 bias = 0.f;
-				Mask16 pointsInShadow = ~inShadowMapBounds | ((shadowMapDepths - bias) > sunScreenPositions.z);
-
-				Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
-				Vec4_f32x16 lightDir = lightTo - lightFrom;
-				lightDir /= lightDir.len3d();
-				float32x16 normalDot = -correctedNormals.dot3d(lightDir);
-				Vec4_f32x16 totalLight = Vec4_f32x16(this->ambientLightIntensity, this->ambientLightIntensity, this->ambientLightIntensity, 0.f) + _mm512_max_ps(_mm512_set1_ps(0), normalDot * this->lightIntesity);
-
-				for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
-				for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], currMask, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
-				mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, currMask);
 			}
+			texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
+			texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
+			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
+
+			const auto& currentShadowMap = this->drawCommands[1];
+			Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
+			float32x16 zInv = float32x16(1) / sunWorldPositions.z;
+			Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
+			sunScreenPositions.z = zInv;
+			sunScreenPositions.y = sunScreenPositions.y;
+
+			Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
+			int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
+			float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+			//float32x16 bias = 0.0001f;
+			float32x16 bias = 0.f;
+			Mask16 pointsInShadow = ~inShadowMapBounds | ((shadowMapDepths - bias) > sunScreenPositions.z);
+
+			Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
+			Vec4_f32x16 lightDir = lightTo - lightFrom;
+			lightDir /= lightDir.len3d();
+			float32x16 normalDot = -normals.dot3d(lightDir);
+			Vec4_f32x16 totalLight = Vec4_f32x16(this->ambientLightIntensity, this->ambientLightIntensity, this->ambientLightIntensity, 0.f) + _mm512_max_ps(_mm512_set1_ps(0), normalDot * this->lightIntesity);
+
+			for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
+			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
+			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
 
 
 		}
