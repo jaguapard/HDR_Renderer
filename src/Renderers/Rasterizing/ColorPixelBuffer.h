@@ -36,7 +36,7 @@ namespace Rasterizing
 	{
 	public:
 		ColorPixelBuffer(ColorPixelBuffer&& dying);
-		ColorPixelBuffer(int w, int h); //initializes empty color buffer
+		ColorPixelBuffer(uint32_t w, uint32_t h); //initializes empty color buffer
 		ColorPixelBuffer(const SDL_Surface* s);
 		Vec4_f32x16 gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask = 0xFFFF) const;
 		//void setPixelLinearIntensityUnsafe(int x, int y, float r, float g, float b, float a);
@@ -45,13 +45,13 @@ namespace Rasterizing
 		Vec4f getLinearIntensity(float u, float v) const;
 		bool areAllPixelsOpaque() const;
 	private:
-		void init(int w, int h);
+		void init(uint32_t w, uint32_t h);
 		std::unique_ptr<uint32_t[]> packedColors, opacityMap;
 		bool isFullyOpaque = true;
 		
 		struct Sizes
 		{
-		int w, h;
+			uint32_t w, h;
 		float fw, fh, rcpW, rcpH;
 		float float_maxSafeX, float_maxSafeY, rcp_maxSafeX, rcp_maxSafeY;
 		};
