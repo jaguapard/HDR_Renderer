@@ -681,7 +681,6 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 	float my_yMax = std::min<float>(floor(d_high), drawCmd.renderH - 1);
 	float my_xMin = 0;
 	float my_xMax = drawCmd.renderW - 1;
-	bool texturingEnabled = this->currGs->texturingEnabled;
 	int w = drawCmd.renderW;
 	bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
 
@@ -743,37 +742,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 						texturePixels.a = accessor.gatherA();
 						//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
 					}
-					else
-					{
-						if (texturingEnabled)
-						{
-							if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
-							{
-								texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-								/*if (drawCmd.shadingMode != ShadingMode::NONE)
-								{
-									Vec4_f32x16 interpolatedDividedNormals = Vec4_f32x16(vertices[0].normal.x[i], vertices[0].normal.y[i], vertices[0].normal.z[i], 0.f) * alpha +
-										Vec4_f32x16(vertices[1].normal.x[i], vertices[1].normal.y[i], vertices[1].normal.z[i], 0.f) * beta +
-										Vec4_f32x16(vertices[2].normal.x[i], vertices[2].normal.y[i], vertices[2].normal.z[i], 0.f) * gamma;
-									Vec4_f32x16 correctedNormals = interpolatedDividedNormals / interpolatedDividedUv.z;
 
-								}*/
-								if (Statsman::ENABLED)
-								{
-									MyStatsman.rendering.textureGatheredLanes += 16;
-									MyStatsman.rendering.textureGatherAliveLanes += _mm_popcnt_u32(notOccludedPoints.mask);
-								}
-							}
-							else texturePixels.a = 0.f;
-						}
-						else
-						{
-							float32x16 dz = float32x16(1) / interpolatedDividedUv.z;
-							float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
-							texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
-							texturePixels.a = 1;
-						}
-					}
 					Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
 					if (!opaquePixelsMask) continue;
 
@@ -781,18 +750,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 
 					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 					{
-						//mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
 						_mm512_mask_storeu_epi32((uint32_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]));
-						/*
-						uint64_t currRjKey = (uint64_t(sourceStoreIndex) << 32) | jobIndex;
-						_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjKey));
-						_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjKey));*/
 					}
-					/*
-					if (!depthOnly)
-					{
-						mask_store_vec4_f32x16_to_framebuffer(texturePixels, frameBuffer, xInt, yInt, w, opaquePixelsMask);
-					}*/
 
 					if (Statsman::ENABLED)
 					{
@@ -866,6 +825,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	float my_xMin = 0;
 	float my_xMax = this->drawCommands[0].renderW - 1;
 	int w = this->drawCommands[0].renderW;
+	bool texturingEnabled = this->currGs->texturingEnabled;
 
 	float* shadowMap_zBuffer = (float*)this->drawCommands[1].buffers[0].data;
 	float* main_zBuffer = (float*)this->drawCommands[0].buffers[0].data;
@@ -935,26 +895,36 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			normals /= normals.len3d();
 
 			Vec4_f32x16 texturePixels;
-
-			//TODO: refactor repeated barycentric interpolations into a class
+			if (texturingEnabled)
+			{
 #if defined(VS_CLANG) || 1 //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
 
-			for (int j = 0; j < 16; ++j)
-			{
-				if (!(filledPixels.mask & (1 << j))) continue;
-				int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
-
-
-				Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
-				texturePixels.x[j] = pixel.x;
-				texturePixels.y[j] = pixel.y;
-				texturePixels.z[j] = pixel.z;
-				texturePixels.w[j] = 1;
-			}
+				for (int j = 0; j < 16; ++j)
+				{
+					if (!(filledPixels.mask & (1 << j))) continue;
+					int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
+					if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
+					{
+						Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
+						texturePixels.x[j] = pixel.x;
+						texturePixels.y[j] = pixel.y;
+						texturePixels.z[j] = pixel.z;
+						texturePixels.w[j] = 1;
+					}
+					else texturePixels.a[j] = 0;
+				}
 #else
-			int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), filledPixels, triangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
-			texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uv.x, uv.y, filledPixels);
+				int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), filledPixels, triangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
+				texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uv.x, uv.y, filledPixels);
 #endif
+			}
+			else
+			{
+				float32x16 dz = float32x16(1) / zInvSrc;
+				float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
+				texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
+				texturePixels.a = 1;
+			}
 			texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
 			texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
 			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
