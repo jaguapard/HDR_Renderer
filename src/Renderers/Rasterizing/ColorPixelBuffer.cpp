@@ -141,19 +141,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
 
 Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
 {
-    /*
-    __m512d xd_low = _mm512_cvtpslo_pd(x);
-    __m512d xd_high = _mm512_cvtps_pd(_mm512_extractf32x8_ps(x, 1));
-    __m512d yd_low = _mm512_cvtpslo_pd(y);
-    __m512d yd_high = _mm512_cvtps_pd(_mm512_extractf32x8_ps(y, 1));*/
-    //clamp out of bounds. These can sometimes still return one, but there's some margin, since maxSafeX/Y are 1 less than width and height
-    x -= _mm512_floor_ps(x);
-    y -= _mm512_floor_ps(y);
-    //x = _mm512_fmod_ps(x, float32x16(1));
-    //y = _mm512_fmod_ps(y, float32x16(1));
-    float32x16 pixelsX = x * this->sizes.float_maxSafeX;
-    float32x16 pixelsY = y * this->sizes.float_maxSafeY;
-    //Mask16 inBoundsMask = x >= 0.f & x < 1.f & y >= 0.f & y < 1.f;
+    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(x, y, sizes.w, sizes.h);
     int32x16 intX = pixelsX.trunc();
     int32x16 intY = pixelsY.trunc();
     for (int i = 0; i < 16; ++i)
@@ -167,38 +155,12 @@ Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x,
     int32x16 pixelsIndices = intY * sizes.w + intX;
     Mask16 gatherMask = mask;
     int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), gatherMask, pixelsIndices, this->packedColors.get(), 4);
-
-    int32x16 r = gathered & 1023;
-    int32x16 g = _mm512_srli_epi32(gathered, 10);
-    g &= 2047;
-    int32x16 b = _mm512_srli_epi32(gathered, 21);
-    b &= 1023;
-
-    float32x16 fr = _mm512_cvtepu32_ps(r);
-    float32x16 fg = _mm512_cvtepu32_ps(g);
-    float32x16 fb = _mm512_cvtepu32_ps(b);
-    float32x16 fa = _mm512_maskz_mov_ps(gathered < 0, float32x16(1)); //if uppermost bit is 1 (i.e. sign bit is 1, i.e negative), then alpha is 1
-    fr *= 1.f / 1023;
-    fg *= 1.f / 2047;
-    fb *= 1.f / 1023;
-    return { fr * fr, fg * fg, fb * fb, fa };
-    /*
-    Vec4_f32x16 ret = { ,_mm512_cvtepu32_ps(g), _mm512_cvtepu32_ps(b), _mm512_cvtepu32_ps(a) };
-    ret.x = _mm512_pow_ps(ret.x/255, float32x16(2.2));
-    ret.g = _mm512_pow_ps(ret.y/255, float32x16(2.2));
-    ret.b = _mm512_pow_ps(ret.z/255, float32x16(2.2));
-    ret.a /= 255;
-    return ret;*/
+    return Decoder::R10G11B10A1_gamma2_to_linear(gathered);
 }
 
 Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
 {
-    //clamp out of bounds. These can sometimes still return one, but there's some margin, since maxSafeX/Y are 1 less than width and height
-    u -= _mm512_floor_ps(u);
-    v -= _mm512_floor_ps(v);
-    float32x16 pixelsX = u * this->sizes.float_maxSafeX;
-    float32x16 pixelsY = v * this->sizes.float_maxSafeY;
-    //Mask16 inBoundsMask = x >= 0.f & x < 1.f & y >= 0.f & y < 1.f;
+    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
     int32x16 intX = pixelsX.trunc();
     int32x16 intY = pixelsY.trunc();
     for (int i = 0; i < 16; ++i)
@@ -219,46 +181,20 @@ Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGa
 
 Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
 {
-    u -= std::floor(u);
-    v -= std::floor(v);
-    float fx = u * this->sizes.float_maxSafeX;
-    float fy = v * this->sizes.float_maxSafeY;
-    int x1 = fx;
-    int y1 = fy;
-    int x2 = x1 + 1;
-    int y2 = y1 + 1;
-    x1 += x1 < 0 ? sizes.w : 0;
-    x1 -= x1 >= sizes.w ? sizes.w : 0;
-    x2 += x2 < 0 ? sizes.w : 0;
-    x2 -= x2 >= sizes.w ? sizes.w : 0;
-    y1 += y1 < 0 ? sizes.h : 0;
-    y1 -= y1 >= sizes.h ? sizes.h : 0;
-    y2 += y2 < 0 ? sizes.h : 0;
-    y2 -= y2 >= sizes.h ? sizes.h : 0;
-
-    uint32_t packed[4];
-    packed[0] = this->packedColors[y1 * this->sizes.w + x1]; //top left
-    packed[1] = this->packedColors[y1 * this->sizes.w + x2]; //top right
-    packed[2] = this->packedColors[y2 * this->sizes.w + x1]; //bottom left
-    packed[3] = this->packedColors[y2 * this->sizes.w + x2]; //bottom right
-
-    Vec4f linear[4];
+    auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.fw, sizes.fh);
+    BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
+    std::array<Vec4f, 4> linear;
     for (int i = 0; i < 4; ++i)
     {
-        __m128i channels = _mm_set1_epi32(packed[i]);
+        auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], this->sizes.w, this->sizes.h);
+        __m128i channels = _mm_set1_epi32(this->packedColors[y * sizes.w + x]);
         channels = _mm_srlv_epi32(channels, _mm_setr_epi32(0, 10, 21, 31));
         channels = _mm_and_si128(channels, _mm_setr_epi32(1023, 2047, 1023, 1));
         Vec4f gammaEncodedChannels = _mm_cvtepu32_ps(channels);
         Vec4f normalized = gammaEncodedChannels * Vec4f(_mm_setr_ps(1.f / 1023, 1.f / 2047, 1.f / 1023, 1)); //TODO: alpha will get messed up if it's not 0 or 1!
         linear[i] = normalized * normalized;
     }
-    
-    //TODO: what about alpha?
-    float tx = std::fmod(fx, 1);
-    float ty = std::fmod(fy, 1);
-    Vec4f ler1 = lerp(linear[0], linear[1], tx);
-    Vec4f ler2 = lerp(linear[2], linear[3], tx);
-    return lerp(ler1, ler2, ty);
+    return ctx.interpolate(linear);
 }
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
@@ -317,3 +253,95 @@ float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
     int32x16 opacityMapValuesForPixels = gathered & (int32x16(1) << shifts);
     return _mm512_maskz_mov_ps(opacityMapValuesForPixels != 0, _mm512_set1_ps(1));
 }
+
+Vec4_f32x16 Rasterizing::Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
+{
+    int32x16 r = packed & 1023;
+    int32x16 g = _mm512_srli_epi32(packed, 10);
+    g &= 2047;
+    int32x16 b = _mm512_srli_epi32(packed, 21);
+    b &= 1023;
+
+    float32x16 fr = _mm512_cvtepu32_ps(r);
+    float32x16 fg = _mm512_cvtepu32_ps(g);
+    float32x16 fb = _mm512_cvtepu32_ps(b);
+    float32x16 fa = _mm512_maskz_mov_ps(packed < 0, float32x16(1)); //if uppermost bit is 1 (i.e. sign bit is 1, i.e negative), then alpha is 1
+    fr *= 1.f / 1023;
+    fg *= 1.f / 2047;
+    fb *= 1.f / 1023;
+    return { fr * fr, fg * fg, fb * fb, fa };
+}
+
+std::pair<float, float> Rasterizing::Mapper::wrapUV(float u, float v)
+{
+    u -= std::floor(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+    u -= std::floor(u);
+    v -= std::floor(v);
+    v -= std::floor(v);
+    return { u,v };
+}
+
+std::pair<float32x16, float32x16> Rasterizing::Mapper::wrapUV(float32x16 u, float32x16 v)
+{
+    u -= _mm512_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+    u -= _mm512_floor_ps(u);
+    v -= _mm512_floor_ps(v);
+    v -= _mm512_floor_ps(v);
+    return { u,v };
+}
+/*
+std::pair<float, float> Rasterizing::Mapper::clampUV(float u, float v)
+{
+    return { std::clamp(u,0.f,1.f), std::clamp(v,0.f,1.f) };
+}
+
+std::pair<float32x16, float32x16> Rasterizing::Mapper::clampUV(float32x16 u, float32x16 v)
+{
+    return { u.clamp(0,1), v.clamp(0,1); }
+}
+*/
+std::pair<uint32_t, uint32_t> Rasterizing::Mapper::wrapInts(int a, int b, uint32_t amax, uint32_t bmax)
+{
+    return { wrapInt(a,amax), wrapInt(b,bmax) };
+}
+
+uint32_t Rasterizing::Mapper::wrapInt(int a, uint32_t amax)
+{
+    int rem = a % amax;
+    rem += rem >= 0 ? 0 : amax;
+    return rem;
+}
+
+/*
+std::pair<int, int> Rasterizing::Mapper::wrap(int x, int y, int w, int h)
+{
+    int remX = x % w;
+    int remY = y % h;
+    remX += remX >= 0 ? 0 : w;
+    remY += remY >= 0 ? 0 : h;
+    return { remX,remY };
+}
+
+std::pair<float, float> Rasterizing::Mapper::clamp(float u, float v, float w, float h)
+{
+    return {
+        std::clamp<float>(u * w, 0, w - 1),
+        std::clamp<float>(v * h, 0, h - 1),
+    };
+}
+
+std::pair<float32x16, float32x16> Rasterizing::Mapper::clamp(float32x16 u, float32x16 v, float w, float h)
+{
+    return { (u * w).clamp(0, w - 1), (v * h).clamp(0, h - 1) };
+}
+
+std::pair<float, float> Rasterizing::Mapper::plain(float u, float v, float w, float h)
+{
+    return { u * w, v * h };
+}
+
+std::pair<float32x16, float32x16> Rasterizing::Mapper::plain(float32x16 u, float32x16 v, float w, float h)
+{
+    return { u * w, v * h };
+}
+*/
