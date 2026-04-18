@@ -389,9 +389,9 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	bool UVs_loaded = false, normals_loaded = false;
 
 	int cmdIndex = input.stage == 1 ? 0 : input.drawCommandIndex;
-	for (; cmdIndex < this->drawCommands.size(); ++cmdIndex)
+	int cmdIndexEnd = input.stage == 1 ? this->drawCommands.size() : cmdIndex + 1;
+	for (; cmdIndex < cmdIndexEnd; ++cmdIndex)
 	{
-		if (input.stage != 1 && cmdIndex != input.drawCommandIndex) break; //process input command if not on first stage, else process all
 		auto& currCmd = this->drawCommands[cmdIndex];
 		auto& currOutput = output[cmdIndex];
 		for (auto& it : currOutput.activeTriangles) it = 0;

@@ -96,7 +96,6 @@ private:
 	{
 	};
 
-	//Transforms vertices by data supplied via input for all draw commands.
 	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
 	//For draw command i the output will be written to output[i]
 	//Stage 1 assumes sequential input triangle indices, gathers only vertices' world coords and processes all draw commands.
