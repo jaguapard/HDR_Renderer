@@ -156,7 +156,6 @@ namespace Rasterizing
 			InterpolandType ler1 = lerp(interpolands[0], interpolands[1], tx);
 			InterpolandType ler2 = lerp(interpolands[2], interpolands[3], tx);
 			InterpolandType ret = lerp(ler1, ler2, ty);
-			//TODO: alpha adjustment. Copy from original pixel?
 			return ret;
 		}
 	};
@@ -202,6 +201,7 @@ namespace Rasterizing
 			float float_maxSafeX, float_maxSafeY, rcp_maxSafeX, rcp_maxSafeY;
 		};
 		Sizes sizes;
+		TiledLayoutManager tiler;
 
 		friend class Rasterizing::TextureManager;
 		friend class Rasterizing::ColorPixelBufferGatherAccessor;

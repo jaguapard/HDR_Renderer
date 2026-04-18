@@ -8,6 +8,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
     packedColors(std::move(dying.packedColors)),
     opacityMap(std::move(dying.opacityMap)),
     sizes(dying.sizes),
+    tiler(dying.tiler),
     isFullyOpaque(dying.isFullyOpaque)
 {
 }
@@ -42,9 +43,10 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
     {
         const uint32_t* srcPixels = std::bit_cast<uint32_t*>(s->pixels);
         this->init(w, h);
-        
+        int totalPixels = w * h;
         std::vector<task_id> tasks;
         int tCount = Threadpool::instance->getThreadCount();
+        Mask16* opacityWords = std::bit_cast<Mask16*>(this->opacityMap.get());
         for (int tIndex = 0; tIndex < tCount; ++tIndex)
         {
             //TODO: this kills everything. Threadpool is not ready for tasks within tasks yet
@@ -59,7 +61,8 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                         //reencode gamma 2.2 texture into gamma 2 with expanded precision for internal use. Gamma 2 greatly simplifies texture->linear conversion (x*x instead of x^2.2),
                         //meaning you can just use multiplication instead of power, much faster, and error is >1% mostly, more on very dark shades.
                         //alpha is binary, all values above 0 considered fully opaque. TODO: when implementing transparency, change this
-                        Mask16 boundsMask = (int32x16::sequence() + x) < w;
+                        int32x16 vecX = int32x16::sequence() + x;
+                        Mask16 boundsMask = vecX < w;
                         int32x16 srcUint32 = _mm512_maskz_loadu_epi32(boundsMask, srcRow + x);
 
                         int32x16 srcR = srcUint32 & 0xFF;
@@ -86,8 +89,14 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                         int32x16 dstFull = dstR | (dstG << 10) | (dstB << 21);// | 0x80000000; //storeA = (srcUint32 >> 24) ? 1 : 0;
                         dstFull = _mm512_mask_or_epi32(dstFull.zmm, _mm512_cmpgt_epu32_mask(srcUint32.zmm, _mm512_set1_epi32(0x00FFFFFF)), dstFull.zmm, int32x16(0x80000000).zmm);
 
+                        int32x16 scatterInd = this->tiler.XY_to_ind(vecX, int32x16(y));
+                        _mm512_mask_i32scatter_epi32(this->packedColors.get(), boundsMask, scatterInd, dstFull, 4);
+                        //TODO: no swizzling or tiling for opacity now!
+                        Mask16 opacityBits = (dstFull & 0x80000000) != 0;
+                        opacityWords[(y * w + x) / 16] = opacityBits;
+                        if (~opacityBits) this->isFullyOpaque = false; //TODO: can break with multithreading!
                         //R10G11B10A1
-                        _mm512_mask_storeu_epi32(&this->packedColors[y * w + x], boundsMask, dstFull.zmm);
+                        //_mm512_mask_storeu_epi32(&this->packedColors[y * w + x], boundsMask, dstFull.zmm);
                         //this->packedColors[y * w + x] = storeUint;
                     }
                 }
@@ -95,19 +104,6 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             //));
         }
         //Threadpool::instance->waitForMultipleTasks(tasks);
-        int totalPixels = w * h;
-        for (int i = 0; i < totalPixels; i += 32)
-        {
-            Mask16 boundsMask1 = (int32x16::sequence() + i) < totalPixels;
-            Mask16 boundsMask2 = (int32x16::sequence() + i + 16) < totalPixels;
-            int32x16 packed1 = _mm512_maskz_loadu_epi32(boundsMask1, this->packedColors.get() + i);
-            int32x16 packed2 = _mm512_maskz_loadu_epi32(boundsMask2, this->packedColors.get() + i + 16);
-            Mask16 m1 = (packed1 & int32x16(0x80000000)) != 0;
-            Mask16 m2 = (packed2 & int32x16(0x80000000)) != 0;
-            uint32_t mt = (uint32_t(m2) << 16) | m1;
-            this->opacityMap[i / 32] = mt;
-            if (~mt) this->isFullyOpaque = false;
-        }
     }
 
     /*
@@ -187,13 +183,15 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
     for (int i = 0; i < 4; ++i)
     {
         auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], this->sizes.w, this->sizes.h);
-        __m128i channels = _mm_set1_epi32(this->packedColors[y * sizes.w + x]);
+        uint32_t ind = this->tiler.XY_to_ind(x, y);
+        __m128i channels = _mm_set1_epi32(this->packedColors[ind]);
         channels = _mm_srlv_epi32(channels, _mm_setr_epi32(0, 10, 21, 31));
         channels = _mm_and_si128(channels, _mm_setr_epi32(1023, 2047, 1023, 1));
         Vec4f gammaEncodedChannels = _mm_cvtepu32_ps(channels);
         Vec4f normalized = gammaEncodedChannels * Vec4f(_mm_setr_ps(1.f / 1023, 1.f / 2047, 1.f / 1023, 1)); //TODO: alpha will get messed up if it's not 0 or 1!
         linear[i] = normalized * normalized;
     }
+    //TODO: alpha adjustment. Copy from original pixel?
     return ctx.interpolate(linear);
 }
 
@@ -210,7 +208,8 @@ void Rasterizing::ColorPixelBuffer::setPixelLinearIntensityUnsafe(int x, int y, 
 
 void Rasterizing::ColorPixelBuffer::init(uint32_t w, uint32_t h)
 {
-    uint32_t totalPixels = w * h;
+    this->tiler = TiledLayoutManager(w, h, 4);
+    uint32_t totalPixels = tiler.paddedW * tiler.paddedH;
     this->packedColors = std::make_unique<uint32_t[]>(totalPixels);
     this->opacityMap = std::make_unique<uint32_t[]>(totalPixels / 32 + 1);
     this->sizes.fw = this->sizes.w = w;
