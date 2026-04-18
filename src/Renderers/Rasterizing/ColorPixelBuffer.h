@@ -69,10 +69,44 @@ namespace Rasterizing
 		}
 	};
 
-	struct Swizzler
+	struct TiledLayoutManager
 	{
-		//static void 
+		uint32_t w, h, paddedW, paddedH, tileW, tileH, tileCountX, tileCountY, shift, pixelsPerTile;
+		TiledLayoutManager() {};
+		TiledLayoutManager(uint32_t w, uint32_t h, uint32_t shift)
+		{
+			uint32_t tileW = 1 << shift;
+			uint32_t tileH = 1 << shift;
+			uint32_t tileCountX = w / tileW;
+			uint32_t tileCountY = h / tileH;
+			if (w % tileW != 0) ++tileCountX;
+			if (h % tileH != 0) ++tileCountY;
+
+			this->w = w;
+			this->h = h;
+			this->paddedW = tileW * tileCountX;
+			this->paddedH = tileH * tileCountY;
+			this->tileW = tileW;
+			this->tileH = tileH;
+			this->tileCountX = tileCountX;
+			this->tileCountY = tileCountY;
+			this->shift = shift;
+			this->pixelsPerTile = tileW * tileH;
+		}
+
+		template<typename T>
+		T XY_to_ind(T x, T y) const
+		{
+			T tileX = x >> this->shift;
+			T tileY = y >> this->shift;
+			uint32_t andMask = (1 << this->shift) - 1;
+			T localX = x & andMask;
+			T localY = y & andMask;
+			T tileIndex = tileY * this->tileCountX + tileX;
+			return tileIndex * this->pixelsPerTile + localY * this->tileW + localX;
+		}
 	};
+	
 
 	template<typename FloatType, typename SignedIntType, typename InterpolandType>
 	struct BilinearInterpolationContext
