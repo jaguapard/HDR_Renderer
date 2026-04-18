@@ -4,7 +4,7 @@
 #include <vector>
 #include "CoordinateTransformer.h"
 #include "RenderJobStore.h"
-
+#include <map>
 namespace Rasterizing
 {
 	enum class ShadingMode
@@ -91,5 +91,30 @@ namespace Rasterizing
 		uint32_t renderW, renderH;
 		uint32_t threadCount = -1;
 		DrawRecipe recipe;
+	};
+
+	struct Vertice_Store
+	{
+		std::vector<float> x, y, z, u, v, nx, ny, nz;
+		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
+		size_t size() const;
+	private:
+		//TODO: if gonna make this dynamic, make it cleanable and check
+		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
+	};
+
+	enum ModelFlags : uint32_t
+	{
+		NONE = 0,
+		NO_BACKFACE_CULLING = 1 << 0,
+		NO_FRONTFACE_CULLING = 1 << 1,
+	};
+	struct Triangle_Store
+	{
+		std::vector<uint32_t> vertInd[3];
+		std::vector<int> diffuseMapIndex, modelIndex;
+		std::vector<ModelFlags> modelFlags;
+		size_t size() const;
+		//std::vector<uint32_t> modelInd;
 	};
 }

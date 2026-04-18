@@ -50,8 +50,8 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		for (int k = 0; k < 3; ++k)
 		{
 			uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, 0.5, -0.5, 0, 0, 0);
-			m.triangleStore.vertInd[k].push_back(vertInd);
-			m.diffuseMapIndex = 0;
+			this->original_triangleStore.vertInd[k].push_back(vertInd);
+			this->original_triangleStore.diffuseMapIndex.push_back(0);
 		}
 		return;
 	}
@@ -91,6 +91,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		{
 			size_t discardedTriangles = 0;
 			Model& m = this->sceneModels.emplace_back();
+			m.globalTriangleRange.min = this->original_triangleStore.vertInd[0].size(); //since textures are not yet loaded, diffuseMapIndex is not filled, and triangle store size() will be wrong!
 			for (auto& it : loadedModels[i].triangles)
 			{
 				Vec4f v1 = { it.v[0].space.x, it.v[0].space.y, it.v[0].space.z, 0 };
@@ -108,11 +109,12 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 						it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, it.v[k].diffuseMapCoords.x, 1 - it.v[k].diffuseMapCoords.y, it.v[k].normal.x, it.v[k].normal.y, it.v[k].normal.z
 					);
 
+					this->original_triangleStore.vertInd[k].push_back(vertInd);
 					//TODO: clean from degenerate triangles (i.e 2 or 3 vertices same or all 3 collinear)?
-					m.triangleStore.vertInd[k].push_back(vertInd);
 				}
 			}
-			std::cout << "Loaded " << m.triangleStore.size() << " triangles out of " << loadedModels[i].triangles.size() << " (" << discardedTriangles << " discarded) from " << path << "\n";
+			m.globalTriangleRange.max = this->original_triangleStore.vertInd[0].size() - 1;
+			//std::cout << "Loaded " << m.triangleStore.size() << " triangles out of " << loadedModels[i].triangles.size() << " (" << discardedTriangles << " discarded) from " << path << "\n";
 		}
 
 		Threadpool::instance->waitForMultipleTasks(textureLoadingTasks);
@@ -120,8 +122,14 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		for (int i = 0; i < loadedModels.size(); ++i)
 		{
 			auto& currModel = this->sceneModels[firstModelInd + i];
-			currModel.diffuseMapIndex = diffuseMapIndices[i];
-			currModel.noBackfaceCulling = !this->textureManager.getTextureByHandle(diffuseMapIndices[i]).areAllPixelsOpaque();
+			//original_triangleStore.diffuseMapIndex.resize()
+			bool noBackfaceCulling = !this->textureManager.getTextureByHandle(diffuseMapIndices[i]).areAllPixelsOpaque();
+			ModelFlags flags = noBackfaceCulling ? NO_BACKFACE_CULLING : NONE;
+			for (int j = currModel.globalTriangleRange.min; j <= currModel.globalTriangleRange.max; ++j)
+			{
+				this->original_triangleStore.diffuseMapIndex.push_back(diffuseMapIndices[i]);
+				this->original_triangleStore.modelFlags.push_back(flags);
+			}
 		}
 	}
 
@@ -135,7 +143,6 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 void RasterizingRenderer::renderFrame(const GameSettings& settings)
 {
 	this->currGs = &settings;
-	this->modelSlicesForThreads = this->makeModelSliceList();
 	int mainBufSize = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
 	this->zBuffer.resize(mainBufSize);
 	int shadowMapW = 512*3;
@@ -197,6 +204,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	for (auto& currSub : this->drawCommands)
 	{
 		if (currSub.transformedVertices->size() != tCntSq) currSub.transformedVertices->resize(tCntSq);
+		for (auto& it : *currSub.transformedVertices) it.verticeStore = &this->original_verticeStore;
 	}
 
 	std::vector<task_id> transformTasks, drawTasks;
@@ -212,7 +220,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
 	for (auto& it : zBuffer) it = -INFINITY;
 	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
-	for (auto& it : this->deferrendRenderJobPtrs) it = 0;
+	for (auto& it : this->deferrendRenderJobPtrs) it = -1;
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
 	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
@@ -257,66 +265,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	//for (auto& it : renderJobsFromThreads) it.clear();
 }
 
-std::vector<std::vector<Rasterizing::ModelSlice>> RasterizingRenderer::makeModelSliceList() const
-{
-	//TODO: can frustrum culling be put here?
-	std::vector<ModelSlice> availableSlices;
-	size_t totalTriangleCount = 0;
-	for (int modelIndex =0; modelIndex < sceneModels.size(); ++modelIndex)
-	{
-		totalTriangleCount += sceneModels[modelIndex].triangleStore.size();
-		ModelSlice s;
-		s.modelIndex = modelIndex;
-		s.modelTriangleIndexBegin = 0;
-		s.modelTriangleIndexEnd = sceneModels[modelIndex].triangleStore.size();
-		availableSlices.push_back(s);
-	}
-
-	int threadCount = this->currGs->threadpool->getThreadCount();
-	int trianglesPerThread = ceil(double(totalTriangleCount) / threadCount);
-	std::vector<std::vector<ModelSlice>> ret(threadCount);
-	for (int threadIndex = 0; threadIndex < threadCount-1; ++threadIndex)
-	{
-		size_t threadTrianglesRemaining = trianglesPerThread;
-		while (threadTrianglesRemaining > 0 && !availableSlices.empty())
-		{
-			ModelSlice& s = availableSlices.back();
-			size_t sliceTriangleCount = s.modelTriangleIndexEnd - s.modelTriangleIndexBegin;
-			if (sliceTriangleCount <= threadTrianglesRemaining) //consume whole slice
-			{
-				ret[threadIndex].push_back(s);
-				threadTrianglesRemaining -= sliceTriangleCount;
-				availableSlices.pop_back();
-			}
-			else //decrement the slice by amount of triangles this thread takes
-			{
-				ModelSlice consumedSlice = s;
-				consumedSlice.modelTriangleIndexBegin = s.modelTriangleIndexEnd - threadTrianglesRemaining;
-				s.modelTriangleIndexEnd -= threadTrianglesRemaining;
-				ret[threadIndex].push_back(consumedSlice);
-				break;
-				//threadTrianglesRemaining = 0;
-			}
-		}
-	}
-	ret[threadCount-1] = availableSlices; //last thread gets all remaining triangles. It should be at most triangleCount-1 bigger than the rest have, so OK
-
-	size_t trianglesAfterDistribution = 0;
-	for (auto& it : ret)
-	{
-		for (auto& s : it)
-		{
-			assert(s.modelTriangleIndexBegin < s.modelTriangleIndexEnd);
-			assert(s.modelTriangleIndexBegin >= 0);
-			assert(s.modelTriangleIndexEnd > 0);
-			trianglesAfterDistribution += s.modelTriangleIndexEnd - s.modelTriangleIndexBegin;
-		}
-	}
-	assert(trianglesAfterDistribution == totalTriangleCount);
-
-	return ret;
-}
-
 struct Vertex
 {
 	float x, y, z, u, v;
@@ -358,299 +306,298 @@ void RasterizingRenderer::doTransformationsAndClipping(int threadIndex)
 	size_t storedJobCount = 0;
 	size_t seenTris = 0;
 
-	for (auto& slice : this->modelSlicesForThreads[threadIndex])
+	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
+	size_t startInd = d_low, stopInd = d_high;
+	Mask16 storeBounds = 0xFFFF;
+	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
 	{
-		//const float* xData = 
-		seenTris += slice.modelTriangleIndexEnd - slice.modelTriangleIndexBegin;
-		int myRenderJobCount = 0;
-		int diffuseMapIndex = this->sceneModels[slice.modelIndex].diffuseMapIndex;
-		//bool doBackfaceCulling = this->currGs->backfaceCullingEnabled && 
-		for (int currModelTriangleIndex = slice.modelTriangleIndexBegin;
-			currModelTriangleIndex < slice.modelTriangleIndexEnd; 
-			currModelTriangleIndex += 16)
+		if (currTriangleIndex + 15 >= stopInd)
 		{
-			int32x16 triangleIndices = int32x16::sequence() + currModelTriangleIndex;
-			Mask16 inBoundsTrianglesMask = triangleIndices < slice.modelTriangleIndexEnd;
-			std::array<VertexPack16, 3> originalVertices;
-			int32x16 verticeIndicesCache[3];
-			const Model& model = sceneModels[slice.modelIndex];
-			bool UVs_loaded = false, normalsLoaded = false;
+			int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
+			storeBounds = triangleIndices < stopInd;
+		}
+		std::array<int32x16, 3> vertexIndices;
+		std::array<VertexPack16, 3> originalVertices;
+
+		bool UVs_loaded = false, normalsLoaded = false;
+		for (int i = 0; i < 3; ++i)
+		{
+			int32x16 currVertexIndices = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
+			originalVertices[i].space.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), storeBounds, currVertexIndices, this->original_verticeStore.x.data(), 4);
+			originalVertices[i].space.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), storeBounds, currVertexIndices, this->original_verticeStore.y.data(), 4);
+			originalVertices[i].space.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), storeBounds, currVertexIndices, this->original_verticeStore.z.data(), 4);
+			originalVertices[i].space.w = 1;
+			vertexIndices[i] = currVertexIndices;
+		}
+
+
+		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
+		{
+			auto& currCmd = this->drawCommands[cmdIndex];
+			float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / currCmd.renderH;
+			float w = currCmd.renderW;
+			float h = currCmd.renderH;
+
+
+			int32x16 behindPlaneCount = 0;
+			Mask16 behindPlaneMasks[3];
+			std::array<VertexPack16, 6> output;
 			for (int i = 0; i < 3; ++i)
 			{
-				int32x16 verticeIndices = _mm512_maskz_loadu_epi32(inBoundsTrianglesMask, model.triangleStore.vertInd[i].data() + currModelTriangleIndex);
-				originalVertices[i].space.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.x.data(), 4);
-				originalVertices[i].space.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.y.data(), 4);
-				originalVertices[i].space.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), inBoundsTrianglesMask, verticeIndices, this->original_verticeStore.z.data(), 4);
-				originalVertices[i].space.w = 1;
-				verticeIndicesCache[i] = verticeIndices;
+				Vec4_f32x16 rotatedTranslated = currCmd.ctr.rotateAndTranslate(originalVertices[i].space);
+				Mask16 vertexBehindClippingPlane = rotatedTranslated.z < clippingZ;
+				behindPlaneMasks[i] = vertexBehindClippingPlane;
+				behindPlaneCount = _mm512_mask_add_epi32(behindPlaneCount, vertexBehindClippingPlane, behindPlaneCount, int32x16(1));
+				output[i].space = rotatedTranslated;
 			}
 
-			
-			for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
+			if (Statsman::ENABLED)
 			{
-				auto& currCmd = this->drawCommands[cmdIndex];
-				float rcpScreenHeightPerThread = double(this->currGs->threadpool->getThreadCount()) / currCmd.renderH;
-				float w = currCmd.renderW;
-				float h = currCmd.renderH;
+				int minVertInd = INT32_MAX, maxVertInd = INT32_MIN;
+				for (int i = 0; i <= 3; ++i)
+				{
+					MyStatsman.triangles.verticesBehindNearPlane[i] += _mm512_mask_reduce_add_epi32(behindPlaneCount == i, _mm512_set1_epi32(1));
+					if (i < 3)
+					{
+						minVertInd = std::min(minVertInd, _mm512_mask_reduce_min_epi32(storeBounds, vertexIndices[i]));
+						maxVertInd = std::max(maxVertInd, _mm512_mask_reduce_max_epi32(storeBounds, vertexIndices[i]));
+					}
+					assert(maxVertInd >= minVertInd);
+					assert(minVertInd >= 0);
+					uint64_t delta = maxVertInd - minVertInd;
+					MyStatsman.triangles.vertIndexDelta += delta;
+					MyStatsman.triangles.vertIndexDeltaMin = std::min(MyStatsman.triangles.vertIndexDeltaMin.value_or(UINT64_MAX), delta);
+					MyStatsman.triangles.vertIndexDeltaMax = std::max(MyStatsman.triangles.vertIndexDeltaMax.value_or(0), delta);
+					MyStatsman.triangles.vertIndexDeltaCount += 1;
+				}
+			}
 
+			Mask16 activeTrianglesMask = storeBounds & behindPlaneCount != 3;
+			if (!activeTrianglesMask) continue;
 
-				int32x16 behindPlaneCount = 0;
-				Mask16 behindPlaneMasks[3];
-				std::array<VertexPack16, 6> output;
+			int32x16 modelFlags = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.modelFlags.data() + currTriangleIndex);
+			if (currCmd.faceCullingType == FaceCullingType::BACKFACE)
+			{
+				Mask16 cullingAllowed = (modelFlags & NO_BACKFACE_CULLING) == 0;
+				Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(output[0].space, output[1].space, output[2].space);
+				Mask16 culled = output[0].space.dot3d(transformedFaceNormals) >= 0.f;
+				activeTrianglesMask &= ~(cullingAllowed & culled);
+			}
+			if (currCmd.faceCullingType == FaceCullingType::FRONTFACE)
+			{
+				Mask16 cullingAllowed = (modelFlags & NO_FRONTFACE_CULLING) == 0;
+				Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(output[0].space, output[1].space, output[2].space);
+				Mask16 culled = output[0].space.dot3d(transformedFaceNormals) < 0.f;
+				activeTrianglesMask &= ~(cullingAllowed & culled);
+			}
+
+			if (currCmd.needsUVs)
+			{
+				if (!UVs_loaded)
+				{
+					for (int i = 0; i < 3; ++i)
+					{
+						originalVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.u.data(), 4);
+						originalVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.v.data(), 4);
+					}
+					UVs_loaded = true;
+				}
 				for (int i = 0; i < 3; ++i)
 				{
-					Vec4_f32x16 rotatedTranslated = currCmd.ctr.rotateAndTranslate(originalVertices[i].space);
-					Mask16 vertexBehindClippingPlane = rotatedTranslated.z < clippingZ;
-					behindPlaneMasks[i] = vertexBehindClippingPlane;
-					behindPlaneCount = _mm512_mask_add_epi32(behindPlaneCount, vertexBehindClippingPlane, behindPlaneCount, int32x16(1));
-					output[i].space = rotatedTranslated;
+					output[i].u = originalVertices[i].u;
+					output[i].v = originalVertices[i].v;
 				}
+			}
 
-				if (Statsman::ENABLED)
+			if (currCmd.needsNormals) //TODO: split this distinction into needs triangle normals and needs vertex normals?
+			{
+				if (!normalsLoaded)
 				{
-					int minVertInd = INT32_MAX, maxVertInd = INT32_MIN;
-					for (int i = 0; i <= 3; ++i)
-					{
-						MyStatsman.triangles.verticesBehindNearPlane[i] += _mm512_mask_reduce_add_epi32(behindPlaneCount == i, _mm512_set1_epi32(1));
-						if (i < 3)
-						{
-							minVertInd = std::min(minVertInd, _mm512_mask_reduce_min_epi32(inBoundsTrianglesMask, verticeIndicesCache[i]));
-							maxVertInd = std::max(maxVertInd, _mm512_mask_reduce_max_epi32(inBoundsTrianglesMask, verticeIndicesCache[i]));
-						}
-						assert(maxVertInd >= minVertInd);
-						assert(minVertInd >= 0);
-						uint64_t delta = maxVertInd - minVertInd;
-						MyStatsman.triangles.vertIndexDelta += delta;
-						MyStatsman.triangles.vertIndexDeltaMin = std::min(MyStatsman.triangles.vertIndexDeltaMin.value_or(UINT64_MAX), delta);
-						MyStatsman.triangles.vertIndexDeltaMax = std::max(MyStatsman.triangles.vertIndexDeltaMax.value_or(0), delta);
-						MyStatsman.triangles.vertIndexDeltaCount += 1;
-					}
-				}
-				if (!(behindPlaneCount != 3)) continue; //if all triangles have all vertices behind clipping plane, skip them
-
-				Mask16 activeTrianglesMask = inBoundsTrianglesMask & behindPlaneCount != 3;
-
-				if (currCmd.faceCullingType != FaceCullingType::NONE)
-				{
-					if (currCmd.faceCullingType == FaceCullingType::BACKFACE && !model.noBackfaceCulling)
-					{
-						Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(output[0].space, output[1].space, output[2].space);
-						activeTrianglesMask &= output[0].space.dot3d(transformedFaceNormals) < 0.f;
-					}
-					if (currCmd.faceCullingType == FaceCullingType::FRONTFACE) //TODO: some flag to disable front face culling?
-					{
-						Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(output[0].space, output[1].space, output[2].space);
-						activeTrianglesMask &= output[0].space.dot3d(transformedFaceNormals) >= 0.f;
-					}
-				}
-
-				if (currCmd.needsUVs)
-				{
-					if (!UVs_loaded)
-					{
-						for (int i = 0; i < 3; ++i)
-						{
-							originalVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.u.data(), 4);
-							originalVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.v.data(), 4);
-						}
-						UVs_loaded = true;
-					}
 					for (int i = 0; i < 3; ++i)
 					{
-						output[i].u = originalVertices[i].u;
-						output[i].v = originalVertices[i].v;
+						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.nx.data(), 4);
+						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.ny.data(), 4);
+						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, vertexIndices[i], this->original_verticeStore.nz.data(), 4);
 					}
+					normalsLoaded = true;
 				}
-
-				if (currCmd.needsNormals) //TODO: split this distinction into needs triangle normals and needs vertex normals?
+				for (int i = 0; i < 3; ++i)
 				{
-					if (!normalsLoaded)
+					switch (currCmd.shadingMode)
 					{
-						for (int i = 0; i < 3; ++i)
-						{
-							originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.nx.data(), 4);
-							originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.ny.data(), 4);
-							originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeTrianglesMask, verticeIndicesCache[i], this->original_verticeStore.nz.data(), 4);
-						}
-						normalsLoaded = true;
-					}
-					for (int i = 0; i < 3; ++i)
-					{
-						switch (currCmd.shadingMode)
-						{
-						default:
-							output[i].normal = originalVertices[i].normal;
-							break;
-						case ShadingMode::FLAT: //this mode is mostly an afterthought, so it's low priority to elude normal gathers in this case
-							output[i].normal = getFaceNormalsForTriangles16(originalVertices[0].space, originalVertices[1].space, originalVertices[2].space); 
-							break;
-						case ShadingMode::NONE:
-							break;
-						}
-					}
-				}
-				
-				if (behindPlaneCount > 0) //near plane clipping
-				{
-					//continue;
-					//if behind plane count == 0: block is skipped, triangle is fully ahead of clipping plane
-					//if behind plane count == 3: triangle discarded completely
-					//if behind plane count == 1: this triangle becomes 2 new triangles (required creating a new one, second can be adjusted in-place)
-					//if behind plane count == 2: this triangle becomes 1 new triangle (can be adjusted in-place)
-					//If clipping is needed, there is at least 1 vertice in front and 1 vertice behind the plane
-
-					//only these 6 tuples are possible if we got into this branch
-					//	is vertex behind plane?	behindPlaneCount
-					//	vertex0	vertex1	vertex2	one	two
-					//	0		0		1		1	0		
-					//	0		1		0		1	0
-					//	1		0		0		1	0
-					// 
-					//	0		1		1		0	1
-					//	1		0		1		0	1
-					//	1		1		0		0	1
-					/* TODO: can use this values instead of recalculating in the loop
-					float32x16 z0 = transformedVertices[0].space.z;
-					float32x16 z1 = transformedVertices[1].space.z;
-					float32x16 z2 = transformedVertices[2].space.z;
-					float32x16 alpha1 = (clippingZ - z0) / (z1 - z0);
-					float32x16 alpha2 = (clippingZ - z0) / (z2 - z0);
-					float32x16 alpha3 = (clippingZ - z1) / (z2 - z1);
-					VertexPack16 lerp01 = VertexPack16::lerpVertices(transformedVertices[0], transformedVertices[1], alpha1);
-					VertexPack16 lerp02 = VertexPack16::lerpVertices(transformedVertices[0], transformedVertices[2], alpha2);
-					VertexPack16 lerp12 = VertexPack16::lerpVertices(transformedVertices[1], transformedVertices[2], alpha3);*/
-
-					//TODO: this network can be adjusted to preserve input windings, it currently doesn't but we don't care for now (face culling is done before, so it seem to not matter at all?)
-
-					std::array<VertexPack16, 6> clipOutput;
-
-					for (int i = 0; i < 3; ++i) clipOutput[i] = output[i];
-					for (int frontVertex = 0; frontVertex < 3; ++frontVertex)
-					{
-						//these are behind
-						int prevVertex = frontVertex == 0 ? 2 : frontVertex - 1;
-						int nextVertex = frontVertex == 2 ? 0 : frontVertex + 1;
-						Mask16 caseMask = ~behindPlaneMasks[frontVertex] & behindPlaneMasks[prevVertex] & behindPlaneMasks[nextVertex];
-						clipOutput[0] = VertexPack16::maskMove(clipOutput[0], VertexPack16::lerpToClippingZ(output[prevVertex], output[frontVertex], clippingZ), caseMask);
-						clipOutput[1] = VertexPack16::maskMove(clipOutput[1], output[frontVertex], caseMask);
-						clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(output[frontVertex], output[nextVertex], clippingZ), caseMask);
-					}
-
-					for (int behindVertex = 0; behindVertex < 3; ++behindVertex)
-					{
-						//these are ahead
-						int prevVertex = behindVertex == 0 ? 2 : behindVertex - 1;
-						int nextVertex = behindVertex == 2 ? 0 : behindVertex + 1;
-						Mask16 caseMask = behindPlaneMasks[behindVertex] & ~behindPlaneMasks[prevVertex] & ~behindPlaneMasks[nextVertex];
-						clipOutput[0] = VertexPack16::maskMove(clipOutput[0], output[nextVertex], caseMask);
-						clipOutput[1] = VertexPack16::maskMove(clipOutput[1], output[prevVertex], caseMask);
-						clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(output[nextVertex], output[behindVertex], clippingZ), caseMask);
-						clipOutput[3] = VertexPack16::maskMove(clipOutput[3], output[prevVertex], caseMask);
-						clipOutput[4] = VertexPack16::maskMove(clipOutput[4], VertexPack16::lerpToClippingZ(output[prevVertex], output[behindVertex], clippingZ), caseMask);
-						clipOutput[5] = VertexPack16::maskMove(clipOutput[5], VertexPack16::lerpToClippingZ(output[nextVertex], output[behindVertex], clippingZ), caseMask);
-					}
-
-					output = clipOutput;
-				}
-
-				//this stage needs to run again for new triangle created by clipping in 1 vertex behind plane case
-				Mask16 oldActiveTriangles = activeTrianglesMask;
-				int validOutputPacks = 3;
-				for (int ouputStartIndex = 0; ouputStartIndex < 6; ouputStartIndex += 3)
-				{
-					if (ouputStartIndex == 3) //put it here since some of the continues may jump back to the beginning of the loop (like all triangles with 0 area)
-					{
-						if (behindPlaneCount == 1) //load new triangle if there is new
-						{
-							activeTrianglesMask = oldActiveTriangles & (behindPlaneCount == 1);
-							validOutputPacks = 6;
-						}
-						else break;
-					}
-
-					float32x16 fovMult = 1; //TODO: adjustable game setting?
-					float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
-					/*
-					for (int j = 0; j < 3; ++j)
-					{
-						assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.x)) > 5000.f) & activeTrianglesMask) == 0));
-						assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.y)) > 5000.f) & activeTrianglesMask) == 0));
-						assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.z)) > 5000.f) & activeTrianglesMask) == 0));
-					}*/
-					for (int i = 0; i < 3; ++i)
-					{
-						auto& currVertex = output[i + ouputStartIndex];
-						float32x16 zInv = fovMult / currVertex.space.z;
-						currVertex.u *= zInv;
-						currVertex.v *= zInv;
-						currVertex.normal.x *= zInv;
-						currVertex.normal.y *= zInv;
-						currVertex.normal.z *= zInv;
-
-						for (int i = 0; i < 16; ++i)
-						{
-
-							/*for (int j = 0; j < 3; ++j)
-							{
-								//assert(0xFFFF == (float32x16(_mm512_abs_ps(transformedVertices[j].w)) < 5000.f));
-								assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.x)) < 5000.f).allOnes());
-								assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.y)) < 5000.f).allOnes());
-								assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.z)) < 5000.f).allOnes());
-							}*/
-						}
-						currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
-						currVertex.space.z = zInv;
-						minX = _mm512_min_ps(minX, currVertex.space.x);
-						minY = _mm512_min_ps(minY, currVertex.space.y);
-						maxX = _mm512_max_ps(maxX, currVertex.space.x);
-						maxY = _mm512_max_ps(maxY, currVertex.space.y);
-					}
-
-					const Vec4_f32x16& r1 = output[ouputStartIndex].space;
-					const Vec4_f32x16& r2 = output[1 + ouputStartIndex].space;
-					const Vec4_f32x16& r3 = output[2 + ouputStartIndex].space;
-					//now transformedVertices hold screen coordinates (in pixels) and UVs are Z divided
-					float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
-					Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
-					activeTrianglesMask = (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & (activeTrianglesMask & nonZeroSignedAreaMask);
-					if (!activeTrianglesMask) continue;
-
-					float32x16 rcpSignedArea = float32x16(1) / signedArea;
-
-					minX = _mm512_floor_ps(minX);
-					minY = _mm512_floor_ps(minY);
-					maxX = _mm512_ceil_ps(maxX);
-					maxY = _mm512_ceil_ps(maxY);
-					for (int i = 0; i < 16; ++i)
-					{
-						if (!(activeTrianglesMask.mask & (1 << i))) continue;
-						//assert(std::abs(maxX[i]) < 5000);
-					}
-					int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
-					int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
-					activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
-
-					//vecFirstThread = _mm512_mask_compress_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
-					//vecLastThread = _mm512_mask_compress_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
-					vecFirstThread = _mm512_mask_mov_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
-					vecLastThread = _mm512_mask_mov_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
-					int groupFirstThread = std::clamp(_mm512_reduce_min_epi32(vecFirstThread), 0, threadCount - 1);
-					int groupLastThread = std::clamp(_mm512_reduce_max_epi32(vecLastThread), 0, threadCount - 1);
-
-					int activeJobs = _mm_popcnt_u32(activeTrianglesMask);
-					if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountProducer += activeJobs;
-					for (int currReceiverThread = groupFirstThread; currReceiverThread <= groupLastThread; ++currReceiverThread)
-					{
-						auto& targetStore = (*currCmd.transformedVertices)[threadIndex * threadCount + currReceiverThread];
-						Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
-						targetStore.addMany(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, diffuseMapIndex, currMask, currCmd);
+					default:
+						output[i].normal = originalVertices[i].normal;
+						break;
+					case ShadingMode::FLAT: //this mode is mostly an afterthought, so it's low priority to elude normal gathers in this case
+						output[i].normal = getFaceNormalsForTriangles16(originalVertices[0].space, originalVertices[1].space, originalVertices[2].space);
+						break;
+					case ShadingMode::NONE:
+						break;
 					}
 				}
 			}
 
-			//StatCount(threadIndex, trianges.ver)
-			
+			if (behindPlaneCount > 0) //near plane clipping
+			{
+				//continue;
+				//if behind plane count == 0: block is skipped, triangle is fully ahead of clipping plane
+				//if behind plane count == 3: triangle discarded completely
+				//if behind plane count == 1: this triangle becomes 2 new triangles (required creating a new one, second can be adjusted in-place)
+				//if behind plane count == 2: this triangle becomes 1 new triangle (can be adjusted in-place)
+				//If clipping is needed, there is at least 1 vertice in front and 1 vertice behind the plane
+
+				//only these 6 tuples are possible if we got into this branch
+				//	is vertex behind plane?	behindPlaneCount
+				//	vertex0	vertex1	vertex2	one	two
+				//	0		0		1		1	0		
+				//	0		1		0		1	0
+				//	1		0		0		1	0
+				// 
+				//	0		1		1		0	1
+				//	1		0		1		0	1
+				//	1		1		0		0	1
+				/* TODO: can use this values instead of recalculating in the loop
+				float32x16 z0 = transformedVertices[0].space.z;
+				float32x16 z1 = transformedVertices[1].space.z;
+				float32x16 z2 = transformedVertices[2].space.z;
+				float32x16 alpha1 = (clippingZ - z0) / (z1 - z0);
+				float32x16 alpha2 = (clippingZ - z0) / (z2 - z0);
+				float32x16 alpha3 = (clippingZ - z1) / (z2 - z1);
+				VertexPack16 lerp01 = VertexPack16::lerpVertices(transformedVertices[0], transformedVertices[1], alpha1);
+				VertexPack16 lerp02 = VertexPack16::lerpVertices(transformedVertices[0], transformedVertices[2], alpha2);
+				VertexPack16 lerp12 = VertexPack16::lerpVertices(transformedVertices[1], transformedVertices[2], alpha3);*/
+
+				//TODO: this network can be adjusted to preserve input windings, it currently doesn't but we don't care for now (face culling is done before, so it seem to not matter at all?)
+
+				std::array<VertexPack16, 6> clipOutput;
+
+				for (int i = 0; i < 3; ++i) clipOutput[i] = output[i];
+				for (int frontVertex = 0; frontVertex < 3; ++frontVertex)
+				{
+					//these are behind
+					int prevVertex = frontVertex == 0 ? 2 : frontVertex - 1;
+					int nextVertex = frontVertex == 2 ? 0 : frontVertex + 1;
+					Mask16 caseMask = ~behindPlaneMasks[frontVertex] & behindPlaneMasks[prevVertex] & behindPlaneMasks[nextVertex];
+					clipOutput[0] = VertexPack16::maskMove(clipOutput[0], VertexPack16::lerpToClippingZ(output[prevVertex], output[frontVertex], clippingZ), caseMask);
+					clipOutput[1] = VertexPack16::maskMove(clipOutput[1], output[frontVertex], caseMask);
+					clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(output[frontVertex], output[nextVertex], clippingZ), caseMask);
+				}
+
+				for (int behindVertex = 0; behindVertex < 3; ++behindVertex)
+				{
+					//these are ahead
+					int prevVertex = behindVertex == 0 ? 2 : behindVertex - 1;
+					int nextVertex = behindVertex == 2 ? 0 : behindVertex + 1;
+					Mask16 caseMask = behindPlaneMasks[behindVertex] & ~behindPlaneMasks[prevVertex] & ~behindPlaneMasks[nextVertex];
+					clipOutput[0] = VertexPack16::maskMove(clipOutput[0], output[nextVertex], caseMask);
+					clipOutput[1] = VertexPack16::maskMove(clipOutput[1], output[prevVertex], caseMask);
+					clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(output[nextVertex], output[behindVertex], clippingZ), caseMask);
+					clipOutput[3] = VertexPack16::maskMove(clipOutput[3], output[prevVertex], caseMask);
+					clipOutput[4] = VertexPack16::maskMove(clipOutput[4], VertexPack16::lerpToClippingZ(output[prevVertex], output[behindVertex], clippingZ), caseMask);
+					clipOutput[5] = VertexPack16::maskMove(clipOutput[5], VertexPack16::lerpToClippingZ(output[nextVertex], output[behindVertex], clippingZ), caseMask);
+				}
+
+				output = clipOutput;
+			}
+
+			//this stage needs to run again for new triangle created by clipping in 1 vertex behind plane case
+			Mask16 oldActiveTriangles = activeTrianglesMask;
+			int validOutputPacks = 3;
+			for (int ouputStartIndex = 0; ouputStartIndex < 6; ouputStartIndex += 3)
+			{
+				if (ouputStartIndex == 3) //put it here since some of the continues may jump back to the beginning of the loop (like all triangles with 0 area)
+				{
+					if (behindPlaneCount == 1) //load new triangle if there is new
+					{
+						activeTrianglesMask = oldActiveTriangles & (behindPlaneCount == 1);
+						validOutputPacks = 6;
+					}
+					else break;
+				}
+
+				float32x16 fovMult = 1; //TODO: adjustable game setting?
+				float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
+				/*
+				for (int j = 0; j < 3; ++j)
+				{
+					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.x)) > 5000.f) & activeTrianglesMask) == 0));
+					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.y)) > 5000.f) & activeTrianglesMask) == 0));
+					assert(bool(((float32x16(_mm512_abs_ps(transformedVertices[j].space.z)) > 5000.f) & activeTrianglesMask) == 0));
+				}*/
+				for (int i = 0; i < 3; ++i)
+				{
+					auto& currVertex = output[i + ouputStartIndex];
+					float32x16 zInv = fovMult / currVertex.space.z;
+					currVertex.u *= zInv;
+					currVertex.v *= zInv;
+					currVertex.normal.x *= zInv;
+					currVertex.normal.y *= zInv;
+					currVertex.normal.z *= zInv;
+
+					for (int i = 0; i < 16; ++i)
+					{
+
+						/*for (int j = 0; j < 3; ++j)
+						{
+							//assert(0xFFFF == (float32x16(_mm512_abs_ps(transformedVertices[j].w)) < 5000.f));
+							assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.x)) < 5000.f).allOnes());
+							assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.y)) < 5000.f).allOnes());
+							assert((float32x16(_mm512_abs_ps(transformedVertices[j].space.z)) < 5000.f).allOnes());
+						}*/
+					}
+					currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
+					currVertex.space.z = zInv;
+					minX = _mm512_min_ps(minX, currVertex.space.x);
+					minY = _mm512_min_ps(minY, currVertex.space.y);
+					maxX = _mm512_max_ps(maxX, currVertex.space.x);
+					maxY = _mm512_max_ps(maxY, currVertex.space.y);
+				}
+
+				const Vec4_f32x16& r1 = output[ouputStartIndex].space;
+				const Vec4_f32x16& r2 = output[1 + ouputStartIndex].space;
+				const Vec4_f32x16& r3 = output[2 + ouputStartIndex].space;
+				//now transformedVertices hold screen coordinates (in pixels) and UVs are Z divided
+				float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
+				Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
+				activeTrianglesMask = (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & (activeTrianglesMask & nonZeroSignedAreaMask);
+				if (!activeTrianglesMask) continue;
+
+				float32x16 rcpSignedArea = float32x16(1) / signedArea;
+
+				minX = _mm512_floor_ps(minX);
+				minY = _mm512_floor_ps(minY);
+				maxX = _mm512_ceil_ps(maxX);
+				maxY = _mm512_ceil_ps(maxY);
+				for (int i = 0; i < 16; ++i)
+				{
+					if (!(activeTrianglesMask.mask & (1 << i))) continue;
+					//assert(std::abs(maxX[i]) < 5000);
+				}
+				int32x16 vecFirstThread = _mm512_cvttps_epi32(minY * rcpScreenHeightPerThread);
+				int32x16 vecLastThread = _mm512_cvttps_epi32(maxY * rcpScreenHeightPerThread);
+				activeTrianglesMask &= (vecLastThread >= 0) & (vecFirstThread <= (threadCount - 1));
+				int32x16 diffuseMapIndex = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
+
+				//vecFirstThread = _mm512_mask_compress_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
+				//vecLastThread = _mm512_mask_compress_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
+				vecFirstThread = _mm512_mask_mov_epi32(int32x16(INT32_MAX), activeTrianglesMask, vecFirstThread);
+				vecLastThread = _mm512_mask_mov_epi32(int32x16(INT32_MIN), activeTrianglesMask, vecLastThread);
+				int groupFirstThread = std::clamp(_mm512_reduce_min_epi32(vecFirstThread), 0, threadCount - 1);
+				int groupLastThread = std::clamp(_mm512_reduce_max_epi32(vecLastThread), 0, threadCount - 1);
+
+				int activeJobs = _mm_popcnt_u32(activeTrianglesMask);
+				if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountProducer += activeJobs;
+				for (int currReceiverThread = groupFirstThread; currReceiverThread <= groupLastThread; ++currReceiverThread)
+				{
+					auto& targetStore = (*currCmd.transformedVertices)[threadIndex * threadCount + currReceiverThread];
+					Mask16 currMask = activeTrianglesMask & vecFirstThread <= currReceiverThread & vecLastThread >= currReceiverThread;
+					targetStore.addMany(output.data() + ouputStartIndex, output.data() + ouputStartIndex + 3, rcpSignedArea, diffuseMapIndex, currMask, currCmd, vertexIndices.data(), vertexIndices.data() + 3, behindPlaneCount > 0);
+				}
+			}
 		}
+
+		//StatCount(threadIndex, trianges.ver)
+
 	}
 	
 	if (Statsman::ENABLED) {
@@ -736,7 +683,8 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 		bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
 		for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
 		{
-			RenderJobStore& storeForMe = (*drawCmd.transformedVertices)[senderThreadIndex * threadCount + threadIndex];
+			uint32_t sourceStoreIndex = senderThreadIndex * threadCount + threadIndex;
+			RenderJobStore& storeForMe = (*drawCmd.transformedVertices)[sourceStoreIndex];
 			size_t jobCountForMe = storeForMe.size();
 			if (Statsman::ENABLED) MyStatsman.rendering.renderJobCountConsumer += jobCountForMe;
 
@@ -836,9 +784,9 @@ void RasterizingRenderer::drawRenderJobs(int threadIndex)
 
 						if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 						{
-							uint64_t currRjPtr = uint64_t(&rj);
-							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjPtr));
-							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjPtr));
+							uint64_t currRjKey = (uint64_t(sourceStoreIndex) << 32) | jobIndex;
+							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi64(currRjKey));
+							_mm512_mask_storeu_epi64((uint64_t*)drawCmd.buffers[2].data + yInt * w + xInt + 8, opaquePixelsMask >> 8, _mm512_set1_epi64(currRjKey));
 							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(senderThreadIndex));
 							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[3].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(myJobsPointerInt + i));
 							//_mm512_mask_storeu_epi32((int*)drawCmd.buffers[4].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(threadIndex));
@@ -922,27 +870,36 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 
 			__m512i rjPtrs0_7 = _mm512_maskz_loadu_epi64(xBoundsMask, renderJobPtrsBuffer + yInt * w + xInt);
 			__m512i rjPtrs8_15 = _mm512_maskz_loadu_epi64(xBoundsMask >> 8, renderJobPtrsBuffer + yInt * w + xInt + 8);
-			Mask16 filledPixels = _mm512_cmpneq_epi64_mask(rjPtrs0_7, _mm512_setzero_si512());
-			filledPixels |= uint16_t(_mm512_cmpneq_epi64_mask(rjPtrs8_15, _mm512_setzero_si512())) << 8;
+			Mask16 filledPixels = _mm512_cmpneq_epi64_mask(rjPtrs0_7, _mm512_set1_epi64(-1));
+			filledPixels |= uint16_t(_mm512_cmpneq_epi64_mask(rjPtrs8_15, _mm512_set1_epi64(-1))) << 8;
 			filledPixels &= xBoundsMask;
 			VertexPack16 restoredVerts[3];
-
-			//constexpr uint64_t attr_offset_bytes[] = {offsetof(RenderJob, x[0]), offsetof(RenderJob, y[0]), offsetof(RenderJob, z[0]), offsetof(RenderJob, u[0]), offsetof(RenderJob, v[0]), offsetof(RenderJob, nx[0]), offsetof(RenderJob, ny[0]),offsetof(RenderJob, nz[0])};
-			//std::array<float32x16*, 8> attr_writeback_ptrs = {offsetof(VertexPack16, x)
-			for (int i = 0; i < 3; ++i)
+			float32x16 rcpSignedArea;
+			int32x16 diffuseMapIndices;
+			for (int j = 0; j < 16; ++j)
 			{
-				restoredVerts[i].space.x = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, x[i]), filledPixels);
-				restoredVerts[i].space.y = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, y[i]), filledPixels);
-				restoredVerts[i].space.z = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, z[i]), filledPixels);
-				restoredVerts[i].u = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, u[i]), filledPixels);
-				restoredVerts[i].v = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, v[i]), filledPixels);
-				restoredVerts[i].normal.x = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, nx[i]), filledPixels);
-				restoredVerts[i].normal.y = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, ny[i]), filledPixels);
-				restoredVerts[i].normal.z = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, nz[i]), filledPixels);
+				auto bit = filledPixels.mask & (1 << j);
+				if (!bit) continue;
+				uint64_t key = renderJobPtrsBuffer[yInt * w + xInt + j];
+				uint32_t sourceStoreIndex = key >> 32;
+				uint32_t jobIndex = key;
+				RenderJob rj = (*this->drawCommands[0].transformedVertices)[sourceStoreIndex][jobIndex];
+
+				for (int i = 0; i < 3; ++i)
+				{
+					restoredVerts[i].space.x[j] = rj.x[i];
+					restoredVerts[i].space.y[j] = rj.y[i];
+					restoredVerts[i].space.z[j] = rj.z[i];
+					restoredVerts[i].u[j] = rj.u[i];
+					restoredVerts[i].v[j] = rj.v[i];
+					restoredVerts[i].normal.x[j] = rj.nx[i];
+					restoredVerts[i].normal.y[j] = rj.ny[i];
+					restoredVerts[i].normal.z[j] = rj.nz[i];
+				}
+				rcpSignedArea[j] = rj.rcpSignedArea;
+				diffuseMapIndices[j] = rj.diffuseMapIndex;
 			}
-			float32x16 rcpSignedArea = gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, rcpSignedArea), filledPixels);
-			int32x16 diffuseMapIndices = _mm512_castps_si512(gather_render_job_attributes_from_render_job_ptrs(rjPtrs0_7, rjPtrs8_15, offsetof(RenderJob, diffuseMapIndex), filledPixels));
-			//int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, modelIndex * sizeof(Model) + offsetof(Model, diffuseMapIndex), this->sceneModels.data(), 1);
+	
 			float32x16 alpha, beta, gamma;
 			calculateBarycentricCoordinates({ x,y,0.f,0.f }, restoredVerts[0].space, restoredVerts[1].space, restoredVerts[2].space, rcpSignedArea, alpha, beta, gamma);
 
@@ -1031,7 +988,7 @@ size_t Rasterizing::Vertice_Store::size() const
 
 size_t Rasterizing::Triangle_Store::size() const
 {
-	return vertInd[0].size();
+	return diffuseMapIndex.size();
 }
 
 /*

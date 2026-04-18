@@ -19,23 +19,6 @@ namespace Rasterizing
 		//static std::vector<float> xStore, yStore, zStore, uStore, vStore;
 	};*/
 
-	struct Vertice_Store
-	{
-		std::vector<float> x, y, z, u, v, nx, ny, nz;
-		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
-		size_t size() const;
-	private:
-		//TODO: if gonna make this dynamic, make it cleanable and check
-		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
-	};
-
-	struct Triangle_Store
-	{
-		std::vector<uint32_t> vertInd[3];
-		size_t size() const;
-		//std::vector<uint32_t> modelInd;
-	};
-
 	//Inclusive
 	struct SequentialRange
 	{
@@ -43,16 +26,7 @@ namespace Rasterizing
 	};
 	struct Model
 	{
-		Triangle_Store triangleStore;
-		int diffuseMapIndex = 0;
-		bool noBackfaceCulling = true;
-	};
-
-	struct ModelSlice
-	{
-		int modelIndex;
-		int modelTriangleIndexBegin;
-		int modelTriangleIndexEnd;
+		SequentialRange globalTriangleRange;
 	};
 
 	struct ModelGlobalTrianglesDescriptor
@@ -78,9 +52,7 @@ private:
 
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;
-	std::vector<std::vector<Rasterizing::ModelSlice>> modelSlicesForThreads;
 
-	std::vector<std::vector<Rasterizing::ModelSlice>> makeModelSliceList() const;
 	void doTransformationsAndClipping(int threadIndex);
 	void drawRenderJobs(int threadIndex);
 	void joinMainWithShadowMap(int threadIndex);
