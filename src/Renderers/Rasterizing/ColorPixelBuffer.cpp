@@ -289,17 +289,7 @@ std::pair<float32x16, float32x16> Rasterizing::Mapper::wrapUV(float32x16 u, floa
     v -= _mm512_floor_ps(v);
     return { u,v };
 }
-/*
-std::pair<float, float> Rasterizing::Mapper::clampUV(float u, float v)
-{
-    return { std::clamp(u,0.f,1.f), std::clamp(v,0.f,1.f) };
-}
 
-std::pair<float32x16, float32x16> Rasterizing::Mapper::clampUV(float32x16 u, float32x16 v)
-{
-    return { u.clamp(0,1), v.clamp(0,1); }
-}
-*/
 std::pair<uint32_t, uint32_t> Rasterizing::Mapper::wrapInts(int a, int b, uint32_t amax, uint32_t bmax)
 {
     return { wrapInt(a,amax), wrapInt(b,bmax) };
@@ -311,37 +301,3 @@ uint32_t Rasterizing::Mapper::wrapInt(int a, uint32_t amax)
     rem += rem >= 0 ? 0 : amax;
     return rem;
 }
-
-/*
-std::pair<int, int> Rasterizing::Mapper::wrap(int x, int y, int w, int h)
-{
-    int remX = x % w;
-    int remY = y % h;
-    remX += remX >= 0 ? 0 : w;
-    remY += remY >= 0 ? 0 : h;
-    return { remX,remY };
-}
-
-std::pair<float, float> Rasterizing::Mapper::clamp(float u, float v, float w, float h)
-{
-    return {
-        std::clamp<float>(u * w, 0, w - 1),
-        std::clamp<float>(v * h, 0, h - 1),
-    };
-}
-
-std::pair<float32x16, float32x16> Rasterizing::Mapper::clamp(float32x16 u, float32x16 v, float w, float h)
-{
-    return { (u * w).clamp(0, w - 1), (v * h).clamp(0, h - 1) };
-}
-
-std::pair<float, float> Rasterizing::Mapper::plain(float u, float v, float w, float h)
-{
-    return { u * w, v * h };
-}
-
-std::pair<float32x16, float32x16> Rasterizing::Mapper::plain(float32x16 u, float32x16 v, float w, float h)
-{
-    return { u * w, v * h };
-}
-*/
