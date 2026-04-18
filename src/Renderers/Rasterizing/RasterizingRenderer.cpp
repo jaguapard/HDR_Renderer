@@ -937,7 +937,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Vec4_f32x16 texturePixels;
 
 			//TODO: refactor repeated barycentric interpolations into a class
-#if defined(VS_CLANG) //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
+#if defined(VS_CLANG) || 1 //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
 
 			for (int j = 0; j < 16; ++j)
 			{
