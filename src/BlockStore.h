@@ -7,10 +7,11 @@
 // Logical size is tracked separately from allocated storage.
 // Items can only be removed from the logical store via reset() or clear().
 // Underlying memory will persist until clear() or trim() is called.
-template <typename ElementType, size_t ELEMENTS_PER_BLOCK>
+template <typename ElementType, size_t N>
 class BlockStore
 {
 public:
+	static inline constexpr size_t ELEMENTS_PER_BLOCK = N;
 	//Appends element to the end of the store and increases store's logical size by 1.
 	ElementType& append(const ElementType& el)
 	{

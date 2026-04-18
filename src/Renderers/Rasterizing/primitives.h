@@ -79,6 +79,8 @@ namespace Rasterizing
 		MAIN_DEPTH_PREPASS,
 		SHADOW_MAP_DEPTH,
 	};
+
+	typedef BlockStore<int, 65536> TriangleIndexStore;
 	struct DrawCommand
 	{
 		CoordinateTransformer ctr;
@@ -86,7 +88,7 @@ namespace Rasterizing
 		FaceCullingType faceCullingType = FaceCullingType::NONE;
 		Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 
-		std::vector<Rasterizing::RenderJobStore>* transformedVertices = nullptr;
+		std::vector<TriangleIndexStore>* trianglesToZones = nullptr;
 		std::vector<GenericBuffer> buffers;
 		uint32_t renderW, renderH;
 		uint32_t threadCount = -1;
