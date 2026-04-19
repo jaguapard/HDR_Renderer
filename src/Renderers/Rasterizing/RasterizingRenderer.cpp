@@ -331,7 +331,7 @@ struct Vertex
 	}
 };
 
-void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const
+void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<VertexStageOutputTriangle, 2>& inputTriangles, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const
 {
 	if (!(behindPlaneCount > 0)) return;
 	//if behind plane count == 0: block is skipped, triangle is fully ahead of clipping plane
@@ -364,17 +364,16 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<R
 	//TODO: this network can be adjusted to preserve input windings, it currently doesn't but we don't care for now (face culling is done before, so it seem to not matter at all?)
 
 	std::array<VertexPack16, 6> clipOutput;
-
-	for (int i = 0; i < 3; ++i) clipOutput[i] = input[i];
+	for (int i = 0; i < 3; ++i) clipOutput[i] = inputTriangles[0].vertices[i];
 	for (int frontVertex = 0; frontVertex < 3; ++frontVertex)
 	{
 		//these are behind
 		int prevVertex = frontVertex == 0 ? 2 : frontVertex - 1;
 		int nextVertex = frontVertex == 2 ? 0 : frontVertex + 1;
 		Mask16 caseMask = ~behindPlaneMasks[frontVertex] & behindPlaneMasks[prevVertex] & behindPlaneMasks[nextVertex];
-		clipOutput[0] = VertexPack16::maskMove(clipOutput[0], VertexPack16::lerpToClippingZ(input[prevVertex], input[frontVertex], clippingZ), caseMask);
-		clipOutput[1] = VertexPack16::maskMove(clipOutput[1], input[frontVertex], caseMask);
-		clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(input[frontVertex], input[nextVertex], clippingZ), caseMask);
+		clipOutput[0] = VertexPack16::maskMove(clipOutput[0], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[prevVertex], inputTriangles[0].vertices[frontVertex], clippingZ), caseMask);
+		clipOutput[1] = VertexPack16::maskMove(clipOutput[1], inputTriangles[0].vertices[frontVertex], caseMask);
+		clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[frontVertex], inputTriangles[0].vertices[nextVertex], clippingZ), caseMask);
 	}
 
 	for (int behindVertex = 0; behindVertex < 3; ++behindVertex)
@@ -383,15 +382,18 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<R
 		int prevVertex = behindVertex == 0 ? 2 : behindVertex - 1;
 		int nextVertex = behindVertex == 2 ? 0 : behindVertex + 1;
 		Mask16 caseMask = behindPlaneMasks[behindVertex] & ~behindPlaneMasks[prevVertex] & ~behindPlaneMasks[nextVertex];
-		clipOutput[0] = VertexPack16::maskMove(clipOutput[0], input[nextVertex], caseMask);
-		clipOutput[1] = VertexPack16::maskMove(clipOutput[1], input[prevVertex], caseMask);
-		clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(input[nextVertex], input[behindVertex], clippingZ), caseMask);
-		clipOutput[3] = VertexPack16::maskMove(clipOutput[3], input[prevVertex], caseMask);
-		clipOutput[4] = VertexPack16::maskMove(clipOutput[4], VertexPack16::lerpToClippingZ(input[prevVertex], input[behindVertex], clippingZ), caseMask);
-		clipOutput[5] = VertexPack16::maskMove(clipOutput[5], VertexPack16::lerpToClippingZ(input[nextVertex], input[behindVertex], clippingZ), caseMask);
+		clipOutput[0] = VertexPack16::maskMove(clipOutput[0], inputTriangles[0].vertices[nextVertex], caseMask);
+		clipOutput[1] = VertexPack16::maskMove(clipOutput[1], inputTriangles[0].vertices[prevVertex], caseMask);
+		clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[nextVertex], inputTriangles[0].vertices[behindVertex], clippingZ), caseMask);
+		clipOutput[3] = VertexPack16::maskMove(clipOutput[3], inputTriangles[0].vertices[prevVertex], caseMask);
+		clipOutput[4] = VertexPack16::maskMove(clipOutput[4], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[prevVertex], inputTriangles[0].vertices[behindVertex], clippingZ), caseMask);
+		clipOutput[5] = VertexPack16::maskMove(clipOutput[5], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[nextVertex], inputTriangles[0].vertices[behindVertex], clippingZ), caseMask);
 	}
 
-	input = clipOutput;
+	for (int i = 0; i < 6; ++i)
+	{
+		inputTriangles[i / 3].vertices[i % 3] = clipOutput[i];
+	}
 }
 
 
@@ -412,7 +414,8 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	{
 		auto& currCmd = this->drawCommands[cmdIndex];
 		auto& currOutput = output[cmdIndex];
-		for (auto& it : currOutput.activeTriangles) it = 0;
+		for (auto& it : currOutput.outputTriangles) it.activeTrianges = 0;
+		auto* currOutputTriangle = &currOutput.outputTriangles[0];
 		int32x16 behindNearPlaneCount = 0;
 		for (int i = 0; i < 3; ++i)
 		{
@@ -420,23 +423,21 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			Mask16 vertexBehindClippingPlane = rotatedTranslated.z < input.nearPlaneZ;
 			currOutput.behindNearPlaneMasks[i] = rotatedTranslated.z < input.nearPlaneZ;
 			behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, vertexBehindClippingPlane, behindNearPlaneCount, int32x16(1));
-			currOutput.output[i].space = rotatedTranslated;
+			currOutputTriangle->vertices[i].space = rotatedTranslated;
 		}
 
 		Mask16 activeTriangles = input.validInputs & (behindNearPlaneCount != 3);
 		if (!activeTriangles) continue;
 
-		output[cmdIndex].behindNearPlaneCount = behindNearPlaneCount;	
-
-		int32x16 modelFlags;
-		const auto* flagsPtr = this->original_triangleStore.modelFlags.data();
-		if (input.stage == 1) modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + input.triangleIndices[0]);
-		else modelFlags = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), activeTriangles, input.triangleIndices, flagsPtr, 4);
-
 		if (currCmd.faceCullingType != FaceCullingType::NONE)
 		{
-			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutput.output[0].space, currOutput.output[1].space, currOutput.output[2].space);
-			float32x16 dot = currOutput.output[0].space.dot3d(transformedFaceNormals);
+			int32x16 modelFlags;
+			const auto* flagsPtr = this->original_triangleStore.modelFlags.data();
+			if (input.stage == 1) modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + input.triangleIndices[0]);
+			else modelFlags = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), activeTriangles, input.triangleIndices, flagsPtr, 4);
+			
+			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutputTriangle->vertices[0].space, currOutputTriangle->vertices[1].space, currOutputTriangle->vertices[2].space);
+			float32x16 dot = currOutputTriangle->vertices[0].space.dot3d(transformedFaceNormals);
 			switch (currCmd.faceCullingType)
 			{
 				case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
@@ -463,8 +464,8 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 
 				for (int i = 0; i < 3; ++i)
 				{
-					currOutput.output[i].u = originalVertices[i].u;
-					currOutput.output[i].v = originalVertices[i].v;
+					currOutputTriangle->vertices[i].u = originalVertices[i].u;
+					currOutputTriangle->vertices[i].v = originalVertices[i].v;
 				}
 			}
 
@@ -480,19 +481,20 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 					}
 					normals_loaded = true;
 				}
-				for (int i = 0; i < 3; ++i) currOutput.output[i].normal = originalVertices[i].normal;
+				for (int i = 0; i < 3; ++i) currOutputTriangle->vertices[i].normal = originalVertices[i].normal;
 			}
 		}
-		this->performNearPlaneClipping(input.nearPlaneZ, currOutput.output, behindNearPlaneCount, currOutput.behindNearPlaneMasks);
+		
+		this->performNearPlaneClipping(input.nearPlaneZ, currOutput.outputTriangles, behindNearPlaneCount, currOutput.behindNearPlaneMasks);
 
 		float w = currCmd.renderW;
 		float h = currCmd.renderH;
-		//float rcpScreenHeightPerThread = input.threadCount / h;*/
+		currOutput.behindNearPlaneCount = behindNearPlaneCount;
 
 		Mask16 oldActiveTriangles = activeTriangles;
-		for (int ouputStartIndex = 0; ouputStartIndex < 6; ouputStartIndex += 3)
+		for (int outputTriangleIndex = 0; outputTriangleIndex < 2; outputTriangleIndex++)
 		{
-			if (ouputStartIndex == 3) //put it here since some of the continues may jump back to the beginning of this loop (like all triangles with 0 area)
+			if (outputTriangleIndex == 1)
 			{
 				if (behindNearPlaneCount == 1) //load new triangle if there is new
 				{
@@ -500,12 +502,14 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 				}
 				else break;
 			}
-
+			if (!activeTriangles) break;
+			currOutputTriangle = &currOutput.outputTriangles[outputTriangleIndex];
+			
 			float32x16 fovMult = 1; //TODO: adjustable game setting?
 			float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
 			for (int i = 0; i < 3; ++i)
 			{
-				auto& currVertex = currOutput.output[i + ouputStartIndex];
+				auto& currVertex = currOutputTriangle->vertices[i];
 				float32x16 zInv = fovMult / currVertex.space.z;
 				currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
 				minX = _mm512_min_ps(minX, currVertex.space.x);
@@ -523,25 +527,21 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 				}
 			}
 
-			const Vec4_f32x16& r1 = currOutput.output[ouputStartIndex].space;
-			const Vec4_f32x16& r2 = currOutput.output[1 + ouputStartIndex].space;
-			const Vec4_f32x16& r3 = currOutput.output[2 + ouputStartIndex].space;
+			const Vec4_f32x16& r1 = currOutputTriangle->vertices[0].space;
+			const Vec4_f32x16& r2 = currOutputTriangle->vertices[1].space;
+			const Vec4_f32x16& r3 = currOutputTriangle->vertices[2].space;
 
 			float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
 			Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
 			activeTriangles = (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & (activeTriangles & nonZeroSignedAreaMask);
 			if (!activeTriangles) continue;
-			float32x16 rcpSignedArea = float32x16(1) / signedArea;
-			minX = _mm512_floor_ps(minX);
-			minY = _mm512_floor_ps(minY);
-			maxX = _mm512_ceil_ps(maxX);
-			maxY = _mm512_ceil_ps(maxY);
-			currOutput.minX[ouputStartIndex / 3] = minX;
-			currOutput.minY[ouputStartIndex / 3] = minY;
-			currOutput.maxX[ouputStartIndex / 3] = maxX;
-			currOutput.maxY[ouputStartIndex / 3] = maxY;
-			currOutput.rcpSignedArea[ouputStartIndex / 3] = rcpSignedArea;					
-			currOutput.activeTriangles[ouputStartIndex / 3] = activeTriangles;
+
+			currOutputTriangle->minX = _mm512_floor_ps(minX);
+			currOutputTriangle->minY = _mm512_floor_ps(minY);
+			currOutputTriangle->maxX = _mm512_ceil_ps(maxX);
+			currOutputTriangle->maxY = _mm512_ceil_ps(maxY);
+			currOutputTriangle->rcpSignedArea = float32x16(1) / signedArea;
+			currOutputTriangle->activeTrianges = activeTriangles;
 		}
 	}
 }
@@ -577,14 +577,15 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 		{
 			for (int outputTriangleIndex = 0; outputTriangleIndex < 2; ++outputTriangleIndex)
 			{
-				Mask16 currActiveTriangles = transformedResults[cmdIndex].activeTriangles[outputTriangleIndex];
+				const auto& currTriangles = transformedResults[cmdIndex].outputTriangles[outputTriangleIndex];
+				Mask16 currActiveTriangles = currTriangles.activeTrianges;
 				if (!currActiveTriangles) break; //yes, break, not continue. If first outputted triangle is invalid, then none are (at least in current pipeline)
 				auto& currCmd = this->drawCommands[cmdIndex];
 				float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
 				auto& currOutput = transformedResults[cmdIndex];
 
-				int32x16 vecFirstThread = _mm512_cvttps_epi32(currOutput.minY[outputTriangleIndex] * rcpScreenHeightPerThread);
-				int32x16 vecLastThread = _mm512_cvttps_epi32(currOutput.maxY[outputTriangleIndex] * rcpScreenHeightPerThread);
+				int32x16 vecFirstThread = _mm512_cvttps_epi32(currTriangles.minY * rcpScreenHeightPerThread);
+				int32x16 vecLastThread = _mm512_cvttps_epi32(currTriangles.maxY * rcpScreenHeightPerThread);
 				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
 				if (!currActiveTriangles) continue;
 
@@ -702,18 +703,19 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 
 	for (int outputTriangleIndex = 0; outputTriangleIndex < 2; ++outputTriangleIndex)
 	{
-		Mask16 currActiveTriangles = inp.vertexStageOutput->activeTriangles[outputTriangleIndex];
+		auto& currTriangles = inp.vertexStageOutput->outputTriangles[outputTriangleIndex];
+		Mask16 currActiveTriangles = currTriangles.activeTrianges;
 		if (!currActiveTriangles) break; //yes, break, not continue. If first triangle is invalid, then all are (at least in current pipeline)
 		int32x16 diffuseMapIndex = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), currActiveTriangles, inp.progenitorTriangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
 
 		//TODO: doubling triangles if they are clipped!
-		float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), inp.vertexStageOutput->minX[outputTriangleIndex]);
-		float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), inp.vertexStageOutput->minY[outputTriangleIndex]);
-		float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), inp.vertexStageOutput->maxX[outputTriangleIndex]);
-		float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), inp.vertexStageOutput->maxY[outputTriangleIndex]);
-		const VertexPack16& v0 = inp.vertexStageOutput->output[outputTriangleIndex*3];
-		const VertexPack16& v1 = inp.vertexStageOutput->output[outputTriangleIndex*3 + 1];
-		const VertexPack16& v2 = inp.vertexStageOutput->output[outputTriangleIndex*3 + 2];
+		float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), currTriangles.minX);
+		float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), currTriangles.minY);
+		float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), currTriangles.maxX);
+		float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), currTriangles.maxY);
+		const VertexPack16& v0 = currTriangles.vertices[0];
+		const VertexPack16& v1 = currTriangles.vertices[1];
+		const VertexPack16& v2 = currTriangles.vertices[2];
 		for (int i = 0; i < 16; ++i)
 		{
 			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
@@ -731,7 +733,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					float32x16 dx = x - group_xBeg[i];
 
 					float32x16 alpha, beta, gamma;
-					calculateBarycentricCoordinates2D({ x,y,0.f,0.f }, v0.space.extractHorizontalVector(i), v1.space.extractHorizontalVector(i), v2.space.extractHorizontalVector(i), inp.vertexStageOutput->rcpSignedArea[outputTriangleIndex][i], alpha, beta, gamma);
+					calculateBarycentricCoordinates2D({ x,y,0.f,0.f }, v0.space.extractHorizontalVector(i), v1.space.extractHorizontalVector(i), v2.space.extractHorizontalVector(i), currTriangles.rcpSignedArea[i], alpha, beta, gamma);
 					if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
 
 					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);

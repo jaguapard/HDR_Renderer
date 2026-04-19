@@ -61,7 +61,7 @@ private:
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
-	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
+	
 
 	struct VertexStageInput
 	{
@@ -75,14 +75,16 @@ private:
 		int firstCmd, lastCmd;
 	};
 
+	struct VertexStageOutputTriangle
+	{
+		std::array<Rasterizing::VertexPack16, 3> vertices;
+		float32x16 minX, minY, maxX, maxY, rcpSignedArea;
+		Mask16 activeTrianges = 0;
+	};
 	struct VertexStageOutput
 	{
-		//std::array<Rasterizing::VertexPack16, 3> untransformedVertices; //some fields may be empty due to input flags. World X, Y, Z are guaranteed to be filled 
-		std::array<Rasterizing::VertexPack16, 6> output; //up to 6 vertices may be returned by the transform (2 triangles for single vertex behind near plane case). Use activeTriangles mask to mask off invalid ones
+		std::array<VertexStageOutputTriangle, 2> outputTriangles;
 		int32x16 behindNearPlaneCount; //counts of vertices behind near plane for each triangle composed by input vertices
-		std::array<float32x16, 2> minX, minY, maxX, maxY, rcpSignedArea;
-		//int validOutputVertexPackCount;
-		std::array<Mask16, 2> activeTriangles; //Masks that mark which triangles are valid post-transform. Values returned in other fields of this struct are garbage for inactive triangles
 		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
 	};
 
@@ -97,7 +99,7 @@ private:
 	struct PixelStageOutput
 	{
 	};
-
+	void performNearPlaneClipping(float clippingZ, std::array<VertexStageOutputTriangle, 2>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
 	//For draw command i the output will be written to output[i]
 	//Stage 1 assumes sequential input triangle indices, gathers only vertices' world coords and processes all draw commands.
