@@ -433,22 +433,19 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 		if (input.stage == 1) modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + input.triangleIndices[0]);
 		else modelFlags = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), activeTriangles, input.triangleIndices, flagsPtr, 4);
 
-		if (currCmd.faceCullingType == FaceCullingType::BACKFACE)
+		if (currCmd.faceCullingType != FaceCullingType::NONE)
 		{
-			Mask16 cullingAllowed = (modelFlags & NO_BACKFACE_CULLING) == 0;
 			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutput.output[0].space, currOutput.output[1].space, currOutput.output[2].space);
-			Mask16 culled = currOutput.output[0].space.dot3d(transformedFaceNormals) >= 0.f;
-			activeTriangles &= ~(cullingAllowed & culled);
+			float32x16 dot = currOutput.output[0].space.dot3d(transformedFaceNormals);
+			switch (currCmd.faceCullingType)
+			{
+				case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
+				case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & NO_FRONTFACE_CULLING) != 0 | dot >= 0.f; break;
+				default: break;
+			}
+			if (!activeTriangles) continue;
 		}
-		if (currCmd.faceCullingType == FaceCullingType::FRONTFACE)
-		{
-			Mask16 cullingAllowed = (modelFlags & NO_FRONTFACE_CULLING) == 0;
-			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutput.output[0].space, currOutput.output[1].space, currOutput.output[2].space);
-			Mask16 culled = currOutput.output[0].space.dot3d(transformedFaceNormals) < 0.f;
-			activeTriangles &= ~(cullingAllowed & culled);
-		}
-		if (!activeTriangles) continue;
-
+		
 		if (input.stage != 1)
 		{
 			if (currCmd.needsUVs)
