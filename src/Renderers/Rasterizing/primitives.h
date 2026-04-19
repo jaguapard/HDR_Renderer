@@ -100,6 +100,7 @@ namespace Rasterizing
 		std::vector<float> x, y, z, u, v, nx, ny, nz;
 		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
 		size_t size() const;
+		void clear();
 	private:
 		//TODO: if gonna make this dynamic, make it cleanable and check
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
@@ -117,6 +118,7 @@ namespace Rasterizing
 		std::vector<int> diffuseMapIndex, modelIndex;
 		std::vector<ModelFlags> modelFlags;
 		size_t size() const;
+		void clear();
 		//std::vector<uint32_t> modelInd;
 	};
 }

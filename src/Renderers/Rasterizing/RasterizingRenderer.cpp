@@ -39,33 +39,6 @@ std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
 void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 {
 	Uint64 ticksBegin = SDL_GetTicksNS();
-	if (false)
-	{
-		this->ambientLightIntensity = 1;
-		this->skyColor = { 0.0,0.014,0,1 };
-		Model& m = this->sceneModels.emplace_back();
-		Vec4f vertices[3] = {
-			{-50, 0, 50},
-			{50, 0, 50},
-			{50, 20, 50},
-		};
-		Vec4f uvs[3] = {
-			{0,0},
-			{3,0},
-			{3,3},
-		};
-		for (int k = 0; k < 3; ++k)
-		{
-			uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, uvs[k].x, uvs[k].y, 1, 1, 1);
-			this->original_triangleStore.vertInd[k].push_back(vertInd);
-		}
-		this->original_triangleStore.diffuseMapIndex.push_back(0);
-		this->original_triangleStore.modelFlags.push_back(NONE);
-		//GS are not yet set, so this ptr is null at this time
-		this->singleTriangleDebugMode = true;
-		return;
-	}
-
 	std::mutex mtx;
 	std::vector<task_id> tasks;
 	std::string savePaths[] = {"new_sponza.bmdl2", "curtains.bmdl2", "tree.bmdl2", "ivy.bmdl2"};
@@ -178,6 +151,12 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_7)) this->useShadowMapBias ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_8)) this->useShadowMapFrontFaceCulling ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_9)) this->missingTexturesSetToPlaceholder ^= 1;
+	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_0))
+	{
+		this->clearScene();
+		this->loadScene(true);
+		return;
+	}
 
 
 	Threadpool* threadpool = settings.threadpool;
@@ -286,6 +265,39 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 			store.reset();
 	}
 	//for (auto& it : renderJobsFromThreads) it.clear();
+}
+
+void RasterizingRenderer::loadScene(bool debugScene)
+{
+	this->ambientLightIntensity = 1;
+	this->skyColor = { 0.0,0.014,0,1 };
+	Model& m = this->sceneModels.emplace_back();
+	Vec4f vertices[3] = {
+		{-50, 0, 50},
+		{50, 0, 50},
+		{50, 20, 50},
+	};
+	Vec4f uvs[3] = {
+		{0,0},
+		{3,0},
+		{3,3},
+	};
+	for (int k = 0; k < 3; ++k)
+	{
+		uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, uvs[k].x, uvs[k].y, 1, 1, 1);
+		this->original_triangleStore.vertInd[k].push_back(vertInd);
+	}
+	this->original_triangleStore.diffuseMapIndex.push_back(0);
+	this->original_triangleStore.modelFlags.push_back(NONE);
+	//GS are not yet set, so this ptr is null at this time
+	this->singleTriangleDebugMode = true;
+}
+
+void RasterizingRenderer::clearScene()
+{
+	this->sceneModels.clear();
+	this->original_triangleStore.clear();
+	this->original_verticeStore.clear();
 }
 
 struct Vertex
@@ -1011,9 +1023,30 @@ size_t Rasterizing::Vertice_Store::size() const
 	return x.size();
 }
 
+void Rasterizing::Vertice_Store::clear()
+{
+	this->dedup.clear();
+	this->x.clear();
+	this->y.clear();
+	this->z.clear();
+	this->u.clear();
+	this->v.clear();
+	this->nx.clear();
+	this->ny.clear();
+	this->nz.clear();
+}
+
 size_t Rasterizing::Triangle_Store::size() const
 {
 	return diffuseMapIndex.size();
+}
+
+void Rasterizing::Triangle_Store::clear()
+{
+	for (auto& it : this->vertInd) it.clear();
+	this->diffuseMapIndex.clear();
+	this->modelFlags.clear();
+	this->modelIndex.clear();
 }
 
 /*
