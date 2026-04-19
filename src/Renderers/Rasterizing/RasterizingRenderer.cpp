@@ -169,6 +169,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
 	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
 	if (inp.wasCharPressedOnThisFrame('B')) this->faceCullingType = EnumCycler::next(this->faceCullingType);
+	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_7)) this->useShadowMapBias ^= 1;
+	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_8)) this->useShadowMapFrontFaceCulling ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_9)) this->missingTexturesSetToPlaceholder ^= 1;
 
 
@@ -207,7 +209,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
 	shadowMapDrawCmd.needsUVs = true;
 	shadowMapDrawCmd.needsNormals = false;
-	shadowMapDrawCmd.faceCullingType = FaceCullingType::FRONTFACE; //FaceCullingType::FRONT
+	shadowMapDrawCmd.faceCullingType = this->useShadowMapFrontFaceCulling ? FaceCullingType::FRONTFACE : FaceCullingType::NONE; //FaceCullingType::FRONT
 	shadowMapDrawCmd.threadCount = threadCount;
 	shadowMapDrawCmd.renderW = shadowMapW;
 	shadowMapDrawCmd.renderH = shadowMapH;
@@ -939,9 +941,19 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
 			int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
 			float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
-			//float32x16 bias = 0.0001f;
-			float32x16 bias = 0.f;
-			Mask16 pointsInShadow = ~inShadowMapBounds | ((shadowMapDepths - bias) > sunScreenPositions.z);
+			
+			Mask16 pointsInShadow = ~inShadowMapBounds;
+			if (this->useShadowMapBias)
+			{
+				float32x16 bias = 10.f; //still some acne, noticable panning
+				float32x16 shadowMapProperDepth = float32x16(1) / shadowMapDepths;
+				float32x16 geometryProperDepth = float32x16(1) / sunScreenPositions.z;
+				pointsInShadow |= (shadowMapProperDepth + bias < geometryProperDepth);
+			}
+			else
+			{
+				pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
+			}
 
 			Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
 			Vec4_f32x16 lightDir = lightTo - lightFrom;

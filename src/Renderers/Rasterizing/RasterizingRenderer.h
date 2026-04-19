@@ -114,6 +114,6 @@ private:
 	Vec4f lightPos, lightAng, lightColor, skyColor = Vec4f(0.3, 0.7, 1, 1);
 	//float lightIntensity, skyLightIntensity;
 	float ambientLightIntensity = 0.3, lightIntesity = 3;
-	bool drawShadowMapDebug = false, missingTexturesSetToPlaceholder = true;
+	bool drawShadowMapDebug = false, missingTexturesSetToPlaceholder = true, useShadowMapBias = false, useShadowMapFrontFaceCulling = true;
 	Rasterizing::FaceCullingType faceCullingType = Rasterizing::FaceCullingType::NONE;
 };
