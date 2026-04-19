@@ -72,7 +72,7 @@ private:
 		//double threadCount;
 		//int threadIndex, stage;
 		int stage;
-		int drawCommandIndex;
+		int firstCmd, lastCmd;
 	};
 
 	struct VertexStageOutput

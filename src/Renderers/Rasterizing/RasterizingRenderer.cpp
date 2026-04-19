@@ -408,9 +408,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	}
 	bool UVs_loaded = false, normals_loaded = false;
 
-	int cmdIndex = input.stage == 1 ? 0 : input.drawCommandIndex;
-	int cmdIndexEnd = input.stage == 1 ? this->drawCommands.size() : cmdIndex + 1;
-	for (; cmdIndex < cmdIndexEnd; ++cmdIndex)
+	for (int cmdIndex = input.firstCmd; cmdIndex <= input.lastCmd; ++cmdIndex)
 	{
 		auto& currCmd = this->drawCommands[cmdIndex];
 		auto& currOutput = output[cmdIndex];
@@ -561,6 +559,8 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 	VertexStageInput inp;
 	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
 	inp.stage = 1;
+	inp.firstCmd = 0;
+	inp.lastCmd = this->drawCommands.size() - 1;
 	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
 	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
 	{
@@ -812,7 +812,7 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 				int32x16 triangleIndices = _mm512_maskz_loadu_epi32(storeBounds, &currStore[currIndex]); //this will read out of block's bounds if ELEMENTS_PER_BLOCK is not divisible by 16.
 				inp.triangleIndices = triangleIndices;
 				inp.validInputs = storeBounds;
-				inp.drawCommandIndex = cmdIndex;
+				inp.firstCmd = inp.lastCmd = cmdIndex;
 				for (int i = 0; i < 3; ++i)
 				{
 					inp.vertexIndices[i] = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), storeBounds, triangleIndices, this->original_triangleStore.vertInd[i].data(), 4);
