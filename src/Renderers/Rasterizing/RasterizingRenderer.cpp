@@ -617,7 +617,7 @@ __forceinline void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const
 
 __forceinline void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, float32x16& alpha, float32x16& beta, float32x16& gamma)
 {
-	
+	/* //this version is less precise, causes texture issues in some places
 	Vec4_f32x16 v0 = B - A;
 	Vec4_f32x16 v1 = C - A;
 	Vec4_f32x16 v2 = P - A;
@@ -630,13 +630,12 @@ __forceinline void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const
 	float32x16 den = d00 * d11 - (d01 * d01);
 	beta = (d11 * d20 - d01 * d21) / den;
 	gamma = (d00 * d21 - d01 * d20) / den;
-	alpha = float32x16(1) - beta - gamma; //doesn't seem to hurt calculating it like this
+	alpha = float32x16(1) - beta - gamma; //doesn't seem to hurt calculating it like this*/
 
-	/*
 	Vec4_f32x16 n = (B - A).cross3d(C - A);
 	alpha = ((B - P).cross3d(C - P)).dot3d(n) / n.dot3d(n);
 	beta  = ((C - P).cross3d(A - P)).dot3d(n) / n.dot3d(n);
-	gamma = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);*/
+	gamma = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
 }
 
 void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask)
