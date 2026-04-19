@@ -746,8 +746,12 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Vec4_f32x16 texturePixels;
 					if (depthOnly)
 					{
-						auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-						texturePixels.a = accessor.gatherA();
+						if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0) 
+						{
+							auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+							texturePixels.a = accessor.gatherA();
+						}
+						else texturePixels.a = 0.f;
 						//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
 					}
 
