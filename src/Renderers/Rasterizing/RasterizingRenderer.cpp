@@ -721,7 +721,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		for (int i = 0; i < 16; ++i)
 		{
 			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
-			const auto& texture = this->textureManager.getTextureByHandle(diffuseMapIndex[i]);
+			int currDiffuseMapIndex = diffuseMapIndex[i];
+			if (!this->missingTexturesSetToPlaceholder && currDiffuseMapIndex == 0) continue; //completely skip triangles with missing textures if fallback texture display is disabled
+
+			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
 			for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
 			{
 				size_t yInt = y;
@@ -758,13 +761,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Vec4_f32x16 texturePixels;
 					if (depthOnly)
 					{
-						if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0) 
-						{
-							auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-							texturePixels.a = accessor.gatherA();
-						}
-						else texturePixels.a = 0.f;
-						//texturePixels = texture.gatherLinearIntensities(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+						auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+						texturePixels.a = accessor.gatherA();
 					}
 
 					Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
@@ -949,10 +947,11 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				texturePixels.r = texturePixels.g = texturePixels.b = distIntensity;
 				texturePixels.a = 1;
 			}
+			filledPixels &= texturePixels.a > 0.f;
 			texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
 			texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
 			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
-
+			
 			const auto& currentShadowMap = this->drawCommands[1];
 			Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
 			float32x16 zInv = float32x16(1) / sunWorldPositions.z;
