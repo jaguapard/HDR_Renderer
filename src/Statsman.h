@@ -5,8 +5,11 @@
 
 struct alignas(64) Statsman
 {
+#if defined(REL_DBG) || !defined(NDEBUG)
 	static constexpr bool ENABLED = true;
-
+#else
+	static constexpr bool ENABLED = false;
+#endif
 	void reset();
 
 	struct Triangles
