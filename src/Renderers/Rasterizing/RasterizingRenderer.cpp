@@ -150,7 +150,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	if (inp.wasCharPressedOnThisFrame('B')) this->faceCullingType = EnumCycler::next(this->faceCullingType);
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_7)) this->useShadowMapBias ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_8)) this->useShadowMapFrontFaceCulling ^= 1;
-	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_9)) this->missingTexturesSetToPlaceholder ^= 1;
+	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_9)) this->skipTrianglesWithFallbackTexure ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_0))
 	{
 		this->clearScene();
@@ -722,7 +722,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		{
 			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
 			int currDiffuseMapIndex = diffuseMapIndex[i];
-			if (!this->missingTexturesSetToPlaceholder && currDiffuseMapIndex == 0) continue; //completely skip triangles with missing textures if fallback texture display is disabled
+			if (!this->skipTrianglesWithFallbackTexure && currDiffuseMapIndex == 0) continue; 
 
 			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
 			for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
@@ -925,7 +925,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				{
 					if (!(filledPixels.mask & (1 << j))) continue;
 					int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
-					if (this->missingTexturesSetToPlaceholder || diffuseMapIndex != 0)
+					if (this->skipTrianglesWithFallbackTexure || diffuseMapIndex != 0)
 					{
 						Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
 						texturePixels.x[j] = pixel.x;
