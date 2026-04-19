@@ -152,5 +152,8 @@
     <ClInclude Include="src\Renderers\Rasterizing\primitives.h">
       <Filter>Header Files\Renderers</Filter>
     </ClInclude>
+    <ClInclude Include="src\BlockStore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

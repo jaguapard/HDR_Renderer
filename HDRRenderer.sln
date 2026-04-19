@@ -13,6 +13,8 @@ Global
 		Debug|x86 = Debug|x86
 		RelClang|x64 = RelClang|x64
 		RelClang|x86 = RelClang|x86
+		RelDbgClang|x64 = RelDbgClang|x64
+		RelDbgClang|x86 = RelDbgClang|x86
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
@@ -29,6 +31,10 @@ Global
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang|x64.Build.0 = RelClang|x64
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang|x86.ActiveCfg = RelClang|Win32
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang|x86.Build.0 = RelClang|Win32
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelDbgClang|x64.ActiveCfg = RelDbgClang|x64
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelDbgClang|x64.Build.0 = RelDbgClang|x64
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelDbgClang|x86.ActiveCfg = RelDbgClang|Win32
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelDbgClang|x86.Build.0 = RelDbgClang|Win32
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Release|x64.ActiveCfg = Release|x64
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Release|x64.Build.0 = Release|x64
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Release|x86.ActiveCfg = Release|Win32
