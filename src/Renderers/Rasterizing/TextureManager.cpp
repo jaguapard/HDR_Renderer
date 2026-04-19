@@ -8,34 +8,30 @@ using namespace Rasterizing;
 Rasterizing::TextureManager::TextureManager()
 {
 	constexpr int fallbackSize = 64;
+	constexpr int expectedPitch = fallbackSize * 4;
 	static_assert(fallbackSize % 2 == 0);
-	auto& fallbackTexture = this->textures.emplace_back(fallbackSize, fallbackSize);
+
+	auto sdl = Smart_Surface(SDL_CreateSurface(fallbackSize, fallbackSize, SDL_PIXELFORMAT_ABGR8888));
+	if (!sdl) throw std::runtime_error("Failed to create SDL surface for fallback texture");
+	if (sdl->pitch != expectedPitch) throw std::runtime_error("Unsupported SDL pitch for fallback texture: " + std::to_string(sdl->pitch) + " expected " + std::to_string(expectedPitch));
+	int pixelCount = fallbackSize * fallbackSize;
+	uint32_t* pixels = (uint32_t*)(sdl->pixels);
 	for (int y = 0; y < fallbackSize; ++y)
 	{
 		for (int x = 0; x < fallbackSize; ++x)
 		{
 			int _xor = (x / (fallbackSize / 2)) ^ (y / (fallbackSize / 2));
-			fallbackTexture.packedColors[y * fallbackSize + x] = _xor ? 0xFFFF00FF : 0xFF000000;
+			pixels[y * fallbackSize + x] = _xor ? 0xFFFF00FF : 0xFF000000;
 		}
 	}
+
+	int h = this->addTextureBySurface(sdl.get());
+	if (h != 0) throw std::runtime_error("Unexpected handle for fallback texture: " + std::to_string(h) + ", expected 0.");
 }
-int Rasterizing::TextureManager::addTextureByPath(std::string path)
+int Rasterizing::TextureManager::addTextureBySurface(SDL_Surface* s)
 {
-	auto initialSurf = Smart_Surface(IMG_Load(path.c_str()));
-	if (!initialSurf)
-	{
-		//throw std::runtime_error("Unable to open texture at " + path);
-		std::cout << "Unable to open texture at " << path << ", using fallback!\n";
-		return 0;
-	}
-		
-	auto converted = Smart_Surface(SDL_ConvertSurface(initialSurf.get(), SDL_PIXELFORMAT_RGBA32));
-	if (!converted)
-	{
-		std::cout << "Unable to convert surface to RGBA32 format " << path << ": " << SDL_GetError() << ", using fallback!\n";
-		return 0;
-		//throw std::runtime_error("Unable to convert surface to ABGR128 format " + path);
-	}
+	auto converted = Smart_Surface(SDL_ConvertSurface(s, SDL_PIXELFORMAT_RGBA32));
+	if (!converted) return 0;
 
 	ColorPixelBuffer buf = converted.get();
 	std::lock_guard lck(this->mtx);
@@ -48,7 +44,24 @@ int Rasterizing::TextureManager::addTextureByPath(std::string path)
 		this->bufferForTexture.emplace_back(it.packedColors.get());
 		this->sizesForTexture.emplace_back(it.sizes);
 	}
-	return this->textures.size() - 1;	
+	return this->textures.size() - 1;
+}
+int Rasterizing::TextureManager::addTextureByPath(std::string path)
+{
+	auto initialSurf = Smart_Surface(IMG_Load(path.c_str()));
+	if (!initialSurf)
+	{
+		//throw std::runtime_error("Unable to open texture at " + path);
+		std::cout << "Unable to open texture at " << path << ", using fallback!\n";
+		return 0;
+	}
+
+	int h = this->addTextureBySurface(initialSurf.get());
+	if (h == 0)
+	{
+		std::cout << "Unable to convert surface to RGBA32 format " << path << ": " << SDL_GetError() << ", using fallback!\n";
+	}
+	return h;
 }
 
 const Rasterizing::ColorPixelBuffer& Rasterizing::TextureManager::getTextureByHandle(int i) const

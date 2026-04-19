@@ -8,6 +8,7 @@ namespace Rasterizing
 	{
 	public:
 		TextureManager();
+		int addTextureBySurface(SDL_Surface* s);
 		int addTextureByPath(std::string path);
 		const Rasterizing::ColorPixelBuffer& getTextureByHandle(int i) const;
 		bool handleIsValid(int h) const;
