@@ -41,16 +41,22 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 	Uint64 ticksBegin = SDL_GetTicksNS();
 	if (false)
 	{
-		this->skyColor = { 0,0,0,1 };
+		this->ambientLightIntensity = 1;
+		this->skyColor = { 0.0,0.014,0,1 };
 		Model& m = this->sceneModels.emplace_back();
 		Vec4f vertices[3] = {
 			{-50, 0, 50},
 			{50, 0, 50},
 			{50, 20, 50},
 		};
+		Vec4f uvs[3] = {
+			{0,0},
+			{3,0},
+			{3,3},
+		};
 		for (int k = 0; k < 3; ++k)
 		{
-			uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, 0.5, -0.5, 0, 0, 0);
+			uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, uvs[k].x, uvs[k].y, 1, 1, 1);
 			this->original_triangleStore.vertInd[k].push_back(vertInd);
 		}
 		this->original_triangleStore.diffuseMapIndex.push_back(0);
