@@ -269,7 +269,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 void RasterizingRenderer::loadScene(bool debugScene)
 {
-	this->ambientLightIntensity = 1;
+	this->ambientLightIntensity = this->lightIntesity = 1;
 	this->skyColor = { 0.0,0.014,0,1 };
 	Model& m = this->sceneModels.emplace_back();
 	Vec4f vertices[3] = {
