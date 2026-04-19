@@ -163,6 +163,8 @@ namespace Rasterizing
 		
 		struct Sizes
 		{
+			Sizes() {};
+			Sizes(uint32_t w, uint32_t h);
 			uint32_t w, h;
 			float fw, fh, rcpW, rcpH;
 			float float_maxSafeX, float_maxSafeY, rcp_maxSafeX, rcp_maxSafeY;

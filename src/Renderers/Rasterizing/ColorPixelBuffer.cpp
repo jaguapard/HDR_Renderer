@@ -213,14 +213,7 @@ void Rasterizing::ColorPixelBuffer::init(uint32_t w, uint32_t h)
     uint32_t totalPixels = w * h;
     this->packedColors = std::make_unique<uint32_t[]>(totalPixels);
     this->opacityMap = std::make_unique<uint32_t[]>(totalPixels / 32 + 1);
-    this->sizes.fw = this->sizes.w = w;
-    this->sizes.fh = this->sizes.h = h;
-    this->sizes.rcpW = double(1) / w;
-    this->sizes.rcpH = double(1) / h;
-    this->sizes.float_maxSafeX = w - 1;
-    this->sizes.float_maxSafeY = h - 1;
-    this->sizes.rcp_maxSafeX = float(1) / this->sizes.float_maxSafeX;
-    this->sizes.rcp_maxSafeY = float(1) / this->sizes.float_maxSafeY;
+    this->sizes = { w,h };
 }
 
 void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& output) const
@@ -300,4 +293,16 @@ uint32_t Rasterizing::Mapper::wrapInt(int a, uint32_t amax)
     int rem = a % amax;
     rem += rem >= 0 ? 0 : amax;
     return rem;
+}
+
+Rasterizing::ColorPixelBuffer::Sizes::Sizes(uint32_t w, uint32_t h)
+{
+    this->fw = this->w = w;
+    this->fh = this->h = h;
+    this->rcpW = double(1) / w;
+    this->rcpH = double(1) / h;
+    this->float_maxSafeX = w - 1;
+    this->float_maxSafeY = h - 1;
+    this->rcp_maxSafeX = float(1) / this->float_maxSafeX;
+    this->rcp_maxSafeY = float(1) / this->float_maxSafeY;
 }
