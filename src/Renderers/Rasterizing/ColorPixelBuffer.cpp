@@ -283,6 +283,11 @@ std::pair<float32x16, float32x16> Rasterizing::Mapper::wrapUV(float32x16 u, floa
     return { u,v };
 }
 
+std::pair<uint32_t, uint32_t> Rasterizing::Mapper::wrapIntsWithRcp(int a, int b, uint32_t amax, uint64_t rcp_aMax, uint32_t bmax, uint64_t rcp_bMax)
+{
+    return { wrapIntWithRcp(a,amax,rcp_aMax), wrapIntWithRcp(b,bmax,rcp_bMax) };
+}
+
 std::pair<uint32_t, uint32_t> Rasterizing::Mapper::wrapInts(int a, int b, uint32_t amax, uint32_t bmax)
 {
     return { wrapInt(a,amax), wrapInt(b,bmax) };
@@ -292,6 +297,23 @@ uint32_t Rasterizing::Mapper::wrapInt(int a, uint32_t amax)
 {
     int rem = a % amax;
     rem += rem >= 0 ? 0 : amax;
+#ifdef REL_DBG
+    if (rem < 0 || rem >= amax) throw std::runtime_error("wrapInt returned incorrect value!");
+#endif
+    return rem;
+}
+
+uint32_t Rasterizing::Mapper::wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_aMax)
+{
+    assert(rcp_aMax == (1ull << 32) / amax);
+    //TODO: I believe this may return incorrect results for negative a, but it has ever thrown the sentry exception ever
+    int64_t div = (int64_t(a) * rcp_aMax) >> 32;
+    int rem = a - div * amax;
+    rem += rem >= 0 ? 0 : amax;
+#ifdef REL_DBG
+    if (rem < 0 || rem >= amax) throw std::runtime_error("wrapIntWithRcp returned incorrect value!");
+#endif
+    assert(rem >= 0 && rem < amax);
     return rem;
 }
 
@@ -305,4 +327,6 @@ Rasterizing::ColorPixelBuffer::Sizes::Sizes(uint32_t w, uint32_t h)
     this->float_maxSafeY = h - 1;
     this->rcp_maxSafeX = float(1) / this->float_maxSafeX;
     this->rcp_maxSafeY = float(1) / this->float_maxSafeY;
+    this->intRcpW = (1ull << 32) / w;
+    this->intRcpH = (1ull << 32) / h;
 }

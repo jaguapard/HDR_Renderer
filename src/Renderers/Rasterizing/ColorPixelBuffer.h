@@ -34,10 +34,16 @@ namespace Rasterizing
 		static std::pair<float32x16, float32x16> wrapUV(float32x16 u, float32x16 v);
 
 		//wraps integers a and b into range 0 <= a < amax, 0 <= b < bmax
+		static std::pair<uint32_t, uint32_t> wrapIntsWithRcp(int a, int b, uint32_t amax, uint64_t rcp_aMax, uint32_t bmax, uint64_t rcp_bMax);
+
+		//wraps integers a and b into range 0 <= a < amax, 0 <= b < bmax
 		static std::pair<uint32_t, uint32_t> wrapInts(int a, int b, uint32_t amax, uint32_t bmax);
 
 		//wraps integers a into range 0 <= a < amax
 		static uint32_t wrapInt(int a, uint32_t amax);
+
+		//uses special value provided to replace division with multiplication and shift
+		static uint32_t wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_aMax);
 
 		template <MappingType M, typename T>
 		static std::pair<T, T> UV_to_XY(T u, T v, float w, float h)
@@ -166,6 +172,7 @@ namespace Rasterizing
 			Sizes() {};
 			Sizes(uint32_t w, uint32_t h);
 			uint32_t w, h;
+			uint64_t intRcpW, intRcpH; //2^32 / w or h to replace division by multiplication and shift
 			float fw, fh, rcpW, rcpH;
 			float float_maxSafeX, float_maxSafeY, rcp_maxSafeX, rcp_maxSafeY;
 		};
