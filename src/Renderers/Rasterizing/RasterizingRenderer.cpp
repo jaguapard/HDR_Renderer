@@ -642,7 +642,7 @@ void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameB
 	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
 	//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
 	//Second - 4-7, third - 8-11, fourth - 12-15
-	constexpr int DC = 0xDEADDEAD; //garbage value
+	constexpr int DC = 0; //garbage value
 	//duplicate each opaquePixelsMask bit 4 times, i.e: 0123 -> 0000111122223333, 16 bits -> 64
 	__m512i expanded = _mm512_maskz_mov_epi32(mask, _mm512_set1_epi32(-1));
 	__mmask64 duplicated = _mm512_cmpneq_epi8_mask(expanded, _mm512_set1_epi32(0));
