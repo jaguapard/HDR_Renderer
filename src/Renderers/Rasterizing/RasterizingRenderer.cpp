@@ -720,7 +720,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		{
 			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
 			int currDiffuseMapIndex = diffuseMapIndex[i];
-			if (!this->skipTrianglesWithFallbackTexure && currDiffuseMapIndex == 0) continue; 
+			if (this->skipTrianglesWithFallbackTexure && currDiffuseMapIndex == 0) continue; 
 
 			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
 			for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
@@ -923,15 +923,11 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				{
 					if (!(filledPixels.mask & (1 << j))) continue;
 					int diffuseMapIndex = this->original_triangleStore.diffuseMapIndex[triangleIndices[j]];
-					if (this->skipTrianglesWithFallbackTexure || diffuseMapIndex != 0)
-					{
-						Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
-						texturePixels.x[j] = pixel.x;
-						texturePixels.y[j] = pixel.y;
-						texturePixels.z[j] = pixel.z;
-						texturePixels.w[j] = 1;
-					}
-					else texturePixels.a[j] = 0;
+					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
+					texturePixels.x[j] = pixel.x;
+					texturePixels.y[j] = pixel.y;
+					texturePixels.z[j] = pixel.z;
+					texturePixels.w[j] = pixel.w;
 				}
 #else
 				int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), filledPixels, triangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
