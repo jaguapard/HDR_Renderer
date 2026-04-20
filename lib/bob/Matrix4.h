@@ -30,7 +30,19 @@ public:
 
 	Vec4 operator*(const Vec4 v) const;
 	//VectorPack16 operator*(const VectorPack16& v) const;
-	bob::Vec4_f32x16 operator*(const bob::Vec4_f32x16& v) const;
+	__forceinline bob::Vec4_f32x16 operator*(const bob::Vec4_f32x16& v) const
+	{
+		bob::Vec4_f32x16 ret = 0;
+		bob::float32x16 mat = _mm512_loadu_ps(this);
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int j = 0; j < 4; ++j)
+			{
+				ret[i] += v[j] * mat[i * 4 + j];
+			}
+		}
+		return ret;
+	}
 
 	Matrix4 transposed() const;
 	Vec4 multiplyByTransposed(const Vec4 v) const; //result = A^T * x (multiply transposed matrix by column vector v)
