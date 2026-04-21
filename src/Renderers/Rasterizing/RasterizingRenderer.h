@@ -87,6 +87,11 @@ private:
 	};
 	struct TriangleBatch
 	{
+		TriangleBatch() = delete;
+		TriangleBatch(const TriangleBatch&) = delete;
+		TriangleBatch(const TriangleBatch&&) = delete;
+		TriangleBatch& operator=(const TriangleBatch&) = delete;
+		TriangleBatch& operator=(const TriangleBatch&&) = delete;
 		VertexBatch vertexData[3];		
 		//overprovision some space to not worry about bounds
 		std::array<float, WORKER_PROVISION_SIZE> minX, minY, maxX, maxY, rcpSignedArea;
