@@ -546,8 +546,11 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 constexpr int WORKER_JOB_BATCH_SIZE = 2048;
 void RasterizingRenderer::workerRoutine(const int threadIndex)
 {
-	auto batchCache = std::make_unique<VertexPack16[]>(WORKER_JOB_BATCH_SIZE);
-	float nearPlaneZ = this->currGs->cameraPlane_zDist;	
+	//auto batchCache = std::make_unique<VertexPack16[]>(WORKER_JOB_BATCH_SIZE);
+	float nearPlaneZ = this->currGs->cameraPlane_zDist;
+
+	Vertice_Store cache[3];
+	for (auto& it : cache) it.resize(WORKER_JOB_BATCH_SIZE);
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
@@ -674,8 +677,28 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					maxY = _mm512_ceil_ps(maxY);
 					float32x16 rcpSignedArea = float32x16(1) / signedArea;
 					
-					//TODO: actually store into the cache!
+					int jobsToAdd = _mm_popcnt_u32(activeTriangles);
+					Mask16 storeMask = (1 << jobsToAdd) - 1;
+					for (int i = 0; i < 3; ++i)
+					{
+						_mm512_mask_storeu_ps(cache[i].x.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.x));
+						_mm512_mask_storeu_ps(cache[i].y.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.y));
+						_mm512_mask_storeu_ps(cache[i].z.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.z));
+						if (currCmd.needsUVs)
+						{
+							_mm512_mask_storeu_ps(cache[i].u.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].u));
+							_mm512_mask_storeu_ps(cache[i].v.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].v));
+						}
+						if (currCmd.needsNormals)
+						{
+							_mm512_mask_storeu_ps(cache[i].nx.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.x));
+							_mm512_mask_storeu_ps(cache[i].ny.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.y));
+							_mm512_mask_storeu_ps(cache[i].nz.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.z));
+						}
+					}
 
+					//TODO: store triangle data!
+					occupiedCacheSlots += jobsToAdd;
 				}
 			}
 		}
@@ -685,55 +708,6 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
 	
-
-	VertexStageInput inp;
-	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
-	inp.stage = 1;
-	inp.firstCmd = 0;
-	inp.lastCmd = this->drawCommands.size() - 1;
-	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
-	
-
-		inp.triangleIndices = triangleIndices;
-		inp.validInputs = storeBounds;
-		for (int i = 0; i < 3; ++i)
-		{
-			inp.vertexIndices[i] = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
-		}
-
-		this->transformVertices(inp, transformedResults.get());
-		
-		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
-		{
-			for (int outputTriangleIndex = 0; outputTriangleIndex < 2; ++outputTriangleIndex)
-			{
-				const auto& currTriangles = transformedResults[cmdIndex].outputTriangles[outputTriangleIndex];
-				Mask16 currActiveTriangles = currTriangles.activeTrianges;
-				if (!currActiveTriangles) break; //yes, break, not continue. If first outputted triangle is invalid, then none are (at least in current pipeline)
-				auto& currCmd = this->drawCommands[cmdIndex];
-				float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
-				auto& currOutput = transformedResults[cmdIndex];
-
-				int32x16 vecFirstThread = _mm512_cvttps_epi32(currTriangles.minY * rcpScreenHeightPerThread);
-				int32x16 vecLastThread = _mm512_cvttps_epi32(currTriangles.maxY * rcpScreenHeightPerThread);
-				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
-				if (!currActiveTriangles) continue;
-
-				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
-				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
-
-				for (int i = 0; i < 16; ++i)
-				{
-					if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
-					for (int currReceiverThread = vecFirstThread[i]; currReceiverThread <= vecLastThread[i]; ++currReceiverThread)
-					{
-						auto& targetStore = (*currCmd.trianglesToZones)[threadIndex * threadCount + currReceiverThread];
-						targetStore.append(currTriangleIndex + i);
-					}
-				}
-			}
-		}
-	}
 }
 
 __forceinline void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)

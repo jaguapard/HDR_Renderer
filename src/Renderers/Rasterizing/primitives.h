@@ -101,6 +101,17 @@ namespace Rasterizing
 		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
 		size_t size() const;
 		void clear();
+		void resize(size_t newSize)
+		{
+			this->x.resize(newSize);
+			this->y.resize(newSize);
+			this->z.resize(newSize);
+			this->u.resize(newSize);
+			this->v.resize(newSize);
+			this->nx.resize(newSize);
+			this->ny.resize(newSize);
+			this->nz.resize(newSize);
+		}
 	private:
 		//TODO: if gonna make this dynamic, make it cleanable and check
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
