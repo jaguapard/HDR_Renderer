@@ -61,8 +61,7 @@ private:
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
-	
-	void workerRoutine(const int threadIndex);
+
 
 	struct VertexStageInput
 	{
@@ -104,7 +103,7 @@ private:
 	{
 		Rasterizing::Vertice_Store vertexData[3];
 		std::vector<float> minX, minY, maxX, maxY, rcpSignedArea;
-		std::vector<int> diffuseMapIndex;
+		std::vector<int> diffuseMapIndex, triangleIndex;
 		float batchMinX, batchMinY, batchMaxX, batchMaxY;
 		int batchSize = 0;
 		void resize(size_t newSize)
@@ -115,6 +114,7 @@ private:
 			maxX.resize(newSize);
 			maxY.resize(newSize);
 			diffuseMapIndex.resize(newSize);
+			triangleIndex.resize(newSize);
 			rcpSignedArea.resize(newSize);
 		}
 	};

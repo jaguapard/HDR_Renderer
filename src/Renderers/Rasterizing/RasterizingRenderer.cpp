@@ -213,7 +213,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	{
 		transformTasks.emplace_back(threadpool->addTask(
 			[&, threadIndex]() {
-				this->binTrianglesIntoZones(threadIndex);
+				this->workerRoutine(threadIndex);
 			}
 		));
 	}
@@ -234,19 +234,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
 
 	threadpool->waitForMultipleTasks(transformTasks);
-
-	size_t renderJobCount = 0;
-	//for (auto& it : this->renderJobsFromThreads) renderJobCount += it.size();
-	//std::cout << renderJobCount << " render jobs\n";
-	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
-	{
-		drawTasks.emplace_back(threadpool->addTask(
-			[&, threadIndex]() {
-				this->rasterizerRoutine(threadIndex);
-			}
-		));
-	}
-	threadpool->waitForMultipleTasks(drawTasks);
 	drawTasks.clear();
 	
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
@@ -391,156 +378,6 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<V
 	}
 
 	outVerts = clipOutput;
-}
-
-
-void RasterizingRenderer::transformVertices(const VertexStageInput& input, VertexStageOutput* output) const
-{
-	//assert(std::fmod(input.threadCount, 1) == 0);
-	std::array<VertexPack16, 3> originalVertices;
-	for (int i = 0; i < 3; ++i)
-	{
-		originalVertices[i].space.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.x.data(), 4);
-		originalVertices[i].space.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.y.data(), 4);
-		originalVertices[i].space.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.z.data(), 4);
-		originalVertices[i].space.w = 1;
-	}
-	bool UVs_loaded = false, normals_loaded = false;
-
-	for (int cmdIndex = input.firstCmd; cmdIndex <= input.lastCmd; ++cmdIndex)
-	{
-		auto& currCmd = this->drawCommands[cmdIndex];
-		auto& currOutput = output[cmdIndex];
-		for (auto& it : currOutput.outputTriangles) it.activeTrianges = 0;
-		auto* currOutputTriangle = &currOutput.outputTriangles[0];
-		int32x16 behindNearPlaneCount = 0;
-		for (int i = 0; i < 3; ++i)
-		{
-			Vec4_f32x16 rotatedTranslated = currCmd.ctr.rotateAndTranslate(originalVertices[i].space);
-			Mask16 vertexBehindClippingPlane = rotatedTranslated.z < input.nearPlaneZ;
-			currOutput.behindNearPlaneMasks[i] = rotatedTranslated.z < input.nearPlaneZ;
-			behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, vertexBehindClippingPlane, behindNearPlaneCount, int32x16(1));
-			currOutputTriangle->vertices[i].space = rotatedTranslated;
-		}
-
-		Mask16 activeTriangles = input.validInputs & (behindNearPlaneCount != 3);
-		if (!activeTriangles) continue;
-
-		if (currCmd.faceCullingType != FaceCullingType::NONE)
-		{
-			int32x16 modelFlags;
-			const auto* flagsPtr = this->original_triangleStore.modelFlags.data();
-			if (input.stage == 1) modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + input.triangleIndices[0]);
-			else modelFlags = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), activeTriangles, input.triangleIndices, flagsPtr, 4);
-			
-			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutputTriangle->vertices[0].space, currOutputTriangle->vertices[1].space, currOutputTriangle->vertices[2].space);
-			float32x16 dot = currOutputTriangle->vertices[0].space.dot3d(transformedFaceNormals);
-			switch (currCmd.faceCullingType)
-			{
-				case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
-				case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & NO_FRONTFACE_CULLING) != 0 | dot >= 0.f; break;
-				default: break;
-			}
-			if (!activeTriangles) continue;
-		}
-		
-		if (input.stage != 1)
-		{
-			if (currCmd.needsUVs)
-			{
-				if (!UVs_loaded)
-				{
-					for (int i = 0; i < 3; ++i)
-					{
-						//activeTriangles may be different between commands, so gather by least restrictive valid mask, which is the input valid mask
-						originalVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.u.data(), 4);
-						originalVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.v.data(), 4);
-					}
-					UVs_loaded = true;
-				}
-
-				for (int i = 0; i < 3; ++i)
-				{
-					currOutputTriangle->vertices[i].u = originalVertices[i].u;
-					currOutputTriangle->vertices[i].v = originalVertices[i].v;
-				}
-			}
-
-			if (currCmd.needsNormals)
-			{
-				if (!normals_loaded)
-				{
-					for (int i = 0; i < 3; ++i)
-					{
-						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.nx.data(), 4);
-						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.ny.data(), 4);
-						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.nz.data(), 4);
-					}
-					normals_loaded = true;
-				}
-				for (int i = 0; i < 3; ++i) currOutputTriangle->vertices[i].normal = originalVertices[i].normal;
-			}
-		}
-		
-		this->performNearPlaneClipping(input.nearPlaneZ, currOutput.outputTriangles, behindNearPlaneCount, currOutput.behindNearPlaneMasks);
-
-		float w = currCmd.renderW;
-		float h = currCmd.renderH;
-		currOutput.behindNearPlaneCount = behindNearPlaneCount;
-
-		Mask16 oldActiveTriangles = activeTriangles;
-		for (int outputTriangleIndex = 0; outputTriangleIndex < 2; outputTriangleIndex++)
-		{
-			if (outputTriangleIndex == 1)
-			{
-				if (behindNearPlaneCount == 1) //load new triangle if there is new
-				{
-					activeTriangles = oldActiveTriangles & (behindNearPlaneCount == 1);
-				}
-				else break;
-			}
-			if (!activeTriangles) break;
-			currOutputTriangle = &currOutput.outputTriangles[outputTriangleIndex];
-			
-			float32x16 fovMult = 1; //TODO: adjustable game setting?
-			float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
-			for (int i = 0; i < 3; ++i)
-			{
-				auto& currVertex = currOutputTriangle->vertices[i];
-				float32x16 zInv = fovMult / currVertex.space.z;
-				currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
-				minX = _mm512_min_ps(minX, currVertex.space.x);
-				minY = _mm512_min_ps(minY, currVertex.space.y);
-				maxX = _mm512_max_ps(maxX, currVertex.space.x);
-				maxY = _mm512_max_ps(maxY, currVertex.space.y);
-				if (input.stage == 2)
-				{
-					currVertex.space.z = zInv;
-					currVertex.u *= zInv;
-					currVertex.v *= zInv;
-					currVertex.normal.x *= zInv;
-					currVertex.normal.y *= zInv;
-					currVertex.normal.z *= zInv;
-				}
-			}
-
-			const Vec4_f32x16& r1 = currOutputTriangle->vertices[0].space;
-			const Vec4_f32x16& r2 = currOutputTriangle->vertices[1].space;
-			const Vec4_f32x16& r3 = currOutputTriangle->vertices[2].space;
-
-			float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
-			Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
-			activeTriangles = (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & (activeTriangles & nonZeroSignedAreaMask);
-			if (!activeTriangles) continue;
-
-			currOutputTriangle->minX = _mm512_floor_ps(minX);
-			currOutputTriangle->minY = _mm512_floor_ps(minY);
-			currOutputTriangle->maxX = _mm512_ceil_ps(maxX);
-			currOutputTriangle->maxY = _mm512_ceil_ps(maxY);
-			currOutputTriangle->rcpSignedArea = float32x16(1) / signedArea;
-			currOutputTriangle->activeTrianges = activeTriangles;
-		}
-	}
 }
 
 constexpr int WORKER_JOB_BATCH_SIZE = 2048;
@@ -707,8 +544,9 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					_mm512_mask_storeu_ps(batch.minY.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, minY));
 					_mm512_mask_storeu_ps(batch.maxX.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxX));
 					_mm512_mask_storeu_ps(batch.maxY.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxY));
-					_mm512_mask_storeu_ps(batch.rcpSignedArea.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, rcpSignedArea)); //TODO: is this all?
+					_mm512_mask_storeu_ps(batch.rcpSignedArea.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, rcpSignedArea)); 
 					_mm512_mask_storeu_epi32(batch.diffuseMapIndex.data() + batch.batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, diffuseMapIndices)); //TODO: is this all?
+					_mm512_mask_storeu_epi32(batch.triangleIndex.data() + batch.batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, triangleIndices));
 					batch.batchSize += jobsToAdd;
 				}
 			}
@@ -845,8 +683,8 @@ void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const in
 		float32x16 group_dAlpha_dy = (v2.space.x - v1.space.x) * rcpSignedArea;
 		float32x16 group_dBeta_dx = (v2.space.y - v0.space.y) * rcpSignedArea;
 		float32x16 group_dBeta_dy = (v0.space.x - v2.space.x) * rcpSignedArea;
-		float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues!
-		float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues!
+		float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx;
+		float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy;
 
 		//int jobsInThisPack = std::min()
 		for (int i = 0; i < 16; ++i)
@@ -905,7 +743,7 @@ void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const in
 
 					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 					{
-						_mm512_mask_storeu_epi32((uint32_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]));
+						_mm512_mask_storeu_epi32((uint32_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(batch.triangleIndex[currentTriangleIndex +i]));
 					}
 
 					if (Statsman::ENABLED)
