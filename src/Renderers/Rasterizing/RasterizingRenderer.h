@@ -77,6 +77,7 @@ private:
 		TriangleBatch* operator&();
 		TriangleBatch* operator->();
 		TriangleBatch& operator*();
+		TriangleBatchHandle& operator=(const TriangleBatchHandle& other);
 		TriangleBatchHandle(const TriangleBatchHandle& other);
 		~TriangleBatchHandle() noexcept;
 		friend struct TriangleBatchPool;

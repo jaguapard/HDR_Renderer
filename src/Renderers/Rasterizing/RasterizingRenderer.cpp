@@ -1134,6 +1134,14 @@ RasterizingRenderer::TriangleBatch& RasterizingRenderer::TriangleBatchHandle::op
 {
 	return *(pool->memory + this->indexInPool);
 }
+RasterizingRenderer::TriangleBatchHandle& RasterizingRenderer::TriangleBatchHandle::operator=(const TriangleBatchHandle& other)
+{
+	std::lock_guard lck(other.pool->mtx);
+	this->pool = other.pool;
+	this->indexInPool = other.indexInPool;
+	this->pool->refCount[other.indexInPool]++;
+	return *this;
+}
 RasterizingRenderer::TriangleBatchHandle::TriangleBatchHandle(const TriangleBatchHandle& other)
 {
 	this->pool = other.pool;
