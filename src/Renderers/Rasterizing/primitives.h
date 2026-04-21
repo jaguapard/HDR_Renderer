@@ -5,8 +5,16 @@
 #include "CoordinateTransformer.h"
 #include "RenderJobStore.h"
 #include <map>
+#include "BufferZoneManager.h"
+
 namespace Rasterizing
 {
+	template <typename T>
+	struct ZonedBuffer
+	{
+		BufferZoneManager manager;
+		T* data = nullptr;
+	};
 	enum class ShadingMode
 	{
 		SMOOTH,
