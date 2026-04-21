@@ -733,10 +733,17 @@ void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const in
 	{
 		Mask16 batchBounds = (int32x16::sequence() + currentTriangleIndex) < batch.batchSize;
 		//TODO: doubling triangles if they are clipped! (is it? In new pipeline with batches maybe not)
-		float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), _mm512_maskz_loadu_ps(batchBounds, batch.minX.data() + currentTriangleIndex));
-		float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), _mm512_maskz_loadu_ps(batchBounds, batch.minY.data() + currentTriangleIndex));
-		float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), _mm512_maskz_loadu_ps(batchBounds, batch.maxX.data() + currentTriangleIndex));
-		float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), _mm512_maskz_loadu_ps(batchBounds, batch.maxY.data() + currentTriangleIndex));
+		float32x16 unclampedMinX = _mm512_maskz_loadu_ps(batchBounds, batch.minX.data() + currentTriangleIndex);
+		float32x16 unclampedMinY = _mm512_maskz_loadu_ps(batchBounds, batch.minY.data() + currentTriangleIndex);
+		float32x16 unclampedMaxX = _mm512_maskz_loadu_ps(batchBounds, batch.maxX.data() + currentTriangleIndex);
+		float32x16 unclampedMaxY = _mm512_maskz_loadu_ps(batchBounds, batch.maxY.data() + currentTriangleIndex);
+		batchBounds &= (unclampedMaxX >= my_xMin) & (unclampedMaxY >= my_yMin) & (unclampedMinX <= my_xMax) & (unclampedMinY <= my_yMax);
+		if (!batchBounds) continue;
+
+		float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), unclampedMinX);
+		float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), unclampedMinY);
+		float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), unclampedMaxX);
+		float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), unclampedMaxY);
 		VertexPack16 v[3];
 		for (int i = 0; i < 3; ++i)
 		{
