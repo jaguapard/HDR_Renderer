@@ -586,8 +586,19 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 						std::lock_guard lck(currTarget.mtx);
 						currTarget.unprocessedBatches.push_back(batch);
 					}
-					
 				}
+			}
+
+			auto& myBatchList = this->threadBatchLists[threadIndex];
+			std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
+			{
+				std::lock_guard lck(myBatchList.mtx);
+				poppedBatches = myBatchList.unprocessedBatches;//std::move(myBatchList.unprocessedBatches);
+				myBatchList.unprocessedBatches.clear();
+			}
+			for (auto& b : poppedBatches)
+			{
+				this->drawTriangleBatch(*b, threadIndex);
 			}
 
 			if (shouldDrawToo)
