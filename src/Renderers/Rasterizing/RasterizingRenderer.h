@@ -100,6 +100,25 @@ private:
 	struct PixelStageOutput
 	{
 	};
+	struct TriangleBatch
+	{
+		Rasterizing::Vertice_Store vertexData[3];
+		std::vector<float> minX, minY, maxX, maxY, rcpSignedArea;
+		std::vector<int> diffuseMapIndex;
+		float batchMinX, batchMinY, batchMaxX, batchMaxY;
+		int batchSize = 0;
+		void resize(size_t newSize)
+		{
+			for (auto& it : vertexData) it.resize(newSize);
+			minX.resize(newSize);
+			minY.resize(newSize);
+			maxX.resize(newSize);
+			maxY.resize(newSize);
+			diffuseMapIndex.resize(newSize);
+			rcpSignedArea.resize(newSize);
+		}
+	};
+
 	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& outVerts, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
 	//For draw command i the output will be written to output[i]
@@ -110,7 +129,7 @@ private:
 	void binTrianglesIntoZones(const int threadIndex);
 
 	void drawTriangleBatch(const PixelStageInput& inp, const int threadIndex);
-
+	void drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd);
 	//Performs transformations and rasterization of binned triangles
 	void rasterizerRoutine(const int threadIndex);
 	Rasterizing::TextureManager textureManager;
