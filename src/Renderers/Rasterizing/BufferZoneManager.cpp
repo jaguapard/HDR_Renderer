@@ -31,5 +31,5 @@ void Rasterizing::BufferZoneManager::getLimitsForThread(int threadIndex, float& 
 	maxX = w - 1;
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->h, this->threadCount);
 	minY = floor(d_low);
-	maxY = std::min<float>(d_high, h - 1);
+	maxY = std::min<float>(ceil(d_high), h - 1);
 }
