@@ -62,20 +62,25 @@ private:
 	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
 
+	static inline constexpr int WORKER_JOB_BATCH_SIZE = 2048;
+	static inline constexpr int WORKER_PROVISION_SIZE = WORKER_JOB_BATCH_SIZE + 32;
+	struct VertexBatch
+	{
+		std::array<float, WORKER_PROVISION_SIZE> x, y, z, u, v, nx, ny, nz;
+	};
 	struct TriangleBatch
 	{
-		static inline constexpr int WORKER_JOB_BATCH_SIZE = 2048;
-		Rasterizing::Vertice_Store vertexData[3];
+		VertexBatch vertexData[3];		
 		//overprovision some space to not worry about bounds
-		std::array<float, WORKER_JOB_BATCH_SIZE + 32> minX, minY, maxX, maxY, rcpSignedArea;
-		std::array<int, WORKER_JOB_BATCH_SIZE + 32> diffuseMapIndex, triangleIndex;
+		std::array<float, WORKER_PROVISION_SIZE> minX, minY, maxX, maxY, rcpSignedArea;
+		std::array<int, WORKER_PROVISION_SIZE> diffuseMapIndex, triangleIndex;
 		float batchMinX, batchMinY, batchMaxX, batchMaxY;
 		int batchSize = 0;
 		int drawCmdIndex = INT32_MIN;
 
 		TriangleBatch()
 		{
-			for (auto& it : vertexData) it.resize(minX.size());
+			//for (auto& it : vertexData) it.resize(minX.size());
 		}
 	};
 

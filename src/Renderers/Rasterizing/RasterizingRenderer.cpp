@@ -421,8 +421,8 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		batch->drawCmdIndex = cmdIndex;
 		while (true) //Process new batch
 		{
-			size_t currTriangleIndex = currCmd.lastClaimedTriangle.fetch_add(batch->WORKER_JOB_BATCH_SIZE);
-			size_t stopInd = std::min(triangleCount, currTriangleIndex + batch->WORKER_JOB_BATCH_SIZE);
+			size_t currTriangleIndex = currCmd.lastClaimedTriangle.fetch_add(WORKER_JOB_BATCH_SIZE);
+			size_t stopInd = std::min(triangleCount, currTriangleIndex + WORKER_JOB_BATCH_SIZE);
 			if (currTriangleIndex >= triangleCount)
 			{
 				currCmd.threadsDone++;
@@ -436,7 +436,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				batch->batchMaxX = batch->batchMaxY = 0;
 				batch->drawCmdIndex = cmdIndex;
 				uint64_t currBatchScreenArea = 0;
-				for (; currTriangleIndex < stopInd && batch->batchSize < batch->WORKER_JOB_BATCH_SIZE && currBatchScreenArea < MAX_AREA_ALLOWANCE; currTriangleIndex += 16)
+				for (; currTriangleIndex < stopInd && batch->batchSize < WORKER_JOB_BATCH_SIZE && currBatchScreenArea < MAX_AREA_ALLOWANCE; currTriangleIndex += 16)
 				{
 					int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
 					Mask16 storeBounds = triangleIndices < stopInd;
