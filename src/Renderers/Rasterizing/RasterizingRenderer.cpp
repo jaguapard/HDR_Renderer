@@ -605,9 +605,8 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 			{
 				this->drawTriangleBatch(*batch, threadIndex);
 			}
-
 			batch = std::make_shared<TriangleBatch>();
-
+			this->processBatchesSentByOtherThreads(threadIndex);
 		}
 	}
 
@@ -620,7 +619,11 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		}
 		if (doneCount == this->drawCommands.size()) break;
 	}
+	this->processBatchesSentByOtherThreads(threadIndex);
+}
 
+void RasterizingRenderer::processBatchesSentByOtherThreads(const int threadIndex)
+{
 	auto& myBatchList = this->threadBatchLists[threadIndex];
 	std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
 	{

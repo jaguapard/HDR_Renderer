@@ -95,6 +95,8 @@ private:
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
 
+	void processBatchesSentByOtherThreads(const int threadIndex);
+
 	Vec4f lightPos, lightAng, lightColor, skyColor = Vec4f(0.3, 0.7, 1, 1);
 	//float lightIntensity, skyLightIntensity;
 	float ambientLightIntensity = 0.3, lightIntesity = 3;
