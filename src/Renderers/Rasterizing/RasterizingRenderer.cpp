@@ -129,6 +129,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getThreadCount();
 	if (!this->threadBatchLists) this->threadBatchLists = std::make_unique<ThreadBatchList[]>(threadCount);
+	for (int i = 0; i < threadCount; ++i) this->threadBatchLists[i].unprocessedBatches.clear();
 
 	this->currGs = &settings;
 	if (this->singleTriangleDebugMode)
@@ -394,16 +395,18 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
 	int threadCount = this->currGs->threadpool->getThreadCount();
+	std::vector<int> recievers(threadCount);
 
 	size_t triangleCount = this->original_triangleStore.size();
 	//TODO: remake this to process all commands together?
 	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
 	{
 		auto& currCmd = this->drawCommands[cmdIndex];
+		BufferZoneManager zoneManager(threadCount, currCmd.renderW, currCmd.renderH);
 		while (true) //Process new batch-> 
 		{
 			size_t currTriangleIndex = currCmd.lastClaimedTriangle.fetch_add(WORKER_JOB_BATCH_SIZE);
-			size_t stopInd = currTriangleIndex + WORKER_JOB_BATCH_SIZE;
+			size_t stopInd = std::min(triangleCount, currTriangleIndex + WORKER_JOB_BATCH_SIZE);
 			if (currTriangleIndex >= triangleCount) break;
 			//Fill the cache with transformed results before rasterizing
 			batch->batchSize = 0;
@@ -562,7 +565,39 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 			//if not, send it to other threads (copy shared ptr into their storage) and then rasterize my share. 
 			// Don't forget to check out "incoming mail" after that and allocate shared_ptr for a new batch, filter out not mine and process with that
 			//TODO: don't pass cmd, indices are now written out and disjointed.
-			this->drawTriangleBatch(*batch, threadIndex, currCmd);
+			if (batch->batchSize == 0) continue;
+			int receiverCount = zoneManager.getThreadsResponsible(recievers.data(), batch->batchMinX, batch->batchMinY, batch->batchMaxX, batch->batchMaxY);
+			//todo: check manager for clamping.
+			if (receiverCount == 0) continue;
+
+			bool shouldDrawToo = false;
+			if (receiverCount == 1 && recievers[0] == threadIndex) //easy case - all triangles are inside my zone, just draw
+			{
+				this->drawTriangleBatch(*batch, threadIndex, currCmd);
+				continue;
+			}
+			else
+			{
+				for (int i = 0; i < receiverCount; ++i)
+				{
+					int recieverThread = recievers[i];
+					if (recieverThread == threadIndex) shouldDrawToo = true;
+					else
+					{
+						auto& currTarget = this->threadBatchLists[recieverThread];
+						std::lock_guard lck(currTarget.mtx);
+						currTarget.unprocessedBatches.push_back(batch);
+					}
+					
+				}
+			}
+
+			if (shouldDrawToo)
+			{
+				this->drawTriangleBatch(*batch, threadIndex, currCmd);
+				batch = std::make_shared<TriangleBatch>();
+				batch->resize(WORKER_JOB_BATCH_SIZE + 32);
+			}
 		}
 	}
 }
