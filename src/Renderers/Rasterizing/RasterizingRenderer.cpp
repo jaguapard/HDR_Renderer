@@ -546,12 +546,52 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	}
 }
 
-void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
+constexpr int WORKER_JOB_CACHE_SIZE = 2048;
+void RasterizingRenderer::workerRoutine(const int threadIndex)
 {
+	std::array<float, WORKER_JOB_CACHE_SIZE> x, y, z, u, v, diffuseMapIndex;
+	
+
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
 	Mask16 storeBounds = 0xFFFF;
 	int threadCount = this->currGs->threadpool->getThreadCount();
+
+	//TODO: remake this to process all commands together?
+	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
+	{
+		const auto& currCmd = this->drawCommands[cmdIndex];
+		int batchMinX, batchMinY, batchMaxX, batchMaxY;
+		batchMaxX = batchMaxY = INT32_MIN;
+		batchMinX = batchMinY = INT32_MAX;
+		size_t currTriangleIndex = startInd;
+		int occupiedCacheSlots = 0;
+		while (occupiedCacheSlots < WORKER_JOB_CACHE_SIZE - 32 && currTriangleIndex < stopInd) //fill the cache with transformed results before rasterizing
+		{
+			for (; currTriangleIndex < stopInd; currTriangleIndex += 16)
+			{
+				int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
+				if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
+
+				std::array<int32x16, 3> vertIndCache;
+				std::array<Vec4_f32x16, 3> originalWorld;
+				for (int i = 0; i < 3; ++i)
+				{
+					int32x16 vertInd = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
+					originalWorld[i].x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.x.data(), 4);
+					originalWorld[i].y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.y.data(), 4);
+					originalWorld[i].z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.z.data(), 4);
+					originalWorld[i].w = 1;
+					vertIndCache[i] = vertInd;
+				}
+			}
+		}
+	}
+}
+
+void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
+{
+	
 
 	VertexStageInput inp;
 	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
@@ -559,10 +599,7 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 	inp.firstCmd = 0;
 	inp.lastCmd = this->drawCommands.size() - 1;
 	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
-	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
-	{
-		int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
-		if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
+	
 
 		inp.triangleIndices = triangleIndices;
 		inp.validInputs = storeBounds;

@@ -62,6 +62,7 @@ private:
 	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
 	
+	void workerRoutine(const int threadIndex);
 
 	struct VertexStageInput
 	{
