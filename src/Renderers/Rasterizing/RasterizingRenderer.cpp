@@ -411,7 +411,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	int threadCount = this->currGs->threadpool->getThreadCount();
 	std::vector<int> recievers(threadCount);
 
-	constexpr uint64_t MAX_AREA_ALLOWANCE = 16 * TriangleBatch::WORKER_JOB_BATCH_SIZE;
+	constexpr uint64_t MAX_AREA_ALLOWANCE = UINT64_MAX;//16 * TriangleBatch::WORKER_JOB_BATCH_SIZE; //disabled for now, too slow
 	size_t triangleCount = this->original_triangleStore.size();
 	//TODO: remake this to process all commands together?
 	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
