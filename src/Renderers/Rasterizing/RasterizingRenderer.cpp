@@ -608,6 +608,20 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					if (!activeTriangles) continue;
 				}
 
+				for (int i = 0; i < 3; ++i)
+				{
+					if (currCmd.needsUVs)
+					{
+						transformed[i].u = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.u.data(), 4);
+						transformed[i].v = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.v.data(), 4);
+					}
+					if (currCmd.needsNormals)
+					{
+						transformed[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nx.data(), 4);
+						transformed[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.ny.data(), 4);
+						transformed[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nz.data(), 4);
+					}
+				}
 				this->performNearPlaneClipping(nearPlaneZ, transformed, behindNearPlaneCount, behindNearPlaneMasks);
 			}
 		}
