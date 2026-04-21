@@ -168,9 +168,9 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.ctr = { w,h }; 
 	mainDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
 	mainDrawCmd.shadingMode = this->shadingMode;
-	mainDrawCmd.buffers.emplace_back(this->zBuffer.data(), w, h);
-	mainDrawCmd.buffers.emplace_back(this->currGs->graphicsOutputBuffer, w, h);
-	mainDrawCmd.buffers.emplace_back(this->deferredTriangleIndices.data(), w, h);
+	mainDrawCmd.zBuffer = this->zBuffer.data();
+	mainDrawCmd.frameBuffer = (uint64_t*)this->currGs->graphicsOutputBuffer;
+	mainDrawCmd.triangleIndexBuffer = this->deferredTriangleIndices.data();
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = true;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
@@ -191,7 +191,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.trianglesToZones = &this->trianglesByZones[1];
 	shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
 	shadowMapDrawCmd.renderH = shadowMapH;
-	shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
+	shadowMapDrawCmd.zBuffer = this->shadowMap_zBuffer.data();
 	shadowMapDrawCmd.needsUVs = true;
 	shadowMapDrawCmd.needsNormals = false;
 	shadowMapDrawCmd.faceCullingType = this->useShadowMapFrontFaceCulling ? FaceCullingType::FRONTFACE : FaceCullingType::NONE; //FaceCullingType::FRONT
@@ -639,8 +639,8 @@ Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int 
 
 void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd)
 {
-	float* zBuffer = (float*)drawCmd.buffers[0].data;
-	uint64_t* frameBuffer = drawCmd.buffers.size() >= 2 ? (uint64_t*)drawCmd.buffers[1].data : nullptr;
+	float* zBuffer = drawCmd.zBuffer;
+	uint64_t* frameBuffer = drawCmd.frameBuffer;
 	/*
 	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, drawCmd.renderH);
 	float my_yMin = floor(d_low);
@@ -740,7 +740,7 @@ void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const in
 
 					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 					{
-						_mm512_mask_storeu_epi32((uint32_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(batch.triangleIndex[currentTriangleIndex +i]));
+						_mm512_mask_storeu_epi32(drawCmd.triangleIndexBuffer + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(batch.triangleIndex[currentTriangleIndex +i]));
 					}
 
 					if (Statsman::ENABLED)
@@ -778,10 +778,10 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	int w = this->drawCommands[0].renderW;
 	bool texturingEnabled = this->currGs->texturingEnabled;
 
-	float* shadowMap_zBuffer = (float*)this->drawCommands[1].buffers[0].data;
-	float* main_zBuffer = (float*)this->drawCommands[0].buffers[0].data;
-	float* main_frameBuffer = (float*)this->drawCommands[0].buffers[1].data;
-	uint32_t* renderJobPtrsBuffer = (uint32_t*)this->drawCommands[0].buffers[2].data;
+	float* shadowMap_zBuffer = this->drawCommands[1].zBuffer;
+	float* main_zBuffer = this->drawCommands[0].zBuffer;
+	uint64_t* main_frameBuffer = this->drawCommands[0].frameBuffer;
+	uint32_t* triangleIndexBuffer = this->drawCommands[0].triangleIndexBuffer;
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;
@@ -811,7 +811,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Vec4_f32x16 screenPos(x, y, 1, zInvSrc);
 			Vec4_f32x16 worldCoords = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPos);
 
-			int32x16 triangleIndices = _mm512_maskz_loadu_epi32(xBoundsMask, renderJobPtrsBuffer + yInt * w + xInt);
+			int32x16 triangleIndices = _mm512_maskz_loadu_epi32(xBoundsMask, triangleIndexBuffer + yInt * w + xInt);
 			Mask16 filledPixels = xBoundsMask & (triangleIndices != -1);
 			if (!filledPixels) continue;
 
@@ -941,7 +941,7 @@ uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, 
 	return it->second;
 }
 
-
+//TODO: move these out of here
 size_t Rasterizing::Vertice_Store::size() const
 {
 	return x.size();
