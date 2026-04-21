@@ -164,7 +164,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	int w = (int)settings.outputTextureParams.Width;
 	int h = (int)settings.outputTextureParams.Height;
-	DrawCommand mainDrawCmd;
+	DrawCommand& mainDrawCmd = this->drawCommands[0];
 	mainDrawCmd.ctr = { w,h }; 
 	mainDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
 	mainDrawCmd.shadingMode = this->shadingMode;
@@ -179,9 +179,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.renderW = w;
 	mainDrawCmd.renderH = h;
 	mainDrawCmd.recipe = DrawRecipe::MAIN_DEPTH_PREPASS;
-	this->drawCommands[0] = mainDrawCmd;
 
-	DrawCommand shadowMapDrawCmd;
+	DrawCommand& shadowMapDrawCmd = this->drawCommands[1];
 	shadowMapDrawCmd.ctr = { (int)shadowMapW, (int)shadowMapH };
 	shadowMapDrawCmd.ctr.prepare(Vec4f(1281.845703, 2235.967773, 178.236572, 0.000000), Vec4f(0.000000, 4.523108, 0.797002, 0.000000));
 	//shadowMapDrawCmd.ctr.prepare(Vec4f(-86.050537, 1644.088623, 710.859253, 0.000000), Vec4f(0.000000, -3.165947,0.366014,0.000000));
@@ -199,7 +198,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.renderW = shadowMapW;
 	shadowMapDrawCmd.renderH = shadowMapH;
 	shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
-	this->drawCommands[1] = shadowMapDrawCmd;
+
+	for (auto& it : this->drawCommands) it.lastClaimedTriangle = 0;
 
 	int tCntSq = threadCount * threadCount;
 	for (auto& currSub : this->drawCommands)
@@ -385,26 +385,29 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	float nearPlaneZ = this->currGs->cameraPlane_zDist;
 
 	TriangleBatch batch;
-	batch.resize(WORKER_JOB_BATCH_SIZE);
+	batch.resize(WORKER_JOB_BATCH_SIZE + 32); //overprovision some space to not worry abound bounds
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
 	int threadCount = this->currGs->threadpool->getThreadCount();
 
+	size_t triangleCount = this->original_triangleStore.size();
 	//TODO: remake this to process all commands together?
 	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
 	{
-		const auto& currCmd = this->drawCommands[cmdIndex];
-		size_t currTriangleIndex = startInd;
-		while (currTriangleIndex < stopInd) //Process new batch. 
+		auto& currCmd = this->drawCommands[cmdIndex];
+		while (true) //Process new batch. 
 		{
+			size_t currTriangleIndex = currCmd.lastClaimedTriangle.fetch_add(WORKER_JOB_BATCH_SIZE);
+			size_t stopInd = currTriangleIndex + WORKER_JOB_BATCH_SIZE;
+			if (currTriangleIndex >= triangleCount) break;
 			//Fill the cache with transformed results before rasterizing
 			batch.batchSize = 0;
 			batch.batchMinX = currCmd.renderW - 1;
 			batch.batchMinY = currCmd.renderH - 1;
 			batch.batchMaxX = batch.batchMaxY = 0;
 
-			for (; currTriangleIndex < stopInd && batch.batchSize < WORKER_JOB_BATCH_SIZE - 32; currTriangleIndex += 16)
+			for (; currTriangleIndex < stopInd && batch.batchSize < WORKER_JOB_BATCH_SIZE; currTriangleIndex += 16)
 			{
 				int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
 				Mask16 storeBounds = triangleIndices < stopInd;

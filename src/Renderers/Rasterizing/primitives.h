@@ -95,6 +95,7 @@ namespace Rasterizing
 		uint32_t renderW, renderH;
 		uint32_t threadCount = -1;
 		DrawRecipe recipe;
+		std::atomic<size_t> lastClaimedTriangle = 0;
 	};
 
 	struct Vertice_Store
