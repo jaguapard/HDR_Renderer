@@ -574,7 +574,8 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
 
 				std::array<int32x16, 3> vertIndCache;
-				std::array<Vec4_f32x16, 3> originalWorld, transformed;
+				std::array<Vec4_f32x16, 3> originalWorld;
+				std::array<VertexPack16, 6> transformed;
 				std::array<Mask16, 3> behindNearPlaneMasks;
 				int32x16 behindNearPlaneCount = 0;
 				for (int i = 0; i < 3; ++i)
@@ -584,10 +585,10 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					originalWorld[i].y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.y.data(), 4);
 					originalWorld[i].z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.z.data(), 4);
 					originalWorld[i].w = 1;
-					vertIndCache[i] = vertInd;
+					vertIndCache[i] = vertInd; 
 					
-					transformed[i] = currCmd.ctr.rotateAndTranslate(originalWorld[i]);
-					behindNearPlaneMasks[i] = transformed[i].z < this->currGs->cameraPlane_zDist;
+					transformed[i].space = currCmd.ctr.rotateAndTranslate(originalWorld[i]);
+					behindNearPlaneMasks[i] = transformed[i].space.z < this->currGs->cameraPlane_zDist;
 					behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, behindNearPlaneMasks[i], behindNearPlaneCount, _mm512_set1_epi32(1));
 				}
 
@@ -599,8 +600,8 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					const auto* flagsPtr = this->original_triangleStore.modelFlags.data();
 					int32x16 modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + currTriangleIndex);
 
-					Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformed[0], transformed[1], transformed[2]);
-					float32x16 dot = transformed[0].dot3d(transformedFaceNormals);
+					Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformed[0].space, transformed[1].space, transformed[2].space);
+					float32x16 dot = transformed[0].space.dot3d(transformedFaceNormals);
 					switch (currCmd.faceCullingType)
 					{
 					case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
