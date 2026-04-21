@@ -716,6 +716,16 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		const VertexPack16& v0 = currTriangles.vertices[0];
 		const VertexPack16& v1 = currTriangles.vertices[1];
 		const VertexPack16& v2 = currTriangles.vertices[2];
+
+		float32x16 group_initialAlpha, group_initialBeta, group_initialGamma;
+		calculateBarycentricCoordinates2D({ group_xBeg, group_yBeg, 0.f, 0.f }, v0.space, v1.space, v2.space, currTriangles.rcpSignedArea, group_initialAlpha, group_initialBeta, group_initialGamma);
+		float32x16 group_dAlpha_dx = (v1.space.y - v2.space.y) * currTriangles.rcpSignedArea;
+		float32x16 group_dAlpha_dy = (v2.space.x - v1.space.x) * currTriangles.rcpSignedArea;
+		float32x16 group_dBeta_dx = (v2.space.y - v0.space.y) * currTriangles.rcpSignedArea;
+		float32x16 group_dBeta_dy = (v0.space.x - v2.space.x) * currTriangles.rcpSignedArea;
+		float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues!
+		float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues!
+
 		for (int i = 0; i < 16; ++i)
 		{
 			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
@@ -731,28 +741,30 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				for (float32x16 x = float32x16::sequence() + group_xBeg[i]; Mask16 xBoundsMask = (x <= group_xEnd[i]); x += 16, xInt += 16)
 				{
 					float32x16 dx = x - group_xBeg[i];
-
-					float32x16 alpha, beta, gamma;
-					calculateBarycentricCoordinates2D({ x,y,0.f,0.f }, v0.space.extractHorizontalVector(i), v1.space.extractHorizontalVector(i), v2.space.extractHorizontalVector(i), currTriangles.rcpSignedArea[i], alpha, beta, gamma);
-					if (Statsman::ENABLED) MyStatsman.rendering.barycentricsCalculated += 16;
-
+					float32x16 alpha = float32x16(group_initialAlpha[i]) + float32x16(group_dAlpha_dx[i]) * dx + float32x16(group_dAlpha_dy[i]) * dy;
+					float32x16 beta = float32x16(group_initialBeta[i]) + float32x16(group_dBeta_dx[i]) * dx + float32x16(group_dBeta_dy[i]) * dy;
+					float32x16 gamma = float32x16(group_initialGamma[i]) + float32x16(group_dGamma_dx[i]) * dx + float32x16(group_dGamma_dy[i]) * dy;
 					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
-					if (Statsman::ENABLED) MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+					if (Statsman::ENABLED)
+					{
+						MyStatsman.rendering.barycentricsCalculated += 16;
+						MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+					}
 					if (!pointsInsideTriangleMask) continue;
 
 					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u[i], v0.v[i], v0.space.z[i], 0.f) * alpha +
 						Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
 						Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
 					float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
+					//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
+					//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
+					Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
 					if (Statsman::ENABLED)
 					{
 						MyStatsman.rendering.zBufferFetchLanes += 16;
 						MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
 					}
-					//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
-					//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
-					Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
-					if (Statsman::ENABLED) MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
 					if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
 					Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
