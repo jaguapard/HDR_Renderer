@@ -561,14 +561,14 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
 	{
 		const auto& currCmd = this->drawCommands[cmdIndex];
-		int batchMinX, batchMinY, batchMaxX, batchMaxY;
-		batchMaxX = batchMaxY = INT32_MIN;
-		batchMinX = batchMinY = INT32_MAX;
 		size_t currTriangleIndex = startInd;
-		int occupiedCacheSlots = 0;
-		while (occupiedCacheSlots < WORKER_JOB_BATCH_SIZE - 32 && currTriangleIndex < stopInd) //fill the cache with transformed results before rasterizing
+		while (currTriangleIndex < stopInd) //Process new batch. 
 		{
-			for (; currTriangleIndex < stopInd; currTriangleIndex += 16)
+			//Fill the cache with transformed results before rasterizing
+			int occupiedCacheSlots = 0;
+			int batchMinX = INT32_MAX, batchMinY= INT32_MAX, batchMaxX = INT32_MIN, batchMaxY = INT32_MIN;
+
+			for (; currTriangleIndex < stopInd && occupiedCacheSlots < WORKER_JOB_BATCH_SIZE - 32; currTriangleIndex += 16)
 			{
 				int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
 				if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
