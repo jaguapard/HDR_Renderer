@@ -126,6 +126,10 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 
 void RasterizingRenderer::renderFrame(const GameSettings& settings)
 {
+	Threadpool* threadpool = settings.threadpool;
+	int threadCount = threadpool->getThreadCount();
+	if (!this->threadBatchLists) this->threadBatchLists = std::make_unique<ThreadBatchList[]>(threadCount);
+
 	this->currGs = &settings;
 	if (this->singleTriangleDebugMode)
 	{
@@ -158,10 +162,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		this->loadScene(true);
 		return;
 	}
-
-
-	Threadpool* threadpool = settings.threadpool;
-	int threadCount = threadpool->getThreadCount();
 
 	int w = (int)settings.outputTextureParams.Width;
 	int h = (int)settings.outputTextureParams.Height;

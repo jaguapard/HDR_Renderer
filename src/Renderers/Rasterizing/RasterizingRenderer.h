@@ -83,8 +83,16 @@ private:
 		}
 	};
 
+	class ThreadBatchList
+	{
+	public:
+		std::mutex mtx;
+		std::vector<std::shared_ptr<TriangleBatch>> unprocessedBatches;
+	};
+
 	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& outVerts, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 
+	std::unique_ptr<ThreadBatchList[]> threadBatchLists;
 
 	void drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd);
 	void workerRoutine(const int threadIndex);
