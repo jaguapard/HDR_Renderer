@@ -9,7 +9,7 @@ Threadpool::Threadpool(std::optional<size_t> numThreads)
 {
 	size_t threadCount = numThreads.value_or(std::max(1u, std::thread::hardware_concurrency() - 1)); //don't crowd out the main thread, unless it is impossible 
 	if (std::thread::hardware_concurrency() == 0 || SINGLE_THREAD_MODE) threadCount = 1; //hardware_concurrency can return 0
-	//threadCount = 24;
+	threadCount = 1;
 	this->spawnThreads(threadCount);
 }
 
