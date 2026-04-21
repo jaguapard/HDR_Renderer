@@ -1085,3 +1085,39 @@ std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t f
 	return ret;
 }
 */
+
+RasterizingRenderer::TriangleBatch::~TriangleBatch() noexcept
+{
+	std::lock_guard lck(pool->mtx);
+	int cnt = --pool->refCount[this->indexInPool];
+	if (cnt == 0) pool->free(this);
+}
+
+RasterizingRenderer::TriangleBatch* RasterizingRenderer::TriangleBatchPool::allocate()
+{
+	std::lock_guard lck(this->mtx);
+	int arrayInd = this->freeBatchIndexTop--;
+	int batchInd = this->freeBatches[arrayInd];
+	TriangleBatch* p = (TriangleBatch*)(this->memory) + batchInd;
+	p->pool = this;
+	p->indexInPool = batchInd;
+	this->refCount[batchInd] = 1;
+}
+
+void RasterizingRenderer::TriangleBatchPool::free(const TriangleBatch* p)
+{
+	std::lock_guard lck(this->mtx);
+	int arrayInd = ++this->freeBatchIndexTop;
+	this->freeBatches[arrayInd] = p->indexInPool;
+}
+
+RasterizingRenderer::TriangleBatchPool::TriangleBatchPool()
+{
+	this->memory = malloc(sizeof(TriangleBatch) * MAX_OUTSTANDING_BATCHES);
+	for (int i = 0; i < MAX_OUTSTANDING_BATCHES; ++i)
+	{
+		this->refCount[i] = 0;
+		this->freeBatches[i] = i;
+	}
+	this->freeBatchIndexTop = MAX_OUTSTANDING_BATCHES - 1;
+}

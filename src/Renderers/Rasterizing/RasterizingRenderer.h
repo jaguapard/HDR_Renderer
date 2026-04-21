@@ -68,6 +68,8 @@ private:
 	{
 		std::array<float, WORKER_PROVISION_SIZE> x, y, z, u, v, nx, ny, nz;
 	};
+
+	struct TriangleBatchPool;
 	struct TriangleBatch
 	{
 		VertexBatch vertexData[3];		
@@ -78,10 +80,32 @@ private:
 		int batchSize = 0;
 		int drawCmdIndex = INT32_MIN;
 
-		TriangleBatch()
-		{
-			//for (auto& it : vertexData) it.resize(minX.size());
-		}
+		
+
+		TriangleBatch() = delete;
+		TriangleBatch(const TriangleBatch& b);
+		~TriangleBatch() noexcept;
+		friend struct TriangleBatchPool;
+	private:
+		TriangleBatchPool* pool;
+		int indexInPool;
+	};
+
+	struct TriangleBatchPool
+	{
+		static inline constexpr int MAX_OUTSTANDING_BATCHES = 1024;
+		friend struct TriangleBatch;
+		TriangleBatch* allocate();
+		void free(const TriangleBatch* p);
+		TriangleBatchPool();
+	private:
+		void* memory;
+		//std::array<std::atomic_int, MAX_OUTSTANDING_BATCHES> freeBatches;
+		std::array<int, MAX_OUTSTANDING_BATCHES> freeBatches;
+		std::array<std::atomic_int, MAX_OUTSTANDING_BATCHES> refCount;
+		//std::atomic_int freeBatchIndexTop;
+		int freeBatchIndexTop;
+		std::recursive_mutex mtx;
 	};
 
 	class ThreadBatchList
