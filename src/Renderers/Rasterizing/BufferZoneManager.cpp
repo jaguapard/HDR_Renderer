@@ -1,7 +1,7 @@
 #include "BufferZoneManager.h"
 #include "../../Threadpool.h"
 #include <cassert>
-
+#include <algorithm>
 Rasterizing::BufferZoneManager::BufferZoneManager(int threadCount, int w, int h)
 {
 	this->threadCount = threadCount;
@@ -16,11 +16,13 @@ int Rasterizing::BufferZoneManager::getThreadsResponsible(int* out, float minX, 
 	double perThread = h / double(this->threadCount);
 	int beg = minY / perThread;
 	int end = ceil(maxY / perThread);
-	for (int i = beg; i < end; ++i)
+	beg = std::clamp(beg, 0, threadCount - 1);
+	end = std::clamp(end, 0, threadCount - 1);
+	for (int i = beg; i <= end; ++i) //TODO: should it be <=?
 	{
 		*out++ = i;
 	}
-	return end - beg;
+	return end - beg + 1;
 }
 
 void Rasterizing::BufferZoneManager::getLimitsForThread(int threadIndex, float& minX, float& minY, float& maxX, float& maxY) const
