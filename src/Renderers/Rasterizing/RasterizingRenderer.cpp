@@ -546,10 +546,10 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	}
 }
 
-constexpr int WORKER_JOB_CACHE_SIZE = 2048;
+constexpr int WORKER_JOB_BATCH_SIZE = 2048;
 void RasterizingRenderer::workerRoutine(const int threadIndex)
 {
-	std::array<float, WORKER_JOB_CACHE_SIZE> x, y, z, u, v, diffuseMapIndex;
+	std::array<float, WORKER_JOB_BATCH_SIZE> x, y, z, u, v, diffuseMapIndex;
 	
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
@@ -566,7 +566,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		batchMinX = batchMinY = INT32_MAX;
 		size_t currTriangleIndex = startInd;
 		int occupiedCacheSlots = 0;
-		while (occupiedCacheSlots < WORKER_JOB_CACHE_SIZE - 32 && currTriangleIndex < stopInd) //fill the cache with transformed results before rasterizing
+		while (occupiedCacheSlots < WORKER_JOB_BATCH_SIZE - 32 && currTriangleIndex < stopInd) //fill the cache with transformed results before rasterizing
 		{
 			for (; currTriangleIndex < stopInd; currTriangleIndex += 16)
 			{
@@ -574,7 +574,9 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
 
 				std::array<int32x16, 3> vertIndCache;
-				std::array<Vec4_f32x16, 3> originalWorld;
+				std::array<Vec4_f32x16, 3> originalWorld, transformed;
+				std::array<Mask16, 3> behindNearPlaneMasks;
+				int32x16 behindNearPlaneCount = 0;
 				for (int i = 0; i < 3; ++i)
 				{
 					int32x16 vertInd = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
@@ -583,7 +585,13 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					originalWorld[i].z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.z.data(), 4);
 					originalWorld[i].w = 1;
 					vertIndCache[i] = vertInd;
+					
+					transformed[i] = currCmd.ctr.rotateAndTranslate(originalWorld[i]);
+					behindNearPlaneMasks[i] = transformed[i].z < this->currGs->cameraPlane_zDist;
+					behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, behindNearPlaneMasks[i], behindNearPlaneCount, _mm512_set1_epi32(1));
 				}
+
+				if (!(behindNearPlaneCount < 3)) continue;
 			}
 		}
 	}
