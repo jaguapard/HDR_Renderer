@@ -5,7 +5,7 @@
 
 struct alignas(64) Statsman
 {
-#if defined(REL_DBG) || !defined(NDEBUG)
+#if 1 || defined(REL_DBG) || !defined(NDEBUG)
 	static constexpr bool ENABLED = true;
 #else
 	static constexpr bool ENABLED = false;
