@@ -547,6 +547,7 @@ struct TriangleBatch
 {
 	Vertice_Store vertexData[3];
 	std::vector<float> minX, minY, maxX, maxY, rcpSignedArea;
+	std::vector<int> diffuseMapIndex;
 	float batchMinX, batchMinY, batchMaxX, batchMaxY;
 	int batchSize = 0;
 	void resize(size_t newSize)
@@ -556,6 +557,7 @@ struct TriangleBatch
 		minY.resize(newSize);
 		maxX.resize(newSize);
 		maxY.resize(newSize);
+		diffuseMapIndex.resize(newSize);
 		rcpSignedArea.resize(newSize);
 	}
 };
@@ -643,11 +645,13 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 						transformed[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nz.data(), 4);
 					}
 				}
+				int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
 				this->performNearPlaneClipping(nearPlaneZ, transformed, behindNearPlaneCount, behindNearPlaneMasks);
 
 				float w = currCmd.renderW;
 				float h = currCmd.renderH;
 				Mask16 oldActiveTriangles = activeTriangles;
+				
 				for (int outputTriangleIndex = 0; outputTriangleIndex < 2; outputTriangleIndex++)
 				{
 					if (outputTriangleIndex == 1)
@@ -722,6 +726,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					_mm512_mask_storeu_ps(batch.maxX.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxX));
 					_mm512_mask_storeu_ps(batch.maxY.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxY));
 					_mm512_mask_storeu_ps(batch.rcpSignedArea.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, rcpSignedArea)); //TODO: is this all?
+					_mm512_mask_storeu_epi32(batch.diffuseMapIndex.data() + batch.batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, diffuseMapIndices)); //TODO: is this all?
 					batch.batchSize += jobsToAdd;
 				}
 			}
