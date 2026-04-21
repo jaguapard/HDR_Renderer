@@ -64,22 +64,18 @@ private:
 
 	struct TriangleBatch
 	{
+		static inline constexpr int WORKER_JOB_BATCH_SIZE = 2048;
 		Rasterizing::Vertice_Store vertexData[3];
-		std::vector<float> minX, minY, maxX, maxY, rcpSignedArea;
-		std::vector<int> diffuseMapIndex, triangleIndex, drawCmdIndex;
+		//overprovision some space to not worry about bounds
+		std::array<float, WORKER_JOB_BATCH_SIZE + 32> minX, minY, maxX, maxY, rcpSignedArea;
+		std::array<int, WORKER_JOB_BATCH_SIZE + 32> diffuseMapIndex, triangleIndex;
 		float batchMinX, batchMinY, batchMaxX, batchMaxY;
 		int batchSize = 0;
-		void resize(size_t newSize)
+		int drawCmdIndex = INT32_MIN;
+
+		TriangleBatch()
 		{
-			for (auto& it : vertexData) it.resize(newSize);
-			minX.resize(newSize);
-			minY.resize(newSize);
-			maxX.resize(newSize);
-			maxY.resize(newSize);
-			diffuseMapIndex.resize(newSize);
-			drawCmdIndex.resize(newSize);
-			triangleIndex.resize(newSize);
-			rcpSignedArea.resize(newSize);
+			for (auto& it : vertexData) it.resize(minX.size());
 		}
 	};
 
