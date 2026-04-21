@@ -567,7 +567,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		{
 			//Fill the cache with transformed results before rasterizing
 			int occupiedCacheSlots = 0;
-			int batchMinX = INT32_MAX, batchMinY= INT32_MAX, batchMaxX = INT32_MIN, batchMaxY = INT32_MIN;
+			float batchMinX = INFINITY, batchMinY= INFINITY, batchMaxX = -INFINITY, batchMaxY = -INFINITY;
 
 			for (; currTriangleIndex < stopInd && occupiedCacheSlots < WORKER_JOB_BATCH_SIZE - 32; currTriangleIndex += 16)
 			{
@@ -676,6 +676,10 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					maxX = _mm512_ceil_ps(maxX);
 					maxY = _mm512_ceil_ps(maxY);
 					float32x16 rcpSignedArea = float32x16(1) / signedArea;
+					batchMinX = std::min(batchMinX, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minX)));
+					batchMinY = std::min(batchMinY, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minY)));
+					batchMaxX = std::max(batchMaxX, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxX)));
+					batchMaxY = std::max(batchMaxY, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxY)));
 					
 					int jobsToAdd = _mm_popcnt_u32(activeTriangles);
 					Mask16 storeMask = (1 << jobsToAdd) - 1;
