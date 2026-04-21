@@ -601,23 +601,13 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				}
 			}
 
-			auto& myBatchList = this->threadBatchLists[threadIndex];
-			std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
-			{
-				std::lock_guard lck(myBatchList.mtx);
-				poppedBatches = myBatchList.unprocessedBatches;//std::move(myBatchList.unprocessedBatches);
-				myBatchList.unprocessedBatches.clear();
-			}
-			for (auto& b : poppedBatches)
-			{
-				this->drawTriangleBatch(*b, threadIndex);
-			}
-
 			if (shouldDrawToo)
 			{
 				this->drawTriangleBatch(*batch, threadIndex);
-				batch = std::make_shared<TriangleBatch>();
 			}
+
+			batch = std::make_shared<TriangleBatch>();
+
 		}
 	}
 
@@ -627,18 +617,6 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		for (int drawCmdIndex = 0; drawCmdIndex < this->drawCommands.size(); ++drawCmdIndex)
 		{
 			if (this->drawCommands[drawCmdIndex].threadsDone >= threadCount) ++doneCount;
-		}
-		
-		auto& myBatchList = this->threadBatchLists[threadIndex];
-		std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
-		{
-			std::lock_guard lck(myBatchList.mtx);
-			poppedBatches = myBatchList.unprocessedBatches;//std::move(myBatchList.unprocessedBatches);
-			myBatchList.unprocessedBatches.clear();
-		}
-		for (auto& b : poppedBatches)
-		{
-			this->drawTriangleBatch(*b, threadIndex);
 		}
 		if (doneCount == this->drawCommands.size()) break;
 	}
