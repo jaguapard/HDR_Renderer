@@ -546,7 +546,8 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 constexpr int WORKER_JOB_BATCH_SIZE = 2048;
 void RasterizingRenderer::workerRoutine(const int threadIndex)
 {
-	float nearPlaneZ = this->currGs->cameraPlane_zDist;
+	auto batchCache = std::make_unique<VertexPack16[]>(WORKER_JOB_BATCH_SIZE);
+	float nearPlaneZ = this->currGs->cameraPlane_zDist;	
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
@@ -558,7 +559,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	{
 		const auto& currCmd = this->drawCommands[cmdIndex];
 		size_t currTriangleIndex = startInd;
-		std::array<float, WORKER_JOB_BATCH_SIZE> x, y, z, u, v, diffuseMapIndex;
+		std::array<VertexPack16, WORKER_JOB_BATCH_SIZE> batchToProcess;
 		while (currTriangleIndex < stopInd) //Process new batch. 
 		{
 			//Fill the cache with transformed results before rasterizing
@@ -623,6 +624,59 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					}
 				}
 				this->performNearPlaneClipping(nearPlaneZ, transformed, behindNearPlaneCount, behindNearPlaneMasks);
+
+				float w = currCmd.renderW;
+				float h = currCmd.renderH;
+				Mask16 oldActiveTriangles = activeTriangles;
+				for (int outputTriangleIndex = 0; outputTriangleIndex < 2; outputTriangleIndex++)
+				{
+					if (outputTriangleIndex == 1)
+					{
+						if (behindNearPlaneCount == 1) //load new triangle if there is new
+						{
+							activeTriangles = oldActiveTriangles & (behindNearPlaneCount == 1);
+						}
+						else break;
+					}
+					if (!activeTriangles) break;
+
+					float32x16 fovMult = 1; //TODO: adjustable game setting?
+					float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
+					for (int i = 0; i < 3; ++i)
+					{
+						auto& currVertex = transformed[i + outputTriangleIndex * 3];
+						float32x16 zInv = fovMult / currVertex.space.z;
+						currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
+						minX = _mm512_min_ps(minX, currVertex.space.x);
+						minY = _mm512_min_ps(minY, currVertex.space.y);
+						maxX = _mm512_max_ps(maxX, currVertex.space.x);
+						maxY = _mm512_max_ps(maxY, currVertex.space.y);
+						currVertex.space.z = zInv;
+						currVertex.u *= zInv;
+						currVertex.v *= zInv;
+						currVertex.normal.x *= zInv;
+						currVertex.normal.y *= zInv;
+						currVertex.normal.z *= zInv;
+					}
+
+					const Vec4_f32x16& r1 = transformed[0 + outputTriangleIndex * 3].space;
+					const Vec4_f32x16& r2 = transformed[1 + outputTriangleIndex * 3].space;
+					const Vec4_f32x16& r3 = transformed[2 + outputTriangleIndex * 3].space;
+
+					float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
+					Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
+					activeTriangles &= (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & nonZeroSignedAreaMask;
+					if (!activeTriangles) continue;
+
+					minX = _mm512_floor_ps(minX);
+					minY = _mm512_floor_ps(minY);
+					maxX = _mm512_ceil_ps(maxX);
+					maxY = _mm512_ceil_ps(maxY);
+					float32x16 rcpSignedArea = float32x16(1) / signedArea;
+					
+					//TODO: actually store into the cache!
+
+				}
 			}
 		}
 	}
