@@ -129,7 +129,11 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getThreadCount();
 	if (!this->threadBatchLists) this->threadBatchLists = std::make_unique<ThreadBatchList[]>(threadCount);
-	for (int i = 0; i < threadCount; ++i) this->threadBatchLists[i].unprocessedBatches.clear();
+	for (int i = 0; i < threadCount; ++i) 
+	{
+		if (!this->threadBatchLists[i].unprocessedBatches.empty()) std::cout << "Non empty unprocessed batch got to the end!\n";
+		this->threadBatchLists[i].unprocessedBatches.clear();
+	}
 
 	this->currGs = &settings;
 	if (this->singleTriangleDebugMode)
@@ -204,7 +208,11 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.zBuffer.data = this->shadowMap_zBuffer.data();
 	shadowMapDrawCmd.zBuffer.manager = BufferZoneManager(threadCount, shadowMapW, shadowMapH);
 
-	for (auto& it : this->drawCommands) it.lastClaimedTriangle = 0;
+	for (auto& it : this->drawCommands)
+	{
+		it.threadsDone = 0;
+		it.lastClaimedTriangle = 0;
+	}
 
 	int tCntSq = threadCount * threadCount;
 	for (auto& currSub : this->drawCommands)
@@ -404,7 +412,11 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		{
 			size_t currTriangleIndex = currCmd.lastClaimedTriangle.fetch_add(batch->WORKER_JOB_BATCH_SIZE);
 			size_t stopInd = std::min(triangleCount, currTriangleIndex + batch->WORKER_JOB_BATCH_SIZE);
-			if (currTriangleIndex >= triangleCount) break;
+			if (currTriangleIndex >= triangleCount)
+			{
+				currCmd.threadsDone++;
+				break;
+			}
 			//Fill the cache with transformed results before rasterizing
 			batch->batchSize = 0;
 			batch->batchMinX = currCmd.renderW - 1;
@@ -607,6 +619,40 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				batch = std::make_shared<TriangleBatch>();
 			}
 		}
+	}
+
+	while (true) //TODO: condition variable?
+	{
+		int doneCount = 0;
+		for (int drawCmdIndex = 0; drawCmdIndex < this->drawCommands.size(); ++drawCmdIndex)
+		{
+			if (this->drawCommands[drawCmdIndex].threadsDone >= threadCount) ++doneCount;
+		}
+		
+		auto& myBatchList = this->threadBatchLists[threadIndex];
+		std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
+		{
+			std::lock_guard lck(myBatchList.mtx);
+			poppedBatches = myBatchList.unprocessedBatches;//std::move(myBatchList.unprocessedBatches);
+			myBatchList.unprocessedBatches.clear();
+		}
+		for (auto& b : poppedBatches)
+		{
+			this->drawTriangleBatch(*b, threadIndex);
+		}
+		if (doneCount == this->drawCommands.size()) break;
+	}
+
+	auto& myBatchList = this->threadBatchLists[threadIndex];
+	std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
+	{
+		std::lock_guard lck(myBatchList.mtx);
+		poppedBatches = myBatchList.unprocessedBatches;//std::move(myBatchList.unprocessedBatches);
+		myBatchList.unprocessedBatches.clear();
+	}
+	for (auto& b : poppedBatches)
+	{
+		this->drawTriangleBatch(*b, threadIndex);
 	}
 }
 
