@@ -234,28 +234,38 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
 	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
 
-	std::vector<task_id> transformTasks, drawTasks;
+	std::vector<task_id> tasks;
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
-		transformTasks.emplace_back(threadpool->addTask(
+		tasks.emplace_back(threadpool->addTask(
 			[&, threadIndex]() {
 				this->workerRoutine(threadIndex);
 			}
 		));
 	}	
-
-	threadpool->waitForMultipleTasks(transformTasks);
-	drawTasks.clear();
+	threadpool->waitForMultipleTasks(tasks);
 	
+	tasks.clear();
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
-		drawTasks.emplace_back(threadpool->addTask(
+		tasks.emplace_back(threadpool->addTask(
+			[&, threadIndex]() {
+				this->processBatchesSentByOtherThreads(threadIndex);
+			}
+		));
+	}
+	threadpool->waitForMultipleTasks(tasks);
+
+	tasks.clear();
+	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
+	{
+		tasks.emplace_back(threadpool->addTask(
 			[&, threadIndex]() {
 				this->joinMainWithShadowMap(threadIndex);
 			}
 		));
 	}
-	threadpool->waitForMultipleTasks(drawTasks);
+	threadpool->waitForMultipleTasks(tasks);
 	
 	for (auto& currSub : this->drawCommands)
 	{
