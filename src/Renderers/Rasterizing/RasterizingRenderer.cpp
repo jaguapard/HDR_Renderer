@@ -715,14 +715,9 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 
 			//Now batch is ready and we can rasterize it
 			//DrawCommand batchCmd = currCmd; //TODO: allocate memory or lock screen region and draw into it. Refactor drawTriangleBatch to be able to take both of them
-
+			this->drawTriangleBatch(batch, threadIndex, currCmd);
 		}
 	}
-}
-
-void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
-{
-	
 }
 
 __forceinline void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
@@ -805,117 +800,6 @@ Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int 
 	ret.b = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(b0_15_a0_15_ph, 0));
 	ret.a = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(b0_15_a0_15_ph, 1));
 	return ret;
-}
-
-void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const int threadIndex)
-{
-	const auto& drawCmd = *inp.cmd;
-	float* zBuffer = (float*)drawCmd.buffers[0].data;
-	uint64_t* frameBuffer = drawCmd.buffers.size() >= 2 ? (uint64_t*)drawCmd.buffers[1].data : nullptr;
-	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, drawCmd.renderH);
-	float my_yMin = floor(d_low);
-	float my_yMax = std::min<float>(floor(d_high), drawCmd.renderH - 1);
-	float my_xMin = 0;
-	float my_xMax = drawCmd.renderW - 1;
-	int w = drawCmd.renderW;
-	bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
-
-	for (int outputTriangleIndex = 0; outputTriangleIndex < 2; ++outputTriangleIndex)
-	{
-		auto& currTriangles = inp.vertexStageOutput->outputTriangles[outputTriangleIndex];
-		Mask16 currActiveTriangles = currTriangles.activeTrianges;
-		if (!currActiveTriangles) break; //yes, break, not continue. If first triangle is invalid, then all are (at least in current pipeline)
-		int32x16 diffuseMapIndex = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), currActiveTriangles, inp.progenitorTriangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
-
-		//TODO: doubling triangles if they are clipped!
-		float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), currTriangles.minX);
-		float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), currTriangles.minY);
-		float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), currTriangles.maxX);
-		float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), currTriangles.maxY);
-		const VertexPack16& v0 = currTriangles.vertices[0];
-		const VertexPack16& v1 = currTriangles.vertices[1];
-		const VertexPack16& v2 = currTriangles.vertices[2];
-
-		float32x16 group_initialAlpha, group_initialBeta, group_initialGamma;
-		calculateBarycentricCoordinates2D({ group_xBeg, group_yBeg, 0.f, 0.f }, v0.space, v1.space, v2.space, currTriangles.rcpSignedArea, group_initialAlpha, group_initialBeta, group_initialGamma);
-		float32x16 group_dAlpha_dx = (v1.space.y - v2.space.y) * currTriangles.rcpSignedArea;
-		float32x16 group_dAlpha_dy = (v2.space.x - v1.space.x) * currTriangles.rcpSignedArea;
-		float32x16 group_dBeta_dx = (v2.space.y - v0.space.y) * currTriangles.rcpSignedArea;
-		float32x16 group_dBeta_dy = (v0.space.x - v2.space.x) * currTriangles.rcpSignedArea;
-		float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues!
-		float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues!
-
-		for (int i = 0; i < 16; ++i)
-		{
-			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
-			int currDiffuseMapIndex = diffuseMapIndex[i];
-			if (this->skipTrianglesWithFallbackTexure && currDiffuseMapIndex == 0) continue; 
-
-			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
-			for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
-			{
-				size_t yInt = y;
-				size_t xInt = group_xBeg[i];
-				float32x16 dy = y - group_yBeg[i];
-				for (float32x16 x = float32x16::sequence() + group_xBeg[i]; Mask16 xBoundsMask = (x <= group_xEnd[i]); x += 16, xInt += 16)
-				{
-					float32x16 dx = x - group_xBeg[i];
-					float32x16 alpha = dy * group_dAlpha_dy[i] + dx * group_dAlpha_dx[i] + group_initialAlpha[i];
-					float32x16 beta = dy * group_dBeta_dy[i] + dx * group_dBeta_dx[i] + group_initialBeta[i];
-					float32x16 gamma = dy * group_dGamma_dy[i] + dx * group_dGamma_dx[i] + group_initialGamma[i];
-					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
-					if (Statsman::ENABLED)
-					{
-						MyStatsman.rendering.barycentricsCalculated += 16;
-						MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-					}
-					if (!pointsInsideTriangleMask) continue;
-
-					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u[i], v0.v[i], v0.space.z[i], 0.f) * alpha +
-						Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
-						Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
-					float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
-					//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
-					//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
-					Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
-					if (Statsman::ENABLED)
-					{
-						MyStatsman.rendering.zBufferFetchLanes += 16;
-						MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-						MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
-					}
-					if (!notOccludedPoints) continue; //if all points are occluded, then skip
-
-					Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
-					Vec4_f32x16 texturePixels;
-					if (depthOnly)
-					{
-						auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-						texturePixels.a = accessor.gatherA();
-					}
-
-					Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
-					if (!opaquePixelsMask) continue;
-
-					_mm512_mask_storeu_ps(zBuffer + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
-
-					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
-					{
-						_mm512_mask_storeu_epi32((uint32_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]));
-					}
-
-					if (Statsman::ENABLED)
-					{
-						MyStatsman.rendering.zBufferWriteLanes += 16;
-						MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-						MyStatsman.rendering.frameBufWriteLanes += 16;
-						MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-						MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
-					}
-				}
-			}
-		}
-	}
 }
 
 void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd)
@@ -1038,45 +922,6 @@ void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const in
 	}
 }
 
-void RasterizingRenderer::rasterizerRoutine(int threadIndex)
-{
-	int threadCount = this->currGs->threadpool->getThreadCount();
-	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
-
-	VertexStageInput inp;
-	inp.stage = 2;
-	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
-	for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
-	{
-		int storeIndex = senderThreadIndex * threadCount + threadIndex;
-		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
-		{
-			auto& currCmd = this->drawCommands[cmdIndex];
-			auto& currStore = (*currCmd.trianglesToZones)[storeIndex];
-			int storeSize = currStore.size();
-			for (int currIndex = 0; currIndex < storeSize; currIndex += 16)
-			{
-				Mask16 storeBounds = (int32x16::sequence() + currIndex) < storeSize;
-				static_assert(currStore.ELEMENTS_PER_BLOCK % 16 == 0, "Triangle bin block store is expected to be 16-element aligned.");
-				int32x16 triangleIndices = _mm512_maskz_loadu_epi32(storeBounds, &currStore[currIndex]); //this will read out of block's bounds if ELEMENTS_PER_BLOCK is not divisible by 16.
-				inp.triangleIndices = triangleIndices;
-				inp.validInputs = storeBounds;
-				inp.firstCmd = inp.lastCmd = cmdIndex;
-				for (int i = 0; i < 3; ++i)
-				{
-					inp.vertexIndices[i] = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), storeBounds, triangleIndices, this->original_triangleStore.vertInd[i].data(), 4);
-				}
-
-				this->transformVertices(inp, transformedResults.get());
-				PixelStageInput pxInp;
-				pxInp.cmd = &currCmd;
-				pxInp.vertexStageOutput = &transformedResults[cmdIndex];
-				pxInp.progenitorTriangleIndices = triangleIndices;
-				this->drawTriangleBatch(pxInp, threadIndex);
-			}
-		}
-	}
-}
 __m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512i ptrs8_15, int attrOffsetInRenderJob, Mask16 mask)
 {
 	__m512i addr0_7 = _mm512_add_epi64(ptrs0_7, _mm512_set1_epi64(attrOffsetInRenderJob));

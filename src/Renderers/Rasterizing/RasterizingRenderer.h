@@ -120,18 +120,10 @@ private:
 	};
 
 	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& outVerts, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
-	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
-	//For draw command i the output will be written to output[i]
-	//Stage 1 assumes sequential input triangle indices, gathers only vertices' world coords and processes all draw commands.
-	//Stage 2 processes ONLY the draw command at inputted index and gathers it's required attributes for vertices. Doesn't assume any order for input triangle indices.
-	void transformVertices(const VertexStageInput& input, VertexStageOutput* output) const;
 
-	void binTrianglesIntoZones(const int threadIndex);
 
-	void drawTriangleBatch(const PixelStageInput& inp, const int threadIndex);
 	void drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd);
-	//Performs transformations and rasterization of binned triangles
-	void rasterizerRoutine(const int threadIndex);
+	void workerRoutine(const int threadIndex);
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
 
