@@ -547,6 +547,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					_mm512_mask_storeu_ps(batch->rcpSignedArea.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, rcpSignedArea));
 					_mm512_mask_storeu_epi32(batch->diffuseMapIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, diffuseMapIndices)); //TODO: is this all?
 					_mm512_mask_storeu_epi32(batch->triangleIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, triangleIndices));
+					_mm512_mask_storeu_epi32(batch->drawCmdIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, _mm512_set1_epi32(cmdIndex)));
 					batch->batchSize += jobsToAdd;
 				}
 			}
@@ -555,7 +556,8 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 			//DrawCommand batchCmd = currCmd; //TODO: allocate memory or lock screen region and draw into it. Refactor drawTriangleBatch to be able to take both of them
 			//TODO: if batch is fully in my zone, rasterize it immediately
 			//if not, send it to other threads (copy shared ptr into their storage) and then rasterize my share. 
-			// Don't forget to check out "incoming mail" after that and allocate shared_ptr for a new batch.
+			// Don't forget to check out "incoming mail" after that and allocate shared_ptr for a new batch, filter out not mine and process with that
+			//TODO: don't pass cmd, indices are now written out and disjointed.
 			this->drawTriangleBatch(*batch, threadIndex, currCmd);
 		}
 	}
@@ -643,6 +645,7 @@ Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int 
 	return ret;
 }
 
+//TODO: rewrite it to dynamically take draw command indices for each job instead of assuming all are from one
 void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd)
 {
 	float* zBuffer = drawCmd.zBuffer;
