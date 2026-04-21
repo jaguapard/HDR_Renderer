@@ -208,6 +208,19 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		//for (auto& it : *currSub.trianglesToZones) it.verticeStore = &this->original_verticeStore;
 	}
 
+	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
+	for (auto& it : zBuffer) it = -INFINITY;
+	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
+	for (auto& it : this->deferredTriangleIndices) it = -1;
+	uint64_t zBufCleanTicks = SDL_GetTicksNS();
+	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
+	uint64_t skyColor = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_NO_EXC), 0);
+	uint64_t* pp = (uint64_t*)(settings.graphicsOutputBuffer);
+	for (int i = 0; i < sz; ++i) pp[i] = skyColor;
+	uint64_t framebufCleanTicks = SDL_GetTicksNS();
+	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
+	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
+
 	std::vector<task_id> transformTasks, drawTasks;
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
@@ -216,22 +229,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 				this->workerRoutine(threadIndex);
 			}
 		));
-	}
-
-	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
-	for (auto& it : zBuffer) it = -INFINITY;
-	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
-	for (auto& it : this->deferredTriangleIndices) it = -1;
-	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
-	
-	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
-	uint64_t skyColor = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_NO_EXC), 0);
-	uint64_t* pp = (uint64_t*)(settings.graphicsOutputBuffer);
-	for (int i = 0; i < sz; ++i) pp[i] = skyColor;
-	uint64_t framebufCleanTicks = SDL_GetTicksNS();
-
-	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
-	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
+	}	
 
 	threadpool->waitForMultipleTasks(transformTasks);
 	drawTasks.clear();
