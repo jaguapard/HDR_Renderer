@@ -428,9 +428,8 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				currCmd.threadsDone++;
 				break;
 			}
-			while (currTriangleIndex < stopInd) //since batches can be force interrupted, we should run this again to fullfil claimed triangles contract
+			while (currTriangleIndex < stopInd) //since batches can be force interrupted, we should run this again to fullfil claimed triangles contract. Each iteration of this loop is a new batch
 			{
-				//Fill the cache with transformed results before rasterizing
 				batch->batchSize = 0;
 				batch->batchMinX = currCmd.renderW - 1;
 				batch->batchMinY = currCmd.renderH - 1;
@@ -592,18 +591,15 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				}
 
 				//Now batch is ready and we can rasterize it
-				//DrawCommand batchCmd = currCmd; //TODO: allocate memory or lock screen region and draw into it. Refactor drawTriangleBatch to be able to take both of them
-				//TODO: if batch is fully in my zone, rasterize it immediately
-				//if not, send it to other threads (copy shared ptr into their storage) and then rasterize my share. 
-				// Don't forget to check out "incoming mail" after that and allocate shared_ptr for a new batch, filter out not mine and process with that
-				//TODO: don't pass cmd, indices are now written out and disjointed.
+				//If batch is fully in thread's zone, rasterize it immediately
+				//if not, send it to other threads (copy shared ptr into their storage) and then rasterize this thread's share. 
+				// Don't forget to check "incoming mail" and allocate shared_ptr for a new batch to not destroy just created and published batch
 				if (batch->batchSize == 0) continue;
 				int receiverCount = zoneManager.getThreadsResponsible(recievers.data(), batch->batchMinX, batch->batchMinY, batch->batchMaxX, batch->batchMaxY);
-				//todo: check manager for clamping.
 				if (receiverCount == 0) continue;
 
 				bool shouldDrawToo = false;
-				if (receiverCount == 1 && recievers[0] == threadIndex) //easy case - all triangles are inside my zone, just draw
+				if (receiverCount == 1 && recievers[0] == threadIndex)
 				{
 					this->drawTriangleBatch(*batch, threadIndex);
 					continue;
