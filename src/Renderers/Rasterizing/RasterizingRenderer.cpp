@@ -619,17 +619,6 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 			this->processBatchesSentByOtherThreads(threadIndex);
 		}
 	}
-
-	while (true) //TODO: condition variable?
-	{
-		int doneCount = 0;
-		for (int drawCmdIndex = 0; drawCmdIndex < this->drawCommands.size(); ++drawCmdIndex)
-		{
-			if (this->drawCommands[drawCmdIndex].threadsDone >= threadCount) ++doneCount;
-		}
-		if (doneCount == this->drawCommands.size()) break;
-	}
-	this->processBatchesSentByOtherThreads(threadIndex);
 }
 
 void RasterizingRenderer::processBatchesSentByOtherThreads(const int threadIndex)
