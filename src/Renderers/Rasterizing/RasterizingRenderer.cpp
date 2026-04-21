@@ -331,7 +331,7 @@ struct Vertex
 	}
 };
 
-void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<VertexStageOutputTriangle, 2>& inputTriangles, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const
+void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<VertexPack16, 6>& outVerts, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const
 {
 	if (!(behindPlaneCount > 0)) return;
 	//if behind plane count == 0: block is skipped, triangle is fully ahead of clipping plane
@@ -364,16 +364,16 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<V
 	//TODO: this network can be adjusted to preserve input windings, it currently doesn't but we don't care for now (face culling is done before, so it seem to not matter at all?)
 
 	std::array<VertexPack16, 6> clipOutput;
-	for (int i = 0; i < 3; ++i) clipOutput[i] = inputTriangles[0].vertices[i];
+	for (int i = 0; i < 3; ++i) clipOutput[i] = outVerts[i];
 	for (int frontVertex = 0; frontVertex < 3; ++frontVertex)
 	{
 		//these are behind
 		int prevVertex = frontVertex == 0 ? 2 : frontVertex - 1;
 		int nextVertex = frontVertex == 2 ? 0 : frontVertex + 1;
 		Mask16 caseMask = ~behindPlaneMasks[frontVertex] & behindPlaneMasks[prevVertex] & behindPlaneMasks[nextVertex];
-		clipOutput[0] = VertexPack16::maskMove(clipOutput[0], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[prevVertex], inputTriangles[0].vertices[frontVertex], clippingZ), caseMask);
-		clipOutput[1] = VertexPack16::maskMove(clipOutput[1], inputTriangles[0].vertices[frontVertex], caseMask);
-		clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[frontVertex], inputTriangles[0].vertices[nextVertex], clippingZ), caseMask);
+		clipOutput[0] = VertexPack16::maskMove(clipOutput[0], VertexPack16::lerpToClippingZ(outVerts[prevVertex], outVerts[frontVertex], clippingZ), caseMask);
+		clipOutput[1] = VertexPack16::maskMove(clipOutput[1], outVerts[frontVertex], caseMask);
+		clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(outVerts[frontVertex], outVerts[nextVertex], clippingZ), caseMask);
 	}
 
 	for (int behindVertex = 0; behindVertex < 3; ++behindVertex)
@@ -382,18 +382,15 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<V
 		int prevVertex = behindVertex == 0 ? 2 : behindVertex - 1;
 		int nextVertex = behindVertex == 2 ? 0 : behindVertex + 1;
 		Mask16 caseMask = behindPlaneMasks[behindVertex] & ~behindPlaneMasks[prevVertex] & ~behindPlaneMasks[nextVertex];
-		clipOutput[0] = VertexPack16::maskMove(clipOutput[0], inputTriangles[0].vertices[nextVertex], caseMask);
-		clipOutput[1] = VertexPack16::maskMove(clipOutput[1], inputTriangles[0].vertices[prevVertex], caseMask);
-		clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[nextVertex], inputTriangles[0].vertices[behindVertex], clippingZ), caseMask);
-		clipOutput[3] = VertexPack16::maskMove(clipOutput[3], inputTriangles[0].vertices[prevVertex], caseMask);
-		clipOutput[4] = VertexPack16::maskMove(clipOutput[4], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[prevVertex], inputTriangles[0].vertices[behindVertex], clippingZ), caseMask);
-		clipOutput[5] = VertexPack16::maskMove(clipOutput[5], VertexPack16::lerpToClippingZ(inputTriangles[0].vertices[nextVertex], inputTriangles[0].vertices[behindVertex], clippingZ), caseMask);
+		clipOutput[0] = VertexPack16::maskMove(clipOutput[0], outVerts[nextVertex], caseMask);
+		clipOutput[1] = VertexPack16::maskMove(clipOutput[1], outVerts[prevVertex], caseMask);
+		clipOutput[2] = VertexPack16::maskMove(clipOutput[2], VertexPack16::lerpToClippingZ(outVerts[nextVertex], outVerts[behindVertex], clippingZ), caseMask);
+		clipOutput[3] = VertexPack16::maskMove(clipOutput[3], outVerts[prevVertex], caseMask);
+		clipOutput[4] = VertexPack16::maskMove(clipOutput[4], VertexPack16::lerpToClippingZ(outVerts[prevVertex], outVerts[behindVertex], clippingZ), caseMask);
+		clipOutput[5] = VertexPack16::maskMove(clipOutput[5], VertexPack16::lerpToClippingZ(outVerts[nextVertex], outVerts[behindVertex], clippingZ), caseMask);
 	}
 
-	for (int i = 0; i < 6; ++i)
-	{
-		inputTriangles[i / 3].vertices[i % 3] = clipOutput[i];
-	}
+	outVerts = clipOutput;
 }
 
 
@@ -549,8 +546,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 constexpr int WORKER_JOB_BATCH_SIZE = 2048;
 void RasterizingRenderer::workerRoutine(const int threadIndex)
 {
-	std::array<float, WORKER_JOB_BATCH_SIZE> x, y, z, u, v, diffuseMapIndex;
-	
+	float nearPlaneZ = this->currGs->cameraPlane_zDist;
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
@@ -562,6 +558,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	{
 		const auto& currCmd = this->drawCommands[cmdIndex];
 		size_t currTriangleIndex = startInd;
+		std::array<float, WORKER_JOB_BATCH_SIZE> x, y, z, u, v, diffuseMapIndex;
 		while (currTriangleIndex < stopInd) //Process new batch. 
 		{
 			//Fill the cache with transformed results before rasterizing
@@ -588,7 +585,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					vertIndCache[i] = vertInd; 
 					
 					transformed[i].space = currCmd.ctr.rotateAndTranslate(originalWorld[i]);
-					behindNearPlaneMasks[i] = transformed[i].space.z < this->currGs->cameraPlane_zDist;
+					behindNearPlaneMasks[i] = transformed[i].space.z < nearPlaneZ;
 					behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, behindNearPlaneMasks[i], behindNearPlaneCount, _mm512_set1_epi32(1));
 				}
 
@@ -611,6 +608,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					if (!activeTriangles) continue;
 				}
 
+				this->performNearPlaneClipping(nearPlaneZ, transformed, behindNearPlaneCount, behindNearPlaneMasks);
 			}
 		}
 	}

@@ -100,7 +100,7 @@ private:
 	struct PixelStageOutput
 	{
 	};
-	void performNearPlaneClipping(float clippingZ, std::array<VertexStageOutputTriangle, 2>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
+	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& outVerts, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
 	//For draw command i the output will be written to output[i]
 	//Stage 1 assumes sequential input triangle indices, gathers only vertices' world coords and processes all draw commands.
