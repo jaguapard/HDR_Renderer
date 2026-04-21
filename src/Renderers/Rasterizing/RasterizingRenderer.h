@@ -75,8 +75,8 @@ private:
 	{
 	public:
 		TriangleBatch* operator&();
-		TriangleBatch& operator->();
-
+		TriangleBatch* operator->();
+		TriangleBatch& operator*();
 		TriangleBatchHandle(const TriangleBatchHandle& other);
 		~TriangleBatchHandle() noexcept;
 		friend struct TriangleBatchPool;
@@ -124,12 +124,13 @@ private:
 	{
 	public:
 		std::mutex mtx;
-		std::vector<std::shared_ptr<TriangleBatch>> unprocessedBatches;
+		std::vector<TriangleBatchHandle> unprocessedBatches;
 	};
 
 	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& outVerts, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 
 	std::unique_ptr<ThreadBatchList[]> threadBatchLists;
+	TriangleBatchPool triangleBatchPool;
 
 	void drawTriangleBatch(const TriangleBatch& batch, const int threadIndex);
 	void workerRoutine(const int threadIndex);

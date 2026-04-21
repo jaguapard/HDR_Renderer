@@ -404,7 +404,7 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<V
 void RasterizingRenderer::workerRoutine(const int threadIndex)
 {
 	float nearPlaneZ = this->currGs->cameraPlane_zDist;
-	auto batch = std::make_shared<TriangleBatch>();
+	TriangleBatchHandle batch = this->triangleBatchPool.allocate();
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
@@ -1126,7 +1126,11 @@ RasterizingRenderer::TriangleBatch* RasterizingRenderer::TriangleBatchHandle::op
 {
 	return pool->memory + this->indexInPool;
 }
-RasterizingRenderer::TriangleBatch& RasterizingRenderer::TriangleBatchHandle::operator->()
+RasterizingRenderer::TriangleBatch* RasterizingRenderer::TriangleBatchHandle::operator->()
+{
+	return (pool->memory + this->indexInPool);
+}
+RasterizingRenderer::TriangleBatch& RasterizingRenderer::TriangleBatchHandle::operator*()
 {
 	return *(pool->memory + this->indexInPool);
 }
