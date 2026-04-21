@@ -591,7 +591,25 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, behindNearPlaneMasks[i], behindNearPlaneCount, _mm512_set1_epi32(1));
 				}
 
-				if (!(behindNearPlaneCount < 3)) continue;
+				Mask16 activeTriangles = storeBounds & behindNearPlaneCount < 3;
+				if (!activeTriangles) continue;
+
+				if (currCmd.faceCullingType != FaceCullingType::NONE)
+				{
+					const auto* flagsPtr = this->original_triangleStore.modelFlags.data();
+					int32x16 modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + currTriangleIndex);
+
+					Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformed[0], transformed[1], transformed[2]);
+					float32x16 dot = transformed[0].dot3d(transformedFaceNormals);
+					switch (currCmd.faceCullingType)
+					{
+					case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
+					case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & NO_FRONTFACE_CULLING) != 0 | dot >= 0.f; break;
+					default: break;
+					}
+					if (!activeTriangles) continue;
+				}
+
 			}
 		}
 	}
