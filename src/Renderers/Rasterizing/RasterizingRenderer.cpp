@@ -391,7 +391,6 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
-	Mask16 storeBounds = 0xFFFF;
 	int threadCount = this->currGs->threadpool->getThreadCount();
 
 	//TODO: remake this to process all commands together?
@@ -410,7 +409,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 			for (; currTriangleIndex < stopInd && batch.batchSize < WORKER_JOB_BATCH_SIZE - 32; currTriangleIndex += 16)
 			{
 				int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
-				if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
+				Mask16 storeBounds = triangleIndices < stopInd;
 
 				std::array<int32x16, 3> vertIndCache;
 				std::array<Vec4_f32x16, 3> originalWorld;
