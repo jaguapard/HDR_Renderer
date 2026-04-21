@@ -12,6 +12,7 @@
 #include "../../C_Input.h"
 #include "../../EnumCycler.h"
 #include "RenderJobStore.h"
+#include "BufferZoneManager.h"
 using namespace Rasterizing;
 
 std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
@@ -168,9 +169,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.ctr = { w,h }; 
 	mainDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
 	mainDrawCmd.shadingMode = this->shadingMode;
-	mainDrawCmd.zBuffer = this->zBuffer.data();
-	mainDrawCmd.frameBuffer = (uint64_t*)this->currGs->graphicsOutputBuffer;
-	mainDrawCmd.triangleIndexBuffer = this->deferredTriangleIndices.data();
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = true;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
@@ -179,6 +177,10 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.renderW = w;
 	mainDrawCmd.renderH = h;
 	mainDrawCmd.recipe = DrawRecipe::MAIN_DEPTH_PREPASS;
+	mainDrawCmd.zBuffer.data = this->zBuffer.data();
+	mainDrawCmd.frameBuffer.data = (uint64_t*)this->currGs->graphicsOutputBuffer;
+	mainDrawCmd.triangleIndexBuffer.data = this->deferredTriangleIndices.data();
+	mainDrawCmd.triangleIndexBuffer.manager = mainDrawCmd.frameBuffer.manager = mainDrawCmd.zBuffer.manager = BufferZoneManager(threadCount, w, h);	
 
 	DrawCommand& shadowMapDrawCmd = this->drawCommands[1];
 	shadowMapDrawCmd.ctr = { (int)shadowMapW, (int)shadowMapH };
@@ -190,7 +192,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.trianglesToZones = &this->trianglesByZones[1];
 	shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
 	shadowMapDrawCmd.renderH = shadowMapH;
-	shadowMapDrawCmd.zBuffer = this->shadowMap_zBuffer.data();
+	
 	shadowMapDrawCmd.needsUVs = true;
 	shadowMapDrawCmd.needsNormals = false;
 	shadowMapDrawCmd.faceCullingType = this->useShadowMapFrontFaceCulling ? FaceCullingType::FRONTFACE : FaceCullingType::NONE; //FaceCullingType::FRONT
@@ -198,6 +200,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.renderW = shadowMapW;
 	shadowMapDrawCmd.renderH = shadowMapH;
 	shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
+	shadowMapDrawCmd.zBuffer.data = this->shadowMap_zBuffer.data();
+	shadowMapDrawCmd.zBuffer.manager = BufferZoneManager(threadCount, shadowMapW, shadowMapH);
 
 	for (auto& it : this->drawCommands) it.lastClaimedTriangle = 0;
 
@@ -648,8 +652,8 @@ Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int 
 //TODO: rewrite it to dynamically take draw command indices for each job instead of assuming all are from one
 void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd)
 {
-	float* zBuffer = drawCmd.zBuffer;
-	uint64_t* frameBuffer = drawCmd.frameBuffer;
+	float* zBuffer = drawCmd.zBuffer.data;
+	uint64_t* frameBuffer = drawCmd.frameBuffer.data;
 	/*
 	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, drawCmd.renderH);
 	float my_yMin = floor(d_low);
@@ -749,7 +753,7 @@ void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const in
 
 					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 					{
-						_mm512_mask_storeu_epi32(drawCmd.triangleIndexBuffer + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(batch.triangleIndex[currentTriangleIndex +i]));
+						_mm512_mask_storeu_epi32(drawCmd.triangleIndexBuffer.data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(batch.triangleIndex[currentTriangleIndex +i]));
 					}
 
 					if (Statsman::ENABLED)
@@ -787,10 +791,10 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	int w = this->drawCommands[0].renderW;
 	bool texturingEnabled = this->currGs->texturingEnabled;
 
-	float* shadowMap_zBuffer = this->drawCommands[1].zBuffer;
-	float* main_zBuffer = this->drawCommands[0].zBuffer;
-	uint64_t* main_frameBuffer = this->drawCommands[0].frameBuffer;
-	uint32_t* triangleIndexBuffer = this->drawCommands[0].triangleIndexBuffer;
+	float* shadowMap_zBuffer = this->drawCommands[1].zBuffer.data;
+	float* main_zBuffer = this->drawCommands[0].zBuffer.data;
+	uint64_t* main_frameBuffer = this->drawCommands[0].frameBuffer.data;
+	uint32_t* triangleIndexBuffer = this->drawCommands[0].triangleIndexBuffer.data;
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;

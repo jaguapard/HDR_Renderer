@@ -97,9 +97,9 @@ namespace Rasterizing
 		Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 
 		std::vector<TriangleIndexStore>* trianglesToZones = nullptr;
-		float* zBuffer = nullptr;
-		uint64_t* frameBuffer = nullptr;
-		uint32_t* triangleIndexBuffer = nullptr;
+		ZonedBuffer<float> zBuffer;
+		ZonedBuffer<uint64_t> frameBuffer;
+		ZonedBuffer<uint32_t> triangleIndexBuffer;
 		uint32_t renderW, renderH;
 		uint32_t threadCount = -1;
 		DrawRecipe recipe;
