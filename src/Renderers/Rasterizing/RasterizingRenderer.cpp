@@ -547,7 +547,8 @@ struct TriangleBatch
 {
 	Vertice_Store vertexData[3];
 	std::vector<float> minX, minY, maxX, maxY, rcpSignedArea;
-
+	float batchMinX, batchMinY, batchMaxX, batchMaxY;
+	int batchSize = 0;
 	void resize(size_t newSize)
 	{
 		for (auto& it : vertexData) it.resize(newSize);
@@ -564,11 +565,8 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	//auto batchCache = std::make_unique<VertexPack16[]>(WORKER_JOB_BATCH_SIZE);
 	float nearPlaneZ = this->currGs->cameraPlane_zDist;
 
-	Vertice_Store cache[3];
-	for (auto& it : cache) it.resize(WORKER_JOB_BATCH_SIZE);
-
-	std::vector<float> cacheMinX, cacheMinY, cacheMaxX, cacheMaxY, cacheRcpSignedArea;
-	for (auto& it : { &cacheMinX, &cacheMinY, &cacheMaxX, &cacheMaxY, &cacheRcpSignedArea }) it->resize(WORKER_JOB_BATCH_SIZE);
+	TriangleBatch batch;
+	batch.resize(WORKER_JOB_BATCH_SIZE);
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
@@ -583,10 +581,12 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		while (currTriangleIndex < stopInd) //Process new batch. 
 		{
 			//Fill the cache with transformed results before rasterizing
-			int occupiedCacheSlots = 0;
-			float batchMinX = currCmd.renderW - 1, batchMinY = currCmd.renderH - 1, batchMaxX = 0, batchMaxY = 0;
+			batch.batchSize = 0;
+			batch.batchMinX = currCmd.renderW - 1;
+			batch.batchMinY = currCmd.renderH - 1;
+			batch.batchMaxX = batch.batchMaxY = 0;
 
-			for (; currTriangleIndex < stopInd && occupiedCacheSlots < WORKER_JOB_BATCH_SIZE - 32; currTriangleIndex += 16)
+			for (; currTriangleIndex < stopInd && batch.batchSize < WORKER_JOB_BATCH_SIZE - 32; currTriangleIndex += 16)
 			{
 				int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
 				if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
@@ -693,40 +693,42 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					maxX = _mm512_ceil_ps(maxX);
 					maxY = _mm512_ceil_ps(maxY);
 					float32x16 rcpSignedArea = float32x16(1) / signedArea;
-					batchMinX = std::min(batchMinX, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minX)));
-					batchMinY = std::min(batchMinY, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minY)));
-					batchMaxX = std::max(batchMaxX, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxX)));
-					batchMaxY = std::max(batchMaxY, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxY)));
+					batch.batchMinX = std::min(batch.batchMinX, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minX)));
+					batch.batchMinY = std::min(batch.batchMinY, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minY)));
+					batch.batchMaxX = std::max(batch.batchMaxX, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxX)));
+					batch.batchMaxY = std::max(batch.batchMaxY, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxY)));
 
 					int jobsToAdd = _mm_popcnt_u32(activeTriangles);
 					Mask16 storeMask = (1 << jobsToAdd) - 1;
 					for (int i = 0; i < 3; ++i)
 					{
-						_mm512_mask_storeu_ps(cache[i].x.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.x));
-						_mm512_mask_storeu_ps(cache[i].y.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.y));
-						_mm512_mask_storeu_ps(cache[i].z.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.z));
+						_mm512_mask_storeu_ps(batch.vertexData[i].x.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.x));
+						_mm512_mask_storeu_ps(batch.vertexData[i].y.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.y));
+						_mm512_mask_storeu_ps(batch.vertexData[i].z.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.z));
 						if (currCmd.needsUVs)
 						{
-							_mm512_mask_storeu_ps(cache[i].u.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].u));
-							_mm512_mask_storeu_ps(cache[i].v.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].v));
+							_mm512_mask_storeu_ps(batch.vertexData[i].u.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].u));
+							_mm512_mask_storeu_ps(batch.vertexData[i].v.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].v));
 						}
 						if (currCmd.needsNormals)
 						{
-							_mm512_mask_storeu_ps(cache[i].nx.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.x));
-							_mm512_mask_storeu_ps(cache[i].ny.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.y));
-							_mm512_mask_storeu_ps(cache[i].nz.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.z));
+							_mm512_mask_storeu_ps(batch.vertexData[i].nx.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.x));
+							_mm512_mask_storeu_ps(batch.vertexData[i].ny.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.y));
+							_mm512_mask_storeu_ps(batch.vertexData[i].nz.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.z));
 						}
 					}
-					_mm512_mask_storeu_ps(cacheMinX.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, minX));
-					_mm512_mask_storeu_ps(cacheMinY.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, minY));
-					_mm512_mask_storeu_ps(cacheMaxX.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxX));
-					_mm512_mask_storeu_ps(cacheMaxY.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxY));
-					_mm512_mask_storeu_ps(cacheRcpSignedArea.data() + occupiedCacheSlots, storeMask, _mm512_maskz_compress_ps(activeTriangles, rcpSignedArea)); //TODO: is this all?
-					occupiedCacheSlots += jobsToAdd;
+					_mm512_mask_storeu_ps(batch.minX.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, minX));
+					_mm512_mask_storeu_ps(batch.minY.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, minY));
+					_mm512_mask_storeu_ps(batch.maxX.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxX));
+					_mm512_mask_storeu_ps(batch.maxY.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxY));
+					_mm512_mask_storeu_ps(batch.rcpSignedArea.data() + batch.batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, rcpSignedArea)); //TODO: is this all?
+					batch.batchSize += jobsToAdd;
 				}
 			}
 
 			//Now batch is ready and we can rasterize it
+			//DrawCommand batchCmd = currCmd; //TODO: allocate memory or lock screen region and draw into it. Refactor drawTriangleBatch to be able to take both of them
+
 		}
 	}
 }
