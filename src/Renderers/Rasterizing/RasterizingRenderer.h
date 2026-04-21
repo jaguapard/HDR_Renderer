@@ -62,43 +62,6 @@ private:
 	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
 
-
-	struct VertexStageInput
-	{
-		int32x16 triangleIndices;
-		std::array<int32x16, 3> vertexIndices;
-		Mask16 validInputs;
-		float nearPlaneZ;
-		//double threadCount;
-		//int threadIndex, stage;
-		int stage;
-		int firstCmd, lastCmd;
-	};
-
-	struct VertexStageOutputTriangle
-	{
-		std::array<Rasterizing::VertexPack16, 3> vertices;
-		float32x16 minX, minY, maxX, maxY, rcpSignedArea;
-		Mask16 activeTrianges = 0;
-	};
-	struct VertexStageOutput
-	{
-		std::array<VertexStageOutputTriangle, 2> outputTriangles;
-		int32x16 behindNearPlaneCount; //counts of vertices behind near plane for each triangle composed by input vertices
-		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
-	};
-
-	struct PixelStageInput
-	{
-		int32x16 progenitorTriangleIndices;
-		const Rasterizing::DrawCommand* cmd;
-		const VertexStageOutput* vertexStageOutput;
-		float my_xMin, my_yMin, my_xMax, my_yMax;
-	};
-
-	struct PixelStageOutput
-	{
-	};
 	struct TriangleBatch
 	{
 		Rasterizing::Vertice_Store vertexData[3];
