@@ -623,7 +623,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				{
 					this->drawTriangleBatch(*batch, threadIndex);
 				}
-				batch = std::make_shared<TriangleBatch>();
+				batch = this->triangleBatchPool.allocate();
 				this->processBatchesSentByOtherThreads(threadIndex);
 			}
 		}
@@ -633,7 +633,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 void RasterizingRenderer::processBatchesSentByOtherThreads(const int threadIndex)
 {
 	auto& myBatchList = this->threadBatchLists[threadIndex];
-	std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
+	std::vector<TriangleBatchHandle> poppedBatches;
 	{
 		std::lock_guard lck(myBatchList.mtx);
 		poppedBatches = myBatchList.unprocessedBatches;//std::move(myBatchList.unprocessedBatches);
@@ -1117,7 +1117,7 @@ RasterizingRenderer::TriangleBatchPool::TriangleBatchPool()
 	this->memory = (TriangleBatch*)malloc(sizeof(TriangleBatch) * MAX_OUTSTANDING_BATCHES);
 	for (int i = 0; i < MAX_OUTSTANDING_BATCHES; ++i)
 	{
-		this->refCount[i] = 0;
+		this->refCount.push_back(0);
 		this->freeBatchIndices.push_back(i);
 	}
 }
@@ -1152,9 +1152,3 @@ RasterizingRenderer::TriangleBatchHandle::~TriangleBatchHandle() noexcept
 		this->pool->free(*this);
 	}
 }
-/*
-TriangleBatchHandle RasterizingRenderer::TriangleBatchPool::allocate()
-{
-	return TriangleBatchHandle();
-}
-*/
