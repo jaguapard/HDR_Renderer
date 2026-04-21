@@ -90,7 +90,7 @@ private:
 
 	std::unique_ptr<ThreadBatchList[]> threadBatchLists;
 
-	void drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd);
+	void drawTriangleBatch(const TriangleBatch& batch, const int threadIndex);
 	void workerRoutine(const int threadIndex);
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;

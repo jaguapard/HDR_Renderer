@@ -571,7 +571,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 			bool shouldDrawToo = false;
 			if (receiverCount == 1 && recievers[0] == threadIndex) //easy case - all triangles are inside my zone, just draw
 			{
-				this->drawTriangleBatch(*batch, threadIndex, currCmd);
+				this->drawTriangleBatch(*batch, threadIndex);
 				continue;
 			}
 			else
@@ -592,7 +592,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 
 			if (shouldDrawToo)
 			{
-				this->drawTriangleBatch(*batch, threadIndex, currCmd);
+				this->drawTriangleBatch(*batch, threadIndex);
 				batch = std::make_shared<TriangleBatch>();
 			}
 		}
@@ -682,8 +682,9 @@ Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int 
 }
 
 //TODO: rewrite it to dynamically take draw command indices for each job instead of assuming all are from one
-void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const int threadIndex, const Rasterizing::DrawCommand& drawCmd)
+void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const int threadIndex)
 {
+	const auto& drawCmd = this->drawCommands[batch.drawCmdIndex];
 	float* zBuffer = drawCmd.zBuffer.data;
 	uint64_t* frameBuffer = drawCmd.frameBuffer.data;
 	float my_yMin, my_yMax, my_xMin, my_xMax;
