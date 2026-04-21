@@ -543,6 +543,21 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	}
 }
 
+struct TriangleBatch
+{
+	Vertice_Store vertexData[3];
+	std::vector<float> minX, minY, maxX, maxY, rcpSignedArea;
+
+	void resize(size_t newSize)
+	{
+		for (auto& it : vertexData) it.resize(newSize);
+		minX.resize(newSize);
+		minY.resize(newSize);
+		maxX.resize(newSize);
+		maxY.resize(newSize);
+		rcpSignedArea.resize(newSize);
+	}
+};
 constexpr int WORKER_JOB_BATCH_SIZE = 2048;
 void RasterizingRenderer::workerRoutine(const int threadIndex)
 {
