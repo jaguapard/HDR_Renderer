@@ -411,6 +411,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	int threadCount = this->currGs->threadpool->getThreadCount();
 	std::vector<int> recievers(threadCount);
 
+	constexpr uint64_t MAX_AREA_ALLOWANCE = 16 * TriangleBatch::WORKER_JOB_BATCH_SIZE;
 	size_t triangleCount = this->original_triangleStore.size();
 	//TODO: remake this to process all commands together?
 	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
@@ -418,7 +419,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		auto& currCmd = this->drawCommands[cmdIndex];
 		BufferZoneManager zoneManager(threadCount, currCmd.renderW, currCmd.renderH);
 		batch->drawCmdIndex = cmdIndex;
-		while (true) //Process new batch-> 
+		while (true) //Process new batch
 		{
 			size_t currTriangleIndex = currCmd.lastClaimedTriangle.fetch_add(batch->WORKER_JOB_BATCH_SIZE);
 			size_t stopInd = std::min(triangleCount, currTriangleIndex + batch->WORKER_JOB_BATCH_SIZE);
@@ -427,196 +428,208 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 				currCmd.threadsDone++;
 				break;
 			}
-			//Fill the cache with transformed results before rasterizing
-			batch->batchSize = 0;
-			batch->batchMinX = currCmd.renderW - 1;
-			batch->batchMinY = currCmd.renderH - 1;
-			batch->batchMaxX = batch->batchMaxY = 0;
-			batch->drawCmdIndex = cmdIndex;
-
-			for (; currTriangleIndex < stopInd && batch->batchSize < batch->WORKER_JOB_BATCH_SIZE; currTriangleIndex += 16)
+			while (currTriangleIndex < stopInd) //since batches can be force interrupted, we should run this again to fullfil claimed triangles contract
 			{
-				int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
-				Mask16 storeBounds = triangleIndices < stopInd;
-
-				std::array<int32x16, 3> vertIndCache;
-				std::array<Vec4_f32x16, 3> originalWorld;
-				std::array<VertexPack16, 6> transformed;
-				std::array<Mask16, 3> behindNearPlaneMasks;
-				int32x16 behindNearPlaneCount = 0;
-				for (int i = 0; i < 3; ++i)
+				//Fill the cache with transformed results before rasterizing
+				batch->batchSize = 0;
+				batch->batchMinX = currCmd.renderW - 1;
+				batch->batchMinY = currCmd.renderH - 1;
+				batch->batchMaxX = batch->batchMaxY = 0;
+				batch->drawCmdIndex = cmdIndex;
+				uint64_t currBatchScreenArea = 0;
+				for (; currTriangleIndex < stopInd && batch->batchSize < batch->WORKER_JOB_BATCH_SIZE && currBatchScreenArea < MAX_AREA_ALLOWANCE; currTriangleIndex += 16)
 				{
-					int32x16 vertInd = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
-					originalWorld[i].x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.x.data(), 4);
-					originalWorld[i].y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.y.data(), 4);
-					originalWorld[i].z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.z.data(), 4);
-					originalWorld[i].w = 1;
-					vertIndCache[i] = vertInd;
+					int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
+					Mask16 storeBounds = triangleIndices < stopInd;
 
-					transformed[i].space = currCmd.ctr.rotateAndTranslate(originalWorld[i]);
-					behindNearPlaneMasks[i] = transformed[i].space.z < nearPlaneZ;
-					behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, behindNearPlaneMasks[i], behindNearPlaneCount, _mm512_set1_epi32(1));
-				}
-
-				Mask16 activeTriangles = storeBounds & behindNearPlaneCount < 3;
-				if (!activeTriangles) continue;
-
-				if (currCmd.faceCullingType != FaceCullingType::NONE)
-				{
-					const auto* flagsPtr = this->original_triangleStore.modelFlags.data();
-					int32x16 modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + currTriangleIndex);
-
-					Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformed[0].space, transformed[1].space, transformed[2].space);
-					float32x16 dot = transformed[0].space.dot3d(transformedFaceNormals);
-					switch (currCmd.faceCullingType)
+					std::array<int32x16, 3> vertIndCache;
+					std::array<Vec4_f32x16, 3> originalWorld;
+					std::array<VertexPack16, 6> transformed;
+					std::array<Mask16, 3> behindNearPlaneMasks;
+					int32x16 behindNearPlaneCount = 0;
+					for (int i = 0; i < 3; ++i)
 					{
-					case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
-					case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & NO_FRONTFACE_CULLING) != 0 | dot >= 0.f; break;
-					default: break;
+						int32x16 vertInd = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
+						originalWorld[i].x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.x.data(), 4);
+						originalWorld[i].y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.y.data(), 4);
+						originalWorld[i].z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.z.data(), 4);
+						originalWorld[i].w = 1;
+						vertIndCache[i] = vertInd;
+
+						transformed[i].space = currCmd.ctr.rotateAndTranslate(originalWorld[i]);
+						behindNearPlaneMasks[i] = transformed[i].space.z < nearPlaneZ;
+						behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, behindNearPlaneMasks[i], behindNearPlaneCount, _mm512_set1_epi32(1));
 					}
+
+					Mask16 activeTriangles = storeBounds & behindNearPlaneCount < 3;
 					if (!activeTriangles) continue;
-				}
 
-				for (int i = 0; i < 3; ++i)
-				{
-					if (currCmd.needsUVs)
+					if (currCmd.faceCullingType != FaceCullingType::NONE)
 					{
-						transformed[i].u = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.u.data(), 4);
-						transformed[i].v = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.v.data(), 4);
-					}
-					if (currCmd.needsNormals)
-					{
-						transformed[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nx.data(), 4);
-						transformed[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.ny.data(), 4);
-						transformed[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nz.data(), 4);
-					}
-				}
-				int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
-				this->performNearPlaneClipping(nearPlaneZ, transformed, behindNearPlaneCount, behindNearPlaneMasks);
+						const auto* flagsPtr = this->original_triangleStore.modelFlags.data();
+						int32x16 modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + currTriangleIndex);
 
-				float w = currCmd.renderW;
-				float h = currCmd.renderH;
-				Mask16 oldActiveTriangles = activeTriangles;
-
-				for (int outputTriangleIndex = 0; outputTriangleIndex < 2; outputTriangleIndex++)
-				{
-					if (outputTriangleIndex == 1)
-					{
-						if (behindNearPlaneCount == 1) //load new triangle if there is new
+						Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformed[0].space, transformed[1].space, transformed[2].space);
+						float32x16 dot = transformed[0].space.dot3d(transformedFaceNormals);
+						switch (currCmd.faceCullingType)
 						{
-							activeTriangles = oldActiveTriangles & (behindNearPlaneCount == 1);
+						case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
+						case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & NO_FRONTFACE_CULLING) != 0 | dot >= 0.f; break;
+						default: break;
 						}
-						else break;
-					}
-					if (!activeTriangles) break;
-
-					float32x16 fovMult = 1; //TODO: adjustable game setting?
-					float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
-					for (int i = 0; i < 3; ++i)
-					{
-						auto& currVertex = transformed[i + outputTriangleIndex * 3];
-						float32x16 zInv = fovMult / currVertex.space.z;
-						currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
-						minX = _mm512_min_ps(minX, currVertex.space.x);
-						minY = _mm512_min_ps(minY, currVertex.space.y);
-						maxX = _mm512_max_ps(maxX, currVertex.space.x);
-						maxY = _mm512_max_ps(maxY, currVertex.space.y);
-						currVertex.space.z = zInv;
-						currVertex.u *= zInv;
-						currVertex.v *= zInv;
-						currVertex.normal.x *= zInv;
-						currVertex.normal.y *= zInv;
-						currVertex.normal.z *= zInv;
+						if (!activeTriangles) continue;
 					}
 
-					const Vec4_f32x16& r1 = transformed[0 + outputTriangleIndex * 3].space;
-					const Vec4_f32x16& r2 = transformed[1 + outputTriangleIndex * 3].space;
-					const Vec4_f32x16& r3 = transformed[2 + outputTriangleIndex * 3].space;
-
-					float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
-					Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
-					activeTriangles &= (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & nonZeroSignedAreaMask;
-					if (!activeTriangles) continue;
-
-					minX = _mm512_floor_ps(minX);
-					minY = _mm512_floor_ps(minY);
-					maxX = _mm512_ceil_ps(maxX);
-					maxY = _mm512_ceil_ps(maxY);
-					float32x16 rcpSignedArea = float32x16(1) / signedArea;
-					batch->batchMinX = std::min(batch->batchMinX, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minX)));
-					batch->batchMinY = std::min(batch->batchMinY, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minY)));
-					batch->batchMaxX = std::max(batch->batchMaxX, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxX)));
-					batch->batchMaxY = std::max(batch->batchMaxY, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxY)));
-
-					int jobsToAdd = _mm_popcnt_u32(activeTriangles);
-					Mask16 storeMask = (1 << jobsToAdd) - 1;
 					for (int i = 0; i < 3; ++i)
 					{
-						_mm512_mask_storeu_ps(batch->vertexData[i].x.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.x));
-						_mm512_mask_storeu_ps(batch->vertexData[i].y.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.y));
-						_mm512_mask_storeu_ps(batch->vertexData[i].z.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.z));
 						if (currCmd.needsUVs)
 						{
-							_mm512_mask_storeu_ps(batch->vertexData[i].u.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].u));
-							_mm512_mask_storeu_ps(batch->vertexData[i].v.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].v));
+							transformed[i].u = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.u.data(), 4);
+							transformed[i].v = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.v.data(), 4);
 						}
 						if (currCmd.needsNormals)
 						{
-							_mm512_mask_storeu_ps(batch->vertexData[i].nx.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.x));
-							_mm512_mask_storeu_ps(batch->vertexData[i].ny.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.y));
-							_mm512_mask_storeu_ps(batch->vertexData[i].nz.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.z));
+							transformed[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nx.data(), 4);
+							transformed[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.ny.data(), 4);
+							transformed[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nz.data(), 4);
 						}
 					}
-					_mm512_mask_storeu_ps(batch->minX.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, minX));
-					_mm512_mask_storeu_ps(batch->minY.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, minY));
-					_mm512_mask_storeu_ps(batch->maxX.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxX));
-					_mm512_mask_storeu_ps(batch->maxY.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxY));
-					_mm512_mask_storeu_ps(batch->rcpSignedArea.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, rcpSignedArea));
-					_mm512_mask_storeu_epi32(batch->diffuseMapIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, diffuseMapIndices)); //TODO: is this all?
-					_mm512_mask_storeu_epi32(batch->triangleIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, triangleIndices));
-					//_mm512_mask_storeu_epi32(batch->drawCmdIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, _mm512_set1_epi32(cmdIndex)));
-					batch->batchSize += jobsToAdd;
-				}
-			}
+					int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
+					this->performNearPlaneClipping(nearPlaneZ, transformed, behindNearPlaneCount, behindNearPlaneMasks);
 
-			//Now batch is ready and we can rasterize it
-			//DrawCommand batchCmd = currCmd; //TODO: allocate memory or lock screen region and draw into it. Refactor drawTriangleBatch to be able to take both of them
-			//TODO: if batch is fully in my zone, rasterize it immediately
-			//if not, send it to other threads (copy shared ptr into their storage) and then rasterize my share. 
-			// Don't forget to check out "incoming mail" after that and allocate shared_ptr for a new batch, filter out not mine and process with that
-			//TODO: don't pass cmd, indices are now written out and disjointed.
-			if (batch->batchSize == 0) continue;
-			int receiverCount = zoneManager.getThreadsResponsible(recievers.data(), batch->batchMinX, batch->batchMinY, batch->batchMaxX, batch->batchMaxY);
-			//todo: check manager for clamping.
-			if (receiverCount == 0) continue;
+					float w = currCmd.renderW;
+					float h = currCmd.renderH;
+					Mask16 oldActiveTriangles = activeTriangles;
 
-			bool shouldDrawToo = false;
-			if (receiverCount == 1 && recievers[0] == threadIndex) //easy case - all triangles are inside my zone, just draw
-			{
-				this->drawTriangleBatch(*batch, threadIndex);
-				continue;
-			}
-			else
-			{
-				for (int i = 0; i < receiverCount; ++i)
-				{
-					int recieverThread = recievers[i];
-					if (recieverThread == threadIndex) shouldDrawToo = true;
-					else
+					for (int outputTriangleIndex = 0; outputTriangleIndex < 2; outputTriangleIndex++)
 					{
-						auto& currTarget = this->threadBatchLists[recieverThread];
-						std::lock_guard lck(currTarget.mtx);
-						currTarget.unprocessedBatches.push_back(batch);
+						if (outputTriangleIndex == 1)
+						{
+							if (behindNearPlaneCount == 1) //load new triangle if there is new
+							{
+								activeTriangles = oldActiveTriangles & (behindNearPlaneCount == 1);
+							}
+							else break;
+						}
+						if (!activeTriangles) break;
+
+						float32x16 fovMult = 1; //TODO: adjustable game setting?
+						float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
+						for (int i = 0; i < 3; ++i)
+						{
+							auto& currVertex = transformed[i + outputTriangleIndex * 3];
+							float32x16 zInv = fovMult / currVertex.space.z;
+							currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
+							minX = _mm512_min_ps(minX, currVertex.space.x);
+							minY = _mm512_min_ps(minY, currVertex.space.y);
+							maxX = _mm512_max_ps(maxX, currVertex.space.x);
+							maxY = _mm512_max_ps(maxY, currVertex.space.y);
+							currVertex.space.z = zInv;
+							currVertex.u *= zInv;
+							currVertex.v *= zInv;
+							currVertex.normal.x *= zInv;
+							currVertex.normal.y *= zInv;
+							currVertex.normal.z *= zInv;
+						}
+
+						const Vec4_f32x16& r1 = transformed[0 + outputTriangleIndex * 3].space;
+						const Vec4_f32x16& r2 = transformed[1 + outputTriangleIndex * 3].space;
+						const Vec4_f32x16& r3 = transformed[2 + outputTriangleIndex * 3].space;
+
+						float32x16 signedArea = (r1 - r3).cross2d(r2 - r3);
+						Mask16 nonZeroSignedAreaMask = signedArea != 0.f;
+						activeTriangles &= (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & nonZeroSignedAreaMask;
+						if (!activeTriangles) continue;
+
+						minX = _mm512_floor_ps(minX);
+						minY = _mm512_floor_ps(minY);
+						maxX = _mm512_ceil_ps(maxX);
+						maxY = _mm512_ceil_ps(maxY);
+
+						int32x16 clampedMinX = minX.clamp(0, currCmd.renderW - 1).trunc();
+						int32x16 clampedMinY = minY.clamp(0, currCmd.renderH - 1).trunc();
+						int32x16 clampedMaxX = maxX.clamp(0, currCmd.renderW - 1).trunc();
+						int32x16 clampedMaxY = maxY.clamp(0, currCmd.renderH - 1).trunc();
+						int32x16 screenArea = (clampedMaxY - clampedMinY) * (clampedMaxX - clampedMinX);
+						screenArea = _mm512_maskz_mov_epi32(activeTriangles, screenArea);
+						currBatchScreenArea += _mm512_reduce_add_epi32(screenArea);
+
+						float32x16 rcpSignedArea = float32x16(1) / signedArea;
+						batch->batchMinX = std::min(batch->batchMinX, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minX)));
+						batch->batchMinY = std::min(batch->batchMinY, _mm512_reduce_min_ps(_mm512_mask_mov_ps(_mm512_set1_ps(INFINITY), activeTriangles, minY)));
+						batch->batchMaxX = std::max(batch->batchMaxX, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxX)));
+						batch->batchMaxY = std::max(batch->batchMaxY, _mm512_reduce_max_ps(_mm512_mask_mov_ps(_mm512_set1_ps(-INFINITY), activeTriangles, maxY)));
+
+						int jobsToAdd = _mm_popcnt_u32(activeTriangles);
+						Mask16 storeMask = (1 << jobsToAdd) - 1;
+						for (int i = 0; i < 3; ++i)
+						{
+							_mm512_mask_storeu_ps(batch->vertexData[i].x.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.x));
+							_mm512_mask_storeu_ps(batch->vertexData[i].y.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.y));
+							_mm512_mask_storeu_ps(batch->vertexData[i].z.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].space.z));
+							if (currCmd.needsUVs)
+							{
+								_mm512_mask_storeu_ps(batch->vertexData[i].u.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].u));
+								_mm512_mask_storeu_ps(batch->vertexData[i].v.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].v));
+							}
+							if (currCmd.needsNormals)
+							{
+								_mm512_mask_storeu_ps(batch->vertexData[i].nx.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.x));
+								_mm512_mask_storeu_ps(batch->vertexData[i].ny.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.y));
+								_mm512_mask_storeu_ps(batch->vertexData[i].nz.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, transformed[i + outputTriangleIndex * 3].normal.z));
+							}
+						}
+						_mm512_mask_storeu_ps(batch->minX.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, minX));
+						_mm512_mask_storeu_ps(batch->minY.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, minY));
+						_mm512_mask_storeu_ps(batch->maxX.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxX));
+						_mm512_mask_storeu_ps(batch->maxY.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, maxY));
+						_mm512_mask_storeu_ps(batch->rcpSignedArea.data() + batch->batchSize, storeMask, _mm512_maskz_compress_ps(activeTriangles, rcpSignedArea));
+						_mm512_mask_storeu_epi32(batch->diffuseMapIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, diffuseMapIndices)); //TODO: is this all?
+						_mm512_mask_storeu_epi32(batch->triangleIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, triangleIndices));
+						//_mm512_mask_storeu_epi32(batch->drawCmdIndex.data() + batch->batchSize, storeMask, _mm512_maskz_compress_epi32(activeTriangles, _mm512_set1_epi32(cmdIndex)));
+						batch->batchSize += jobsToAdd;
 					}
 				}
-			}
 
-			if (shouldDrawToo)
-			{
-				this->drawTriangleBatch(*batch, threadIndex);
+				//Now batch is ready and we can rasterize it
+				//DrawCommand batchCmd = currCmd; //TODO: allocate memory or lock screen region and draw into it. Refactor drawTriangleBatch to be able to take both of them
+				//TODO: if batch is fully in my zone, rasterize it immediately
+				//if not, send it to other threads (copy shared ptr into their storage) and then rasterize my share. 
+				// Don't forget to check out "incoming mail" after that and allocate shared_ptr for a new batch, filter out not mine and process with that
+				//TODO: don't pass cmd, indices are now written out and disjointed.
+				if (batch->batchSize == 0) continue;
+				int receiverCount = zoneManager.getThreadsResponsible(recievers.data(), batch->batchMinX, batch->batchMinY, batch->batchMaxX, batch->batchMaxY);
+				//todo: check manager for clamping.
+				if (receiverCount == 0) continue;
+
+				bool shouldDrawToo = false;
+				if (receiverCount == 1 && recievers[0] == threadIndex) //easy case - all triangles are inside my zone, just draw
+				{
+					this->drawTriangleBatch(*batch, threadIndex);
+					continue;
+				}
+				else
+				{
+					for (int i = 0; i < receiverCount; ++i)
+					{
+						int recieverThread = recievers[i];
+						if (recieverThread == threadIndex) shouldDrawToo = true;
+						else
+						{
+							auto& currTarget = this->threadBatchLists[recieverThread];
+							std::lock_guard lck(currTarget.mtx);
+							currTarget.unprocessedBatches.push_back(batch);
+						}
+					}
+				}
+
+				if (shouldDrawToo)
+				{
+					this->drawTriangleBatch(*batch, threadIndex);
+				}
+				batch = std::make_shared<TriangleBatch>();
+				this->processBatchesSentByOtherThreads(threadIndex);
 			}
-			batch = std::make_shared<TriangleBatch>();
-			this->processBatchesSentByOtherThreads(threadIndex);
 		}
 	}
 }
@@ -728,7 +741,6 @@ void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const in
 	drawCmd.zBuffer.manager.getLimitsForThread(threadIndex, my_xMin, my_yMin, my_xMax, my_yMax);
 	int w = drawCmd.renderW;
 	bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
-
 	for (int currentTriangleIndex = 0; currentTriangleIndex < batch.batchSize; currentTriangleIndex += 16)
 	{
 		Mask16 batchBounds = (int32x16::sequence() + currentTriangleIndex) < batch.batchSize;
