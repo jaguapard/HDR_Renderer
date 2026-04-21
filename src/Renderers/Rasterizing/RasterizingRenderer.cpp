@@ -1085,39 +1085,72 @@ std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t f
 	return ret;
 }
 */
-
+/*
 RasterizingRenderer::TriangleBatch::~TriangleBatch() noexcept
 {
 	std::lock_guard lck(pool->mtx);
 	int cnt = --pool->refCount[this->indexInPool];
 	if (cnt == 0) pool->free(this);
-}
+}*/
 
-RasterizingRenderer::TriangleBatch* RasterizingRenderer::TriangleBatchPool::allocate()
+RasterizingRenderer::TriangleBatchHandle RasterizingRenderer::TriangleBatchPool::allocate()
 {
 	std::lock_guard lck(this->mtx);
-	int arrayInd = this->freeBatchIndexTop--;
-	int batchInd = this->freeBatches[arrayInd];
-	TriangleBatch* p = (TriangleBatch*)(this->memory) + batchInd;
-	p->pool = this;
-	p->indexInPool = batchInd;
-	this->refCount[batchInd] = 1;
+	int ind = this->freeBatchIndices.back();
+	this->freeBatchIndices.pop_back();
+	this->refCount[ind] = 1;
+	TriangleBatchHandle h;
+	h.indexInPool = ind;
+	h.pool = this;
+	return h;
 }
 
-void RasterizingRenderer::TriangleBatchPool::free(const TriangleBatch* p)
+void RasterizingRenderer::TriangleBatchPool::free(const TriangleBatchHandle& h)
 {
 	std::lock_guard lck(this->mtx);
-	int arrayInd = ++this->freeBatchIndexTop;
-	this->freeBatches[arrayInd] = p->indexInPool;
+	this->freeBatchIndices.push_back(h.indexInPool);
+	this->refCount[h.indexInPool] = 0;
 }
 
 RasterizingRenderer::TriangleBatchPool::TriangleBatchPool()
 {
-	this->memory = malloc(sizeof(TriangleBatch) * MAX_OUTSTANDING_BATCHES);
+	this->memory = (TriangleBatch*)malloc(sizeof(TriangleBatch) * MAX_OUTSTANDING_BATCHES);
 	for (int i = 0; i < MAX_OUTSTANDING_BATCHES; ++i)
 	{
 		this->refCount[i] = 0;
-		this->freeBatches[i] = i;
+		this->freeBatchIndices.push_back(i);
 	}
-	this->freeBatchIndexTop = MAX_OUTSTANDING_BATCHES - 1;
 }
+
+RasterizingRenderer::TriangleBatch* RasterizingRenderer::TriangleBatchHandle::operator&()
+{
+	return pool->memory + this->indexInPool;
+}
+RasterizingRenderer::TriangleBatch& RasterizingRenderer::TriangleBatchHandle::operator->()
+{
+	return *(pool->memory + this->indexInPool);
+}
+RasterizingRenderer::TriangleBatchHandle::TriangleBatchHandle(const TriangleBatchHandle& other)
+{
+	this->pool = other.pool;
+	this->indexInPool = other.indexInPool;
+	std::lock_guard lck(this->pool->mtx);
+	assert(this->pool->refCount[this->indexInPool] > 0);
+	this->pool->refCount[this->indexInPool]++;
+}
+RasterizingRenderer::TriangleBatchHandle::~TriangleBatchHandle() noexcept
+{
+	std::lock_guard lck(this->pool->mtx);
+	int cnt = --this->pool->refCount[this->indexInPool];
+	assert(cnt >= 0);
+	if (cnt == 0)
+	{
+		this->pool->free(*this);
+	}
+}
+/*
+TriangleBatchHandle RasterizingRenderer::TriangleBatchPool::allocate()
+{
+	return TriangleBatchHandle();
+}
+*/

@@ -70,6 +70,21 @@ private:
 	};
 
 	struct TriangleBatchPool;
+	struct TriangleBatch;
+	class TriangleBatchHandle
+	{
+	public:
+		TriangleBatch* operator&();
+		TriangleBatch& operator->();
+
+		TriangleBatchHandle(const TriangleBatchHandle& other);
+		~TriangleBatchHandle() noexcept;
+		friend struct TriangleBatchPool;
+	private:
+		TriangleBatchHandle() {};
+		TriangleBatchPool* pool;
+		int indexInPool;
+	};
 	struct TriangleBatch
 	{
 		VertexBatch vertexData[3];		
@@ -79,32 +94,24 @@ private:
 		float batchMinX, batchMinY, batchMaxX, batchMaxY;
 		int batchSize = 0;
 		int drawCmdIndex = INT32_MIN;
-
-		
-
-		TriangleBatch() = delete;
-		TriangleBatch(const TriangleBatch& b);
-		~TriangleBatch() noexcept;
-		friend struct TriangleBatchPool;
-	private:
-		TriangleBatchPool* pool;
-		int indexInPool;
 	};
 
 	struct TriangleBatchPool
 	{
 		static inline constexpr int MAX_OUTSTANDING_BATCHES = 1024;
 		friend struct TriangleBatch;
-		TriangleBatch* allocate();
-		void free(const TriangleBatch* p);
+		TriangleBatchHandle allocate();
+		void free(const TriangleBatchHandle& h);
 		TriangleBatchPool();
+		friend struct TriangleBatchHandle;
 	private:
-		void* memory;
+		TriangleBatch* memory;
 		//std::array<std::atomic_int, MAX_OUTSTANDING_BATCHES> freeBatches;
-		std::array<int, MAX_OUTSTANDING_BATCHES> freeBatches;
-		std::array<std::atomic_int, MAX_OUTSTANDING_BATCHES> refCount;
+		//std::array<int, MAX_OUTSTANDING_BATCHES> freeBatches;
+		//std::array<std::atomic_int, MAX_OUTSTANDING_BATCHES> refCount;
 		//std::atomic_int freeBatchIndexTop;
-		int freeBatchIndexTop;
+		std::vector<int> refCount, freeBatchIndices;
+		//int freeBatchIndexTop;
 		std::recursive_mutex mtx;
 	};
 
