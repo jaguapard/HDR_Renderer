@@ -741,9 +741,9 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				for (float32x16 x = float32x16::sequence() + group_xBeg[i]; Mask16 xBoundsMask = (x <= group_xEnd[i]); x += 16, xInt += 16)
 				{
 					float32x16 dx = x - group_xBeg[i];
-					float32x16 alpha = float32x16(group_initialAlpha[i]) + float32x16(group_dAlpha_dx[i]) * dx + float32x16(group_dAlpha_dy[i]) * dy;
-					float32x16 beta = float32x16(group_initialBeta[i]) + float32x16(group_dBeta_dx[i]) * dx + float32x16(group_dBeta_dy[i]) * dy;
-					float32x16 gamma = float32x16(group_initialGamma[i]) + float32x16(group_dGamma_dx[i]) * dx + float32x16(group_dGamma_dy[i]) * dy;
+					float32x16 alpha = dy * group_dAlpha_dy[i] + dx * group_dAlpha_dx[i] + group_initialAlpha[i];
+					float32x16 beta = dy * group_dBeta_dy[i] + dx * group_dBeta_dx[i] + group_initialBeta[i];
+					float32x16 gamma = dy * group_dGamma_dy[i] + dx * group_dGamma_dx[i] + group_initialGamma[i];
 					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
 					if (Statsman::ENABLED)
 					{
