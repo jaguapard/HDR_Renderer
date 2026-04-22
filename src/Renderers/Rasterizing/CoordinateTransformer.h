@@ -24,7 +24,5 @@ public:
 private:
 	Matrix4 rotationTranslation;
 	Matrix4 inverseRotationTranslation;
-	Vec4f _shift;
-	Vec4f hVec;
-	Vec4f shift_hVec;
+	Vec4f _shift, hVec, rcp_hVec, shift_hVec;
 };
