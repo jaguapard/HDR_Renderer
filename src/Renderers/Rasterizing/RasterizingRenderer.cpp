@@ -550,7 +550,6 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
-	Mask16 storeBounds = 0xFFFF;
 	int threadCount = this->currGs->threadpool->getThreadCount();
 
 	VertexStageInput inp;
@@ -562,13 +561,19 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
 	{
 		int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
-		if (currTriangleIndex + 15 >= stopInd) storeBounds = triangleIndices < stopInd;
+		Mask16 groupActiveTriangles = triangleIndices < stopInd;
+		if (this->skipTrianglesWithFallbackTexure)
+		{
+			int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(groupActiveTriangles, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
+			groupActiveTriangles &= diffuseMapIndices != 0;
+			if (!groupActiveTriangles) continue;
+		}
 
 		inp.triangleIndices = triangleIndices;
-		inp.validInputs = storeBounds;
+		inp.validInputs = groupActiveTriangles;
 		for (int i = 0; i < 3; ++i)
 		{
-			inp.vertexIndices[i] = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
+			inp.vertexIndices[i] = _mm512_maskz_loadu_epi32(groupActiveTriangles, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
 		}
 
 		this->transformVertices(inp, transformedResults.get());
@@ -730,7 +735,6 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		{
 			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
 			int currDiffuseMapIndex = diffuseMapIndex[i];
-			if (this->skipTrianglesWithFallbackTexure && currDiffuseMapIndex == 0) continue; 
 
 			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
 			for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
