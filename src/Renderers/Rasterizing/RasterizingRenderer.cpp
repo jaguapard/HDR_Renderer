@@ -479,6 +479,9 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 						if (!activeTriangles) continue;
 					}
 
+					int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
+					if (this->skipTrianglesWithFallbackTexure) activeTriangles &= diffuseMapIndices != 0;
+					if (!activeTriangles) continue;
 					for (int i = 0; i < 3; ++i)
 					{
 						if (currCmd.needsUVs)
@@ -493,7 +496,6 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 							transformed[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nz.data(), 4);
 						}
 					}
-					int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
 					this->performNearPlaneClipping(nearPlaneZ, transformed, behindNearPlaneCount, behindNearPlaneMasks);
 
 					float w = currCmd.renderW;
@@ -780,7 +782,6 @@ void RasterizingRenderer::drawTriangleBatch(const TriangleBatch& batch, const in
 		{
 			if ((batchBounds.mask & (1 << i)) == 0) continue;
 			int currDiffuseMapIndex = batch.diffuseMapIndex[currentTriangleIndex + i];
-			if (this->skipTrianglesWithFallbackTexure && currDiffuseMapIndex == 0) continue;
 
 			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
 			for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
