@@ -108,7 +108,7 @@ private:
 
 	struct TriangleBatchPool
 	{
-		static inline constexpr int MAX_OUTSTANDING_BATCHES = 1024;
+		static inline constexpr int MAX_OUTSTANDING_BATCHES = 8192;
 		friend struct TriangleBatch;
 		TriangleBatchHandle allocate();
 		void free(const TriangleBatchHandle& h);
