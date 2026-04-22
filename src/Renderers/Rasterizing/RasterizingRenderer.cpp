@@ -164,7 +164,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	int w = (int)settings.outputTextureParams.Width;
 	int h = (int)settings.outputTextureParams.Height;
-	DrawCommand mainDrawCmd;
+	this->drawCommands.clear();
+	DrawCommand& mainDrawCmd = this->drawCommands.emplace_back();
 	mainDrawCmd.ctr = { w,h }; 
 	mainDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
 	mainDrawCmd.shadingMode = this->shadingMode;
@@ -179,9 +180,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.renderW = w;
 	mainDrawCmd.renderH = h;
 	mainDrawCmd.recipe = DrawRecipe::MAIN_DEPTH_PREPASS;
-	this->drawCommands[0] = mainDrawCmd;
 
-	DrawCommand shadowMapDrawCmd;
+	DrawCommand& shadowMapDrawCmd = this->drawCommands.emplace_back();
 	shadowMapDrawCmd.ctr = { (int)shadowMapW, (int)shadowMapH };
 	shadowMapDrawCmd.ctr.prepare(Vec4f(1281.845703, 2235.967773, 178.236572, 0.000000), Vec4f(0.000000, 4.523108, 0.797002, 0.000000));
 	//shadowMapDrawCmd.ctr.prepare(Vec4f(-86.050537, 1644.088623, 710.859253, 0.000000), Vec4f(0.000000, -3.165947,0.366014,0.000000));
@@ -199,7 +199,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	shadowMapDrawCmd.renderW = shadowMapW;
 	shadowMapDrawCmd.renderH = shadowMapH;
 	shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
-	this->drawCommands[1] = shadowMapDrawCmd;
 
 	int tCntSq = threadCount * threadCount;
 	for (auto& currSub : this->drawCommands)

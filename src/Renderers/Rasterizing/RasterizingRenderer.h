@@ -51,7 +51,7 @@ private:
 	Rasterizing::Vertice_Store original_verticeStore;
 	Rasterizing::Triangle_Store original_triangleStore;
 
-	std::array<Rasterizing::DrawCommand, 2> drawCommands;
+	std::vector<Rasterizing::DrawCommand> drawCommands;
 
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;
