@@ -456,8 +456,8 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 					for (int i = 0; i < 3; ++i)
 					{
 						//activeTriangles may be different between commands, so gather by least restrictive valid mask, which is the input valid mask
-						originalVertices[i].u = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.u.data(), 4);
-						originalVertices[i].v = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.v.data(), 4);
+						int32x16 packedUv = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.uvPacked.data(), 4);
+						interleaved_ph_to_ps(packedUv, originalVertices[i].u, originalVertices[i].v);
 					}
 					UVs_loaded = true;
 				}
@@ -667,13 +667,6 @@ void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameB
 		_mm256_mask_storeu_epi16((int16_t*)frameBuffer + storeInd, duplicated >> (i * 4), rgba);
 	}
 }
-
-#ifdef VS_CLANG
-__m512i _mm512_setr_epi16(int16_t i0, int16_t i1, int16_t i2, int16_t i3, int16_t i4, int16_t i5, int16_t i6, int16_t i7, int16_t i8, int16_t i9, int16_t i10, int16_t i11, int16_t i12, int16_t i13, int16_t i14, int16_t i15, int16_t i16, int16_t i17, int16_t i18, int16_t i19, int16_t i20, int16_t i21, int16_t i22, int16_t i23, int16_t i24, int16_t i25, int16_t i26, int16_t i27, int16_t i28, int16_t i29, int16_t i30, int16_t i31)
-{
-	return _mm512_set_epi16(i31, i30, i29, i28, i27, i26, i25, i24, i23, i22, i21, i20, i19, i18, i17, i16, i15, i14, i13, i12, i11, i10, i9, i8, i7, i6, i5, i4, i3, i2, i1, i0);
-}
-#endif
 
 Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask)
 {
@@ -907,8 +900,10 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				untransformedVerts[i].space.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.x.data(), 4);
 				untransformedVerts[i].space.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.y.data(), 4);
 				untransformedVerts[i].space.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.z.data(), 4);
-				untransformedVerts[i].u = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.u.data(), 4);
-				untransformedVerts[i].v = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.v.data(), 4);
+
+				int32x16 packedUv = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), filledPixels, vInd, this->original_verticeStore.uvPacked.data(), 4);
+				interleaved_ph_to_ps(packedUv, untransformedVerts[i].u, untransformedVerts[i].v);
+				
 				untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nx.data(), 4);
 				untransformedVerts[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.ny.data(), 4);
 				untransformedVerts[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nz.data(), 4);
@@ -1016,8 +1011,9 @@ uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, 
 		this->x.push_back(x);
 		this->y.push_back(y);
 		this->z.push_back(z);
-		this->u.push_back(u);
-		this->v.push_back(v);
+		__m128 uv_f32 = _mm_setr_ps(u, v, u, u);
+		__m128i uv_f16 = _mm_cvtps_ph(uv_f32, 0);
+		this->uvPacked.push_back(_mm_extract_epi32(uv_f16, 0));
 		this->nx.push_back(nx);
 		this->ny.push_back(ny);
 		this->nz.push_back(nz);
@@ -1038,8 +1034,7 @@ void Rasterizing::Vertice_Store::clear()
 	this->x.clear();
 	this->y.clear();
 	this->z.clear();
-	this->u.clear();
-	this->v.clear();
+	this->uvPacked.clear();
 	this->nx.clear();
 	this->ny.clear();
 	this->nz.clear();

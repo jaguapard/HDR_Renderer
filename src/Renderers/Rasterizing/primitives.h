@@ -97,7 +97,8 @@ namespace Rasterizing
 
 	struct Vertice_Store
 	{
-		std::vector<float> x, y, z, u, v, nx, ny, nz;
+		std::vector<float> x, y, z, nx, ny, nz;
+		std::vector<uint32_t> uvPacked;
 		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
 		size_t size() const;
 		void clear();
