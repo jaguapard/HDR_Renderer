@@ -1095,9 +1095,12 @@ RasterizingRenderer::TriangleBatch::~TriangleBatch() noexcept
 
 RasterizingRenderer::TriangleBatchHandle RasterizingRenderer::TriangleBatchPool::allocate()
 {
-	std::lock_guard lck(this->mtx);
-	int ind = this->freeBatchIndices.back();
-	this->freeBatchIndices.pop_back();
+	int ind;
+	{
+		std::lock_guard lck(this->mtx);
+		ind = this->freeBatchIndices.back();
+		this->freeBatchIndices.pop_back();
+	}
 	this->refCount[ind] = 1;
 	TriangleBatchHandle h;
 	h.indexInPool = ind;
@@ -1181,7 +1184,6 @@ RasterizingRenderer::TriangleBatchHandle::~TriangleBatchHandle() noexcept
 void RasterizingRenderer::TriangleBatchHandle::decrementRefCnt() const
 {
 	if (!pool) return;
-	std::lock_guard lck(pool->mtx);
 	int cnt = --pool->refCount[indexInPool];
 	assert(cnt >= 0);
 	if (cnt == 0)
@@ -1193,7 +1195,6 @@ void RasterizingRenderer::TriangleBatchHandle::decrementRefCnt() const
 void RasterizingRenderer::TriangleBatchHandle::incrementRefCnt() const
 {
 	if (!pool) return;
-	std::lock_guard lck(pool->mtx);
 	int cnt = pool->refCount[indexInPool]++;
 	assert(cnt >= 1);
 }
