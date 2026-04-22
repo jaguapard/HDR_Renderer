@@ -172,7 +172,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.buffers.emplace_back(this->currGs->graphicsOutputBuffer, w, h);
 	mainDrawCmd.buffers.emplace_back(this->deferredTriangleIndices.data(), w, h);
 	mainDrawCmd.needsUVs = true;
-	mainDrawCmd.needsNormals = true;
+	mainDrawCmd.needsNormals = false;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
 	mainDrawCmd.trianglesToZones = &this->trianglesByZones[0];
 	mainDrawCmd.threadCount = threadCount;
