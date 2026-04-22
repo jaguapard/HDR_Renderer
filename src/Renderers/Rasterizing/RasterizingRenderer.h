@@ -116,8 +116,9 @@ private:
 		friend struct TriangleBatchHandle;
 	private:
 		TriangleBatch* memory;
-		std::vector<std::atomic_int> refCount;
-		std::vector<int> freeBatchIndices;
+		std::array<std::atomic_int, MAX_OUTSTANDING_BATCHES> refCount;
+		std::array<int, MAX_OUTSTANDING_BATCHES> freeBatchIndices;
+		int topIndex;
 		std::recursive_mutex mtx;
 	};
 
