@@ -26,4 +26,5 @@ private:
 	Matrix4 inverseRotationTranslation;
 	Vec4f _shift;
 	Vec4f hVec;
+	Vec4f shift_hVec;
 };

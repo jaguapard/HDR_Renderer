@@ -5,6 +5,7 @@ CoordinateTransformer::CoordinateTransformer(int w, int h)
 	float widthToHeightAspectRatio = float(w) / h;
 	this->_shift = { widthToHeightAspectRatio / 2, 0.5, 0 };
 	this->hVec = Vec4f(h, h, 1, 1);
+	this->shift_hVec = Vec4f(_shift.x, _shift.y, h, h);
 }
 
 void CoordinateTransformer::prepare(const Vec4f camPos, const Vec4f camAng)
@@ -41,7 +42,10 @@ Vec4f CoordinateTransformer::screenSpaceToPixels(const Vec4f v) const
 
 bob::Vec4_f32x16 CoordinateTransformer::screenSpaceToPixels(const bob::Vec4_f32x16& v) const
 {
-	return (v + this->_shift) * hVec;
+	Vec4_f32x16 ret;
+	ret.x = (v.x + this->shift_hVec.x) * this->shift_hVec.z;
+	ret.y = (v.y + this->shift_hVec.y) * this->shift_hVec.z;
+	return ret;
 }
 
 Vec4f CoordinateTransformer::rotateAndTranslate(Vec4f v) const
