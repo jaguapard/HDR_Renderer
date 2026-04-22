@@ -141,13 +141,13 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	int shadowMapW = 51;
 	int shadowMapH = 28;
 #endif
-	this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
 	this->deferredTriangleIndices.resize(mainBufSize);
 	
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
 	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
 	if (inp.wasCharPressedOnThisFrame('B')) this->faceCullingType = EnumCycler::next(this->faceCullingType);
+	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_6)) this->shadowMapEnabled ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_7)) this->useShadowMapBias ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_8)) this->useShadowMapFrontFaceCulling ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_9)) this->skipTrianglesWithFallbackTexure ^= 1;
@@ -181,24 +181,28 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.renderH = h;
 	mainDrawCmd.recipe = DrawRecipe::MAIN_DEPTH_PREPASS;
 
-	DrawCommand& shadowMapDrawCmd = this->drawCommands.emplace_back();
-	shadowMapDrawCmd.ctr = { (int)shadowMapW, (int)shadowMapH };
-	shadowMapDrawCmd.ctr.prepare(Vec4f(1281.845703, 2235.967773, 178.236572, 0.000000), Vec4f(0.000000, 4.523108, 0.797002, 0.000000));
-	//shadowMapDrawCmd.ctr.prepare(Vec4f(-86.050537, 1644.088623, 710.859253, 0.000000), Vec4f(0.000000, -3.165947,0.366014,0.000000));
-	//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
-	//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
-	//shadowMapDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
-	shadowMapDrawCmd.trianglesToZones = &this->trianglesByZones[1];
-	shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
-	shadowMapDrawCmd.renderH = shadowMapH;
-	shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
-	shadowMapDrawCmd.needsUVs = true;
-	shadowMapDrawCmd.needsNormals = false;
-	shadowMapDrawCmd.faceCullingType = this->useShadowMapFrontFaceCulling ? FaceCullingType::FRONTFACE : FaceCullingType::NONE; //FaceCullingType::FRONT
-	shadowMapDrawCmd.threadCount = threadCount;
-	shadowMapDrawCmd.renderW = shadowMapW;
-	shadowMapDrawCmd.renderH = shadowMapH;
-	shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
+	if (this->shadowMapEnabled)
+	{
+		this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
+		DrawCommand& shadowMapDrawCmd = this->drawCommands.emplace_back();
+		shadowMapDrawCmd.ctr = { (int)shadowMapW, (int)shadowMapH };
+		shadowMapDrawCmd.ctr.prepare(Vec4f(1281.845703, 2235.967773, 178.236572, 0.000000), Vec4f(0.000000, 4.523108, 0.797002, 0.000000));
+		//shadowMapDrawCmd.ctr.prepare(Vec4f(-86.050537, 1644.088623, 710.859253, 0.000000), Vec4f(0.000000, -3.165947,0.366014,0.000000));
+		//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
+		//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
+		//shadowMapDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
+		shadowMapDrawCmd.trianglesToZones = &this->trianglesByZones[1];
+		shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
+		shadowMapDrawCmd.renderH = shadowMapH;
+		shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
+		shadowMapDrawCmd.needsUVs = true;
+		shadowMapDrawCmd.needsNormals = false;
+		shadowMapDrawCmd.faceCullingType = this->useShadowMapFrontFaceCulling ? FaceCullingType::FRONTFACE : FaceCullingType::NONE; //FaceCullingType::FRONT
+		shadowMapDrawCmd.threadCount = threadCount;
+		shadowMapDrawCmd.renderW = shadowMapW;
+		shadowMapDrawCmd.renderH = shadowMapH;
+		shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
+	}
 
 	int tCntSq = threadCount * threadCount;
 	for (auto& currSub : this->drawCommands)
@@ -219,7 +223,10 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
 	for (auto& it : zBuffer) it = -INFINITY;
-	for (auto& it : shadowMap_zBuffer) it = -INFINITY;
+	if (this->shadowMapEnabled)
+	{
+		for (auto& it : shadowMap_zBuffer) it = -INFINITY;
+	}
 	for (auto& it : this->deferredTriangleIndices) it = -1;
 	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
 	
@@ -855,7 +862,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	int w = this->drawCommands[0].renderW;
 	bool texturingEnabled = this->currGs->texturingEnabled;
 
-	float* shadowMap_zBuffer = (float*)this->drawCommands[1].buffers[0].data;
+	float* shadowMap_zBuffer = this->shadowMapEnabled ? (float*)this->drawCommands[1].buffers[0].data : nullptr;
 	float* main_zBuffer = (float*)this->drawCommands[0].buffers[0].data;
 	float* main_frameBuffer = (float*)this->drawCommands[0].buffers[1].data;
 	uint32_t* renderJobPtrsBuffer = (uint32_t*)this->drawCommands[0].buffers[2].data;
@@ -902,7 +909,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 
 				int32x16 packedUv = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), filledPixels, vInd, this->original_verticeStore.uvPacked.data(), 4);
 				interleaved_ph_to_ps(packedUv, untransformedVerts[i].u, untransformedVerts[i].v);
-				
+
 				untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nx.data(), 4);
 				untransformedVerts[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.ny.data(), 4);
 				untransformedVerts[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nz.data(), 4);
@@ -955,29 +962,33 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
 			texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
 			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
-			
-			const auto& currentShadowMap = this->drawCommands[1];
-			Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
-			float32x16 zInv = float32x16(1) / sunWorldPositions.z;
-			Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
-			sunScreenPositions.z = zInv;
-			sunScreenPositions.y = sunScreenPositions.y;
 
-			Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
-			int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
-			float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
-			
-			Mask16 pointsInShadow = ~inShadowMapBounds;
-			if (this->useShadowMapBias)
+			Mask16 pointsInShadow = 0;
+			if (this->shadowMapEnabled)
 			{
-				float32x16 bias = 10.f; //still some acne, noticable panning
-				float32x16 shadowMapProperDepth = float32x16(1) / shadowMapDepths;
-				float32x16 geometryProperDepth = float32x16(1) / sunScreenPositions.z;
-				pointsInShadow |= (shadowMapProperDepth + bias < geometryProperDepth);
-			}
-			else
-			{
-				pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
+				const auto& currentShadowMap = this->drawCommands[1];
+				Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
+				float32x16 zInv = float32x16(1) / sunWorldPositions.z;
+				Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
+				sunScreenPositions.z = zInv;
+				sunScreenPositions.y = sunScreenPositions.y;
+
+				Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
+				int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
+				float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+
+				pointsInShadow = ~inShadowMapBounds;
+				if (this->useShadowMapBias)
+				{
+					float32x16 bias = 10.f; //still some acne, noticable panning
+					float32x16 shadowMapProperDepth = float32x16(1) / shadowMapDepths;
+					float32x16 geometryProperDepth = float32x16(1) / sunScreenPositions.z;
+					pointsInShadow |= (shadowMapProperDepth + bias < geometryProperDepth);
+				}
+				else
+				{
+					pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
+				}
 			}
 
 			Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
@@ -989,12 +1000,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
 			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
 			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
-
-
 		}
-
-
-
 	}
 }
 

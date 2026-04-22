@@ -50,6 +50,7 @@ private:
 	std::vector<Rasterizing::Model> sceneModels;
 	Rasterizing::Vertice_Store original_verticeStore;
 	Rasterizing::Triangle_Store original_triangleStore;
+	bool shadowMapEnabled = true;
 
 	std::vector<Rasterizing::DrawCommand> drawCommands;
 
