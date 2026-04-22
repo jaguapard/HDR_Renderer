@@ -78,12 +78,16 @@ private:
 		TriangleBatch* operator->();
 		TriangleBatch& operator*();
 		TriangleBatchHandle& operator=(const TriangleBatchHandle& other);
+		TriangleBatchHandle& operator=(TriangleBatchHandle&& other) noexcept;
 		TriangleBatchHandle(const TriangleBatchHandle& other);
+		TriangleBatchHandle(TriangleBatchHandle&& other) noexcept;
 		~TriangleBatchHandle() noexcept;
 		friend struct TriangleBatchPool;
 	private:
 		TriangleBatchHandle() {};
-		TriangleBatchPool* pool;
+		void decrementRefCnt() const;
+		void incrementRefCnt() const;
+		mutable TriangleBatchPool* pool = nullptr;
 		int indexInPool;
 	};
 	struct TriangleBatch
@@ -91,8 +95,8 @@ private:
 		TriangleBatch() = delete;
 		TriangleBatch(const TriangleBatch&) = delete;
 		TriangleBatch(const TriangleBatch&&) = delete;
-		TriangleBatch& operator=(const TriangleBatch&) = delete;
-		TriangleBatch& operator=(const TriangleBatch&&) = delete;
+		TriangleBatch& operator=(TriangleBatch&) = delete;
+		TriangleBatch& operator=(TriangleBatch&&) = delete;
 		VertexBatch vertexData[3];		
 		//overprovision some space to not worry about bounds
 		std::array<float, WORKER_PROVISION_SIZE> minX, minY, maxX, maxY, rcpSignedArea;

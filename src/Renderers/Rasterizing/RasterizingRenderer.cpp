@@ -1136,27 +1136,64 @@ RasterizingRenderer::TriangleBatch& RasterizingRenderer::TriangleBatchHandle::op
 }
 RasterizingRenderer::TriangleBatchHandle& RasterizingRenderer::TriangleBatchHandle::operator=(const TriangleBatchHandle& other)
 {
-	std::lock_guard lck(other.pool->mtx);
-	this->pool = other.pool;
-	this->indexInPool = other.indexInPool;
-	this->pool->refCount[other.indexInPool]++;
+	if (this != std::addressof(other))
+	{
+		this->decrementRefCnt();
+		this->pool = other.pool;
+		this->indexInPool = other.indexInPool;
+		this->incrementRefCnt();
+	}
 	return *this;
 }
+
+RasterizingRenderer::TriangleBatchHandle& RasterizingRenderer::TriangleBatchHandle::operator=(TriangleBatchHandle&& other) noexcept
+{
+	if (this != std::addressof(other))
+	{
+		this->decrementRefCnt();
+		this->pool = other.pool;
+		this->indexInPool = other.indexInPool;
+		other.pool = nullptr;
+	}
+	return *this;
+}
+
 RasterizingRenderer::TriangleBatchHandle::TriangleBatchHandle(const TriangleBatchHandle& other)
+{
+	if (this == std::addressof(other)) return;
+	this->pool = other.pool;
+	this->indexInPool = other.indexInPool;
+	this->incrementRefCnt();
+}
+
+RasterizingRenderer::TriangleBatchHandle::TriangleBatchHandle(TriangleBatchHandle&& other) noexcept
 {
 	this->pool = other.pool;
 	this->indexInPool = other.indexInPool;
-	std::lock_guard lck(this->pool->mtx);
-	assert(this->pool->refCount[this->indexInPool] > 0);
-	this->pool->refCount[this->indexInPool]++;
+	other.pool = nullptr;
 }
+
 RasterizingRenderer::TriangleBatchHandle::~TriangleBatchHandle() noexcept
 {
-	std::lock_guard lck(this->pool->mtx);
-	int cnt = --this->pool->refCount[this->indexInPool];
+	decrementRefCnt();
+}
+
+void RasterizingRenderer::TriangleBatchHandle::decrementRefCnt() const
+{
+	if (!pool) return;
+	std::lock_guard lck(pool->mtx);
+	int cnt = --pool->refCount[indexInPool];
 	assert(cnt >= 0);
 	if (cnt == 0)
 	{
-		this->pool->free(*this);
+		pool->free(*this);
 	}
+}
+
+void RasterizingRenderer::TriangleBatchHandle::incrementRefCnt() const
+{
+	if (!pool) return;
+	std::lock_guard lck(pool->mtx);
+	int cnt = pool->refCount[indexInPool]++;
+	assert(cnt >= 1);
 }
