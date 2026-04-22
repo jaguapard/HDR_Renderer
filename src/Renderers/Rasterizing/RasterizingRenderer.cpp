@@ -866,6 +866,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	float* main_zBuffer = (float*)this->drawCommands[0].buffers[0].data;
 	float* main_frameBuffer = (float*)this->drawCommands[0].buffers[1].data;
 	uint32_t* renderJobPtrsBuffer = (uint32_t*)this->drawCommands[0].buffers[2].data;
+	ShadingMode shadingMode = this->drawCommands[0].shadingMode;
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;
@@ -909,10 +910,12 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 
 				int32x16 packedUv = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), filledPixels, vInd, this->original_verticeStore.uvPacked.data(), 4);
 				interleaved_ph_to_ps(packedUv, untransformedVerts[i].u, untransformedVerts[i].v);
-
-				untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nx.data(), 4);
-				untransformedVerts[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.ny.data(), 4);
-				untransformedVerts[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nz.data(), 4);
+				if (shadingMode == ShadingMode::SMOOTH)
+				{
+					untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nx.data(), 4);
+					untransformedVerts[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.ny.data(), 4);
+					untransformedVerts[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nz.data(), 4);
+				}
 			}
 
 			const Vec4_f32x16& r1 = untransformedVerts[0].space;
@@ -928,8 +931,6 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			//Vec4_f32x16 normals = Vec4_f32x16(untransformedVerts[0].normal.x, untransformedVerts[0].normal.y, 0.f, 0.f) * alpha +
 			//	Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
 			//	Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
-			Vec4_f32x16 normals = untransformedVerts[0].normal * alpha + untransformedVerts[1].normal * beta + untransformedVerts[2].normal * gamma;
-			normals /= normals.len3d();
 
 			Vec4_f32x16 texturePixels;
 			if (texturingEnabled)
@@ -991,11 +992,20 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				}
 			}
 
-			Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
-			Vec4_f32x16 lightDir = lightTo - lightFrom;
-			lightDir /= lightDir.len3d();
-			float32x16 normalDot = -normals.dot3d(lightDir);
-			Vec4_f32x16 totalLight = Vec4_f32x16(this->ambientLightIntensity, this->ambientLightIntensity, this->ambientLightIntensity, 0.f) + _mm512_max_ps(_mm512_set1_ps(0), normalDot * this->lightIntesity);
+			Vec4_f32x16 totalLight;
+			for (int i = 0; i < 3; ++i) totalLight[i] = this->ambientLightIntensity;
+			float32x16 normalDot;
+			if (shadingMode == ShadingMode::SMOOTH)
+			{
+				Vec4_f32x16 normals = untransformedVerts[0].normal * alpha + untransformedVerts[1].normal * beta + untransformedVerts[2].normal * gamma;
+				normals /= normals.len3d();
+				Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
+				Vec4_f32x16 lightDir = lightTo - lightFrom;
+				lightDir /= lightDir.len3d();
+				normalDot = -normals.dot3d(lightDir);
+				totalLight += _mm512_max_ps(float32x16(0.f), normalDot * this->lightIntesity);
+			}
+			else totalLight += this->lightIntesity;
 
 			for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
 			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
