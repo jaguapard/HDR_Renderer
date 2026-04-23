@@ -5,6 +5,8 @@
 #include "CoordinateTransformer.h"
 #include "RenderJobStore.h"
 #include <map>
+#include "BufferZoneManager.h"
+
 namespace Rasterizing
 {
 	enum class ShadingMode
@@ -93,6 +95,7 @@ namespace Rasterizing
 		uint32_t renderW, renderH;
 		uint32_t threadCount = -1;
 		DrawRecipe recipe;
+		BufferZoneManager zoneManager;
 	};
 
 	struct Vertice_Store

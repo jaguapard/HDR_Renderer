@@ -180,6 +180,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.renderW = w;
 	mainDrawCmd.renderH = h;
 	mainDrawCmd.recipe = DrawRecipe::MAIN_DEPTH_PREPASS;
+	mainDrawCmd.zoneManager = BufferZoneManager(threadCount, w, h);
 
 	if (this->shadowMapEnabled)
 	{
@@ -202,6 +203,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		shadowMapDrawCmd.renderW = shadowMapW;
 		shadowMapDrawCmd.renderH = shadowMapH;
 		shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
+		shadowMapDrawCmd.zoneManager = BufferZoneManager(threadCount, shadowMapW, shadowMapH);
 	}
 
 	int tCntSq = threadCount * threadCount;
