@@ -699,11 +699,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 	const auto& drawCmd = *inp.cmd;
 	float* zBuffer = (float*)drawCmd.buffers[0].data;
 	uint64_t* frameBuffer = drawCmd.buffers.size() >= 2 ? (uint64_t*)drawCmd.buffers[1].data : nullptr;
-	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, drawCmd.renderH);
-	float my_yMin = floor(d_low);
-	float my_yMax = std::min<float>(floor(d_high), drawCmd.renderH - 1);
-	float my_xMin = 0;
-	float my_xMax = drawCmd.renderW - 1;
+	float my_xMin, my_xMax, my_yMin, my_yMax;
+	drawCmd.zoneManager.getLimitsForThread(threadIndex, my_xMin, my_yMin, my_xMax, my_yMax);
 	int w = drawCmd.renderW;
 	bool depthOnly = drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS || drawCmd.recipe == DrawRecipe::SHADOW_MAP_DEPTH;
 
@@ -855,12 +852,8 @@ __m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512
 
 void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 {
-	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, this->drawCommands[0].renderH);
-	int threadCount = this->currGs->threadpool->getThreadCount();
-	float my_yMin = floor(d_low);
-	float my_yMax = std::min<float>(floor(d_high), this->drawCommands[0].renderH - 1);
-	float my_xMin = 0;
-	float my_xMax = this->drawCommands[0].renderW - 1;
+	float my_xMin, my_xMax, my_yMin, my_yMax;
+	this->drawCommands[0].zoneManager.getLimitsForThread(threadIndex, my_xMin, my_yMin, my_xMax, my_yMax);
 	int w = this->drawCommands[0].renderW;
 	bool texturingEnabled = this->currGs->texturingEnabled;
 
