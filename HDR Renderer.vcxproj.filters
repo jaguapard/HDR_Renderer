@@ -60,7 +60,10 @@
     <ClCompile Include="src\Statsman.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderers\Rasterizing\RenderJobStore.cpp">
+    <ClCompile Include="src\Renderers\Rasterizing\BufferZoneManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\Rasterizing\primitives.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -153,6 +156,9 @@
       <Filter>Header Files\Renderers</Filter>
     </ClInclude>
     <ClInclude Include="src\BlockStore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\Rasterizing\BufferZoneManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
