@@ -179,6 +179,21 @@ Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGa
     return accessor;
 }
 
+ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const
+{
+    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
+    __m256i intX = _mm256_cvttps_epi32(pixelsX);
+    __m256i intY = _mm256_cvttps_epi32(pixelsY);
+
+    ColorPixelBufferGatherAccessor256 accessor;
+    __m256i ind = _mm256_mullo_epi32(intY, _mm256_set1_epi32(sizes.w));
+    ind = _mm256_add_epi32(intX, ind);
+    accessor.gatherInd = ind;
+    accessor.gatherMask = mask;
+    accessor.buf = this;
+    return accessor;
+}
+
 Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
 {
     auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.fw, sizes.fh);
@@ -246,6 +261,13 @@ float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
     int32x16 opacityMapValuesForPixels = gathered & (int32x16(1) << shifts);
     return _mm512_maskz_mov_ps(opacityMapValuesForPixels != 0, _mm512_set1_ps(1));
 }
+float32x8 Rasterizing::ColorPixelBufferGatherAccessor256::gatherA() const
+{
+    __m256i gathered = _mm256_mask_i32gather_epi32(_mm256_set1_epi32(0), this->buf->opacityMap.get(), _mm256_srli_epi32(this->gatherInd, 5), this->gatherMask, 4);
+    __m256i shifts = _mm256_and_si256(this->gatherInd, _mm256_set1_epi32(31));
+    __m256i opacityMapValuesForPixels = _mm256_and_si256(gathered, _mm256_sllv_epi32(_mm256_set1_epi32(1), shifts));
+    return _mm256_blendv_ps(_mm256_set1_ps(1), _mm256_set1_ps(0), _mm256_cmpeq_epi32(opacityMapValuesForPixels, _mm256_set1_epi32(0)));
+}
 
 Vec4_f32x16 Rasterizing::Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 {
@@ -271,6 +293,15 @@ std::pair<float, float> Rasterizing::Mapper::wrapUV(float u, float v)
     u -= std::floor(u);
     v -= std::floor(v);
     v -= std::floor(v);
+    return { u,v };
+}
+
+std::pair<float32x8, float32x8> Rasterizing::Mapper::wrapUV(float32x8 u, float32x8 v)
+{
+    u -= _mm256_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+    u -= _mm256_floor_ps(u);
+    v -= _mm256_floor_ps(v);
+    v -= _mm256_floor_ps(v);
     return { u,v };
 }
 
