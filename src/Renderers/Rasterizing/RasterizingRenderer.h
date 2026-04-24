@@ -48,8 +48,8 @@ private:
 	bool singleTriangleDebugMode = false;
 	Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 	std::vector<Rasterizing::Model> sceneModels;
-	Rasterizing::Vertice_Store original_verticeStore;
-	Rasterizing::Triangle_Store original_triangleStore;
+	Rasterizing::VertexStore vertexStore;
+	Rasterizing::TriangleStore triangleStore;
 	bool shadowMapEnabled = true;
 
 	std::vector<Rasterizing::DrawCommand> drawCommands;

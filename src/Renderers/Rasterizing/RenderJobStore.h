@@ -22,5 +22,5 @@ namespace Rasterizing
 
 	struct VertexPack16;
 	struct DrawCommand;
-	class Vertice_Store;
+	class VertexStore;
 }

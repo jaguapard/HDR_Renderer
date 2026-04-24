@@ -98,13 +98,34 @@ namespace Rasterizing
 		BufferZoneManager zoneManager;
 	};
 
-	struct Vertice_Store
+	struct VertexStore
 	{
 		std::vector<float> x, y, z, nx, ny, nz;
 		std::vector<uint32_t> uvPacked;
 		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
 		size_t size() const;
 		void clear();
+
+		//Gathers world XYZ positions for vertex indices using mask. Corresponding value in src is returned for masked out elements.
+		__forceinline void gatherWorldXYZ(int32x16 ind, Mask16 mask, float32x16& retX, float32x16& retY, float32x16& retZ, float32x16 src = 0.f) const
+		{
+			retX = _mm512_mask_i32gather_ps(src, mask, ind, this->x.data(), 4);
+			retY = _mm512_mask_i32gather_ps(src, mask, ind, this->y.data(), 4);
+			retZ = _mm512_mask_i32gather_ps(src, mask, ind, this->z.data(), 4);
+		}
+
+		__forceinline void gatherWorldXYZ(int32x16 ind, Mask16 mask, Vec4_f32x16& ret, float32x16 src = 0.f) const
+		{
+			this->gatherWorldXYZ(ind, mask, ret.x, ret.y, ret.z, src);
+		}
+
+		__forceinline void gatherUV(int32x16 ind, Mask16 mask, float32x16& retU, float32x16& retV) const
+		{
+			int32x16 packedUv = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, ind, this->uvPacked.data(), 4);
+			interleaved_ph_to_ps(packedUv, retU, retV);
+		}
+
+
 	private:
 		//TODO: if gonna make this dynamic, make it cleanable and check
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
@@ -116,7 +137,7 @@ namespace Rasterizing
 		NO_BACKFACE_CULLING = 1 << 0,
 		NO_FRONTFACE_CULLING = 1 << 1,
 	};
-	struct Triangle_Store
+	struct TriangleStore
 	{
 		std::vector<uint32_t> vertInd[3];
 		std::vector<int> diffuseMapIndex, modelIndex;
