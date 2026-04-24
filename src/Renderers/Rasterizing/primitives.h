@@ -119,9 +119,9 @@ namespace Rasterizing
 			this->gatherWorldXYZ(ind, mask, ret.x, ret.y, ret.z, src);
 		}
 
-		__forceinline void gatherUV(int32x16 ind, Mask16 mask, float32x16& retU, float32x16& retV) const
+		__forceinline void gatherUV(int32x16 ind, Mask16 mask, float32x16& retU, float32x16& retV, float32x16 src = 0.f) const
 		{
-			int32x16 packedUv = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, ind, this->uvPacked.data(), 4);
+			int32x16 packedUv = _mm512_mask_i32gather_epi32(src, mask, ind, this->uvPacked.data(), 4);
 			interleaved_ph_to_ps(packedUv, retU, retV);
 		}
 
