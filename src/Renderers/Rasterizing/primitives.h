@@ -115,11 +115,11 @@ namespace Rasterizing
 			for (int i = 0; i < 16; i += 4)
 			{
 				//vj = xyzp for vertex i+j
-				Mask16 m = mask.mask & (1 << i) ? 15 : 0;
-				__m128 v0 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i]);
-				__m128 v1 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 1]);
-				__m128 v2 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 2]);
-				__m128 v3 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 3]);
+				Mask16 m = mask >> i;
+				__m128 v0 = _mm_maskz_loadu_epi32(m.mask & 1 ? 15 : 0, p + rawIndUnsigned[i]);
+				__m128 v1 = _mm_maskz_loadu_epi32(m.mask & 2 ? 15 : 0, p + rawIndUnsigned[i + 1]);
+				__m128 v2 = _mm_maskz_loadu_epi32(m.mask & 4 ? 15 : 0, p + rawIndUnsigned[i + 2]);
+				__m128 v3 = _mm_maskz_loadu_epi32(m.mask & 8 ? 15 : 0, p + rawIndUnsigned[i + 3]);
 
 				_mm_storeu_ps(&r0[i], v0); //r0 = xyzp0,xyzp4,xyzp8,xyzp12
 				_mm_storeu_ps(&r1[i], v1); //r1 = xyzp1,xyzp5,xyzp9,xyzp13
