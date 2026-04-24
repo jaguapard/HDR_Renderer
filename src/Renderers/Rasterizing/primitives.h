@@ -108,19 +108,18 @@ namespace Rasterizing
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
 			float32x16 src = 0.f;
-			std::array<__m128, 16> tmp;
+			float rx[16], ry[16], rz[16], ru[16];
 			int32x16 rawInd = ind * 4;
+			uint32_t* rawIndUnsigned = (uint32_t*)&rawInd;
 			const float* p = this->xyzp.data();
-
-			float32x16 rx, ry, rz, ru;
 			for (int i = 0; i < 16; i += 4)
 			{
 				//xmmj = xyzp for vertex i+j
 				Mask16 m = mask.mask & (1 << i) ? 15 : 0;
-				__m128i xmm0 = _mm_maskz_loadu_epi32(m, p + rawInd[i]);
-				__m128i xmm1 = _mm_maskz_loadu_epi32(m, p + rawInd[i + 1]);
-				__m128i xmm2 = _mm_maskz_loadu_epi32(m, p + rawInd[i + 2]);
-				__m128i xmm3 = _mm_maskz_loadu_epi32(m, p + rawInd[i + 3]);
+				__m128i xmm0 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i]);
+				__m128i xmm1 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 1]);
+				__m128i xmm2 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 2]);
+				__m128i xmm3 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 3]);
 
 				//_mm_shuffle_ps(xmm0, xmm1, _MM_SHUFFLE(0, 0, 0, 0));
 				//now need to transpose the attributes. I.e. x = xmm0[0], xmm1[0], xmm2[0], xmm3[0], y = [1], z[2], uv=[3]. Relying heavily on compiler opitmizations here
@@ -143,7 +142,7 @@ namespace Rasterizing
 			retXYZ.x = rx;
 			retXYZ.y = ry;
 			retXYZ.z = rz;
-			interleaved_ph_to_ps(ru, retU, retV);
+			interleaved_ph_to_ps(_mm512_load_ps(ru), retU, retV);
 		}
 		//Gathers world XYZ positions for vertex indices using mask. Corresponding value in src is returned for masked out elements.
 		/*
