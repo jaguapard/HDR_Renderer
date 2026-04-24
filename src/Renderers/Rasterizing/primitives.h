@@ -107,10 +107,10 @@ namespace Rasterizing
 
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
+			ind *= 4;
 			float32x16 src = 0.f;
 			float r0[16], r1[16], r2[16], r3[16];
-			int32x16 rawInd = ind * 4;
-			uint32_t* rawIndUnsigned = (uint32_t*)&rawInd;
+			uint32_t* rawIndUnsigned = (uint32_t*)&ind;
 			const float* p = this->xyzp.data();
 			for (int i = 0; i < 16; i += 4)
 			{
