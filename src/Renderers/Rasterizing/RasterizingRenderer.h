@@ -49,7 +49,7 @@ private:
 	Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 	std::vector<Rasterizing::Model> sceneModels;
 	Rasterizing::VertexStore vertexStore;
-	Rasterizing::Triangle_Store original_triangleStore;
+	Rasterizing::TriangleStore triangleStore;
 	bool shadowMapEnabled = true;
 
 	std::vector<Rasterizing::DrawCommand> drawCommands;

@@ -41,12 +41,12 @@ void Rasterizing::VertexStore::clear()
 	this->nz.clear();
 }
 
-size_t Rasterizing::Triangle_Store::size() const
+size_t Rasterizing::TriangleStore::size() const
 {
 	return diffuseMapIndex.size();
 }
 
-void Rasterizing::Triangle_Store::clear()
+void Rasterizing::TriangleStore::clear()
 {
 	for (auto& it : this->vertInd) it.clear();
 	this->diffuseMapIndex.clear();

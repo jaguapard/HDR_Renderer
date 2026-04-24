@@ -137,7 +137,7 @@ namespace Rasterizing
 		NO_BACKFACE_CULLING = 1 << 0,
 		NO_FRONTFACE_CULLING = 1 << 1,
 	};
-	struct Triangle_Store
+	struct TriangleStore
 	{
 		std::vector<uint32_t> vertInd[3];
 		std::vector<int> diffuseMapIndex, modelIndex;
