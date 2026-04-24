@@ -79,3 +79,11 @@ __forceinline void interleaved_ph_to_ps(__m512i inp, float32x16& retLow, float32
 {
 	interleaved_ph_to_ps(inp, retLow.zmm, retHigh.zmm);
 }
+
+//Returns 64 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 000011112222...dddd
+__forceinline __mmask64 duplicate_mmask_bits_16_to_64(__mmask16 m)
+{
+	__m512i a = _mm512_movm_epi32(m);
+	return _mm512_movepi8_mask(a);
+	//return _mm512_cmpeq_epi8_mask(a, _mm512_setzero_si512());
+}
