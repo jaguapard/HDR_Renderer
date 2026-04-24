@@ -116,22 +116,29 @@ namespace Rasterizing
 			{
 				//xmmj = xyzp for vertex i+j
 				Mask16 m = mask.mask & (1 << i) ? 15 : 0;
-				__m128i xmm0 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i]);
-				__m128i xmm1 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 1]);
-				__m128i xmm2 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 2]);
-				__m128i xmm3 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 3]);
+				__m128 v0 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i]);
+				__m128 v1 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 1]);
+				__m128 v2 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 2]);
+				__m128 v3 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 3]);
 
 				//_mm_shuffle_ps(xmm0, xmm1, _MM_SHUFFLE(0, 0, 0, 0));
 				//now need to transpose the attributes. I.e. x = xmm0[0], xmm1[0], xmm2[0], xmm3[0], y = [1], z[2], uv=[3]. Relying heavily on compiler opitmizations here
 				//operating on ints because _mm_extract_ps returns int lmao, this is just more explicit and less footgun-ey way to do it
-				__m128i x = _mm_setr_epi32(_mm_extract_epi32(xmm0, 0), _mm_extract_epi32(xmm1, 0), _mm_extract_epi32(xmm2, 0), _mm_extract_epi32(xmm3, 0));
-				__m128i y = _mm_setr_epi32(_mm_extract_epi32(xmm0, 1), _mm_extract_epi32(xmm1, 1), _mm_extract_epi32(xmm2, 1), _mm_extract_epi32(xmm3, 1));
-				__m128i z = _mm_setr_epi32(_mm_extract_epi32(xmm0, 2), _mm_extract_epi32(xmm1, 2), _mm_extract_epi32(xmm2, 2), _mm_extract_epi32(xmm3, 2));
-				__m128i uv = _mm_setr_epi32(_mm_extract_epi32(xmm0, 3), _mm_extract_epi32(xmm1, 3), _mm_extract_epi32(xmm2, 3), _mm_extract_epi32(xmm3, 3));
-				_mm_storeu_epi32(&rx[i], x);
-				_mm_storeu_epi32(&ry[i], y);
-				_mm_storeu_epi32(&rz[i], z);
-				_mm_storeu_epi32(&ru[i], uv);
+				__m128 t0 = _mm_unpacklo_ps(v0, v1); // x0 x1 y0 y1
+				__m128 t1 = _mm_unpackhi_ps(v0, v1); // z0 z1 uv0 uv1
+				__m128 t2 = _mm_unpacklo_ps(v2, v3); // x2 x3 y2 y3
+				__m128 t3 = _mm_unpackhi_ps(v2, v3); // z2 z3 uv2 uv3
+
+				// Step 2: final assemble
+				__m128 x = _mm_movelh_ps(t0, t2);   // x0 x1 x2 x3
+				__m128 y = _mm_movehl_ps(t2, t0);   // y0 y1 y2 y3
+				__m128 z = _mm_movelh_ps(t1, t3);   // z0 z1 z2 z3
+				__m128 uv = _mm_movehl_ps(t3, t1);   // uv0 uv1 uv2 uv3
+
+				_mm_storeu_ps(&rx[i], x);
+				_mm_storeu_ps(&ry[i], y);
+				_mm_storeu_ps(&rz[i], z);
+				_mm_storeu_ps(&ru[i], uv);
 			}
 			
 			/*
