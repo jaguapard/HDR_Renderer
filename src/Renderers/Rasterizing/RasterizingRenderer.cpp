@@ -864,7 +864,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 		for (float32x16 x = float32x16::sequence() + my_xMin; Mask16 xBoundsMask = x <= my_xMax; x += 16)
 		{
 			size_t xInt = x[0];
-			if (this->drawShadowMapDebug) //debug draw shadow map to screen
+			if (this->drawShadowMapDebug && this->shadowMapEnabled) //debug draw shadow map to screen
 			{
 				float smw = this->drawCommands[1].renderW;
 				float smh = this->drawCommands[1].renderH;
