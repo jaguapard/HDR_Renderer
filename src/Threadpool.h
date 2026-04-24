@@ -99,6 +99,7 @@ struct DependencyStore
 struct ThreadpoolTask
 {
 	ThreadpoolTask() {};
+	ThreadpoolTask(const taskfunc_t& func, const DependencyStore& dependencies = {}) : func(func), dependencies(dependencies) {};
 	taskfunc_t func;
 	DependencyStore dependencies; //Forces the task to be considered runnable only if all the input handles complete.
 };
