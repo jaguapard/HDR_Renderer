@@ -26,7 +26,7 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 
 size_t Rasterizing::VertexStore::size() const
 {
-	return x.size();
+	return this->dedup.size();
 }
 
 void Rasterizing::VertexStore::clear()
