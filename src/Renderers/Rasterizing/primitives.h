@@ -111,16 +111,34 @@ namespace Rasterizing
 			std::array<__m128, 16> tmp;
 			int32x16 rawInd = ind * 4;
 			const float* p = this->xyzp.data();
-			for (int i = 0; i < 16; ++i)
+			for (int i = 0; i < 16; i += 4)
 			{
-				tmp[i] = _mm_maskz_loadu_ps(mask.mask & (1 << i) ? 15 : 0, p + rawInd[i]);
+				//xmmj = xyzp for vertex i+j
+				Mask16 m = mask.mask & (1 << i) ? 15 : 0;
+				__m128i xmm0 = _mm_maskz_loadu_epi32(m, p + rawInd[i]);
+				__m128i xmm1 = _mm_maskz_loadu_epi32(m, p + rawInd[i + 1]);
+				__m128i xmm2 = _mm_maskz_loadu_epi32(m, p + rawInd[i + 2]);
+				__m128i xmm3 = _mm_maskz_loadu_epi32(m, p + rawInd[i + 3]);
+
+				//_mm_shuffle_ps(xmm0, xmm1, _MM_SHUFFLE(0, 0, 0, 0));
+				//now need to transpose the attributes. I.e. x = xmm0[0], xmm1[0], xmm2[0], xmm3[0], y = [1], z[2], uv=[3]. Relying heavily on compiler opitmizations here
+				//operating on ints because _mm_extract_ps returns int lmao, this is just more explicit and less footgun-ey way to do it
+				__m128i x = _mm_setr_epi32(_mm_extract_epi32(xmm0, 0), _mm_extract_epi32(xmm1, 0), _mm_extract_epi32(xmm2, 0), _mm_extract_epi32(xmm3, 0));
+				__m128i y = _mm_setr_epi32(_mm_extract_epi32(xmm0, 1), _mm_extract_epi32(xmm1, 1), _mm_extract_epi32(xmm2, 1), _mm_extract_epi32(xmm3, 1));
+				__m128i z = _mm_setr_epi32(_mm_extract_epi32(xmm0, 2), _mm_extract_epi32(xmm1, 2), _mm_extract_epi32(xmm2, 2), _mm_extract_epi32(xmm3, 2));
+				__m128i uv = _mm_setr_epi32(_mm_extract_epi32(xmm0, 3), _mm_extract_epi32(xmm1, 3), _mm_extract_epi32(xmm2, 3), _mm_extract_epi32(xmm3, 3));
+				_mm_storeu_epi32(&retXYZ.x[i], x);
+				_mm_storeu_epi32(&retXYZ.y[i], y);
+				_mm_storeu_epi32(&retXYZ.z[i], z);
+				_mm_storeu_epi32(&retU[i], uv);
 			}
 			
+			/*
 			retXYZ.x = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60), tmp.data(), 4);
 			retXYZ.y = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61), tmp.data(), 4);
 			retXYZ.z = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62), tmp.data(), 4);
-			int32x16 packedUV = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, _mm512_setr_epi32(3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), tmp.data(), 4);
-			interleaved_ph_to_ps(packedUV, retU, retV);
+			int32x16 packedUV = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, _mm512_setr_epi32(3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), tmp.data(), 4);*/
+			interleaved_ph_to_ps(_mm512_load_epi32(&retU[0]), retU, retV);
 		}
 		//Gathers world XYZ positions for vertex indices using mask. Corresponding value in src is returned for masked out elements.
 		/*
