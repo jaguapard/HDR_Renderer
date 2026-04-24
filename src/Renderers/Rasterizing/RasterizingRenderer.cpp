@@ -411,10 +411,10 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	std::array<VertexPack16, 3> originalVertices;
 	for (int i = 0; i < 3; ++i)
 	{
-		this->vertexStore.gatherWorldXYZ(input.vertexIndices[i], input.validInputs, originalVertices[i].space);
+		this->vertexStore.gatherXYZUV(input.vertexIndices[i], input.validInputs, originalVertices[i].space, originalVertices[i].u, originalVertices[i].v);
 		originalVertices[i].space.w = 1;
 	}
-	bool UVs_loaded = false, normals_loaded = false;
+	bool UVs_loaded = true, normals_loaded = false;
 
 	for (int cmdIndex = input.firstCmd; cmdIndex <= input.lastCmd; ++cmdIndex)
 	{
@@ -457,6 +457,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 		{
 			if (currCmd.needsUVs)
 			{
+				/*
 				if (!UVs_loaded)
 				{
 					for (int i = 0; i < 3; ++i)
@@ -465,7 +466,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 						this->vertexStore.gatherUV(input.vertexIndices[i], input.validInputs, originalVertices[i].u, originalVertices[i].v);
 					}
 					UVs_loaded = true;
-				}
+				}*/
 
 				for (int i = 0; i < 3; ++i)
 				{
@@ -863,7 +864,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 		for (float32x16 x = float32x16::sequence() + my_xMin; Mask16 xBoundsMask = x <= my_xMax; x += 16)
 		{
 			size_t xInt = x[0];
-			if (this->drawShadowMapDebug) //debug draw shadow map to screen
+			if (this->drawShadowMapDebug && this->shadowMapEnabled) //debug draw shadow map to screen
 			{
 				float smw = this->drawCommands[1].renderW;
 				float smh = this->drawCommands[1].renderH;
@@ -894,9 +895,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			for (int i = 0; i < 3; ++i)
 			{
 				int32x16 vInd = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, triangleIndices, this->triangleStore.vertInd[i].data(), 4);
-				this->vertexStore.gatherWorldXYZ(vInd, filledPixels, untransformedVerts[i].space);
-
-				this->vertexStore.gatherUV(vInd, filledPixels, untransformedVerts[i].u, untransformedVerts[i].v);
+				this->vertexStore.gatherXYZUV(vInd, filledPixels, untransformedVerts[i].space, untransformedVerts[i].u, untransformedVerts[i].v);
 				if (shadingMode == ShadingMode::SMOOTH)
 				{
 					this->vertexStore.gatherNormals(vInd, filledPixels, untransformedVerts[i].normal);
