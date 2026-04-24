@@ -178,7 +178,7 @@ Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGa
     accessor.buf = this;
     return accessor;
 }
-/*
+
 ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
@@ -189,10 +189,10 @@ ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccess
     __m256i ind = _mm256_mullo_epi32(intY, _mm256_set1_epi32(sizes.w));
     ind = _mm256_add_epi32(intX, ind);
     accessor.gatherInd = ind;
-    accessor.gatherMask = mask;
+    accessor.gatherMask = _mm256_castps_si256(mask);
     accessor.buf = this;
     return accessor;
-}*/
+}
 
 Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
 {
@@ -261,14 +261,14 @@ float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
     int32x16 opacityMapValuesForPixels = gathered & (int32x16(1) << shifts);
     return _mm512_maskz_mov_ps(opacityMapValuesForPixels != 0, _mm512_set1_ps(1));
 }
-/*
+
 float32x8 Rasterizing::ColorPixelBufferGatherAccessor256::gatherA() const
 {
     __m256i gathered = _mm256_mask_i32gather_epi32(_mm256_set1_epi32(0), this->buf->opacityMap.get(), _mm256_srli_epi32(this->gatherInd, 5), this->gatherMask, 4);
     __m256i shifts = _mm256_and_si256(this->gatherInd, _mm256_set1_epi32(31));
     __m256i opacityMapValuesForPixels = _mm256_and_si256(gathered, _mm256_sllv_epi32(_mm256_set1_epi32(1), shifts));
-    return _mm256_blendv_ps(_mm256_set1_ps(1), _mm256_set1_ps(0), _mm256_cmpeq_epi32(opacityMapValuesForPixels, _mm256_set1_epi32(0)));
-}*/
+    return _mm256_blendv_ps(_mm256_set1_ps(1), _mm256_set1_ps(0), _mm256_castsi256_ps(_mm256_cmpeq_epi32(opacityMapValuesForPixels, _mm256_set1_epi32(0))));
+}
 
 Vec4_f32x16 Rasterizing::Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 {
