@@ -554,7 +554,7 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
-	int threadCount = this->currGs->threadpool->getThreadCount();
+	int threadCount = this->currGs->threadpool->getWorkerCount();
 
 	VertexStageInput inp;
 	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
@@ -799,7 +799,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 
 void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 {
-	int threadCount = this->currGs->threadpool->getThreadCount();
+	int threadCount = this->currGs->threadpool->getWorkerCount();
 	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
 
 	VertexStageInput inp;
