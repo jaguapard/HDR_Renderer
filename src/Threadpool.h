@@ -9,71 +9,133 @@
 #include <atomic>
 #include <optional>
 #include <set>
+#include <variant>
 
 typedef std::function<void()> taskfunc_t;
-typedef uint64_t task_id;
-#ifdef NDEBUG
-#define DEBUG_BOOL false
-#else
-#define DEBUG_BOOL true
-#endif
-class ThreadpoolTask
+
+class Threadpool;
+class TaskHandle;
+class GateHandle;
+class WaitableHandle;
+class GenericHandle
 {
 public:
-	ThreadpoolTask() = default;
-	ThreadpoolTask(const taskfunc_t& taskFunc, std::vector<task_id> dependencies = {}, std::optional<task_id> wantedId = std::nullopt);
-
-	taskfunc_t func;
-	std::vector<task_id> dependencies;
-	std::optional<task_id> wantedId;
-
-	std::optional<task_id> assignedId; //DO NOT SET IT. This will be overwritten by the threadpool
+	friend class Threadpool;
+	friend class TaskHandle;
+	friend class GateHandle;
+	friend class WaitableHandle;
+protected:
+	uint64_t id = 0;
+	Threadpool* pool = nullptr;
 };
-class Threadpool;
+class TaskHandle
+{
+public:
+	friend class Threadpool;
+	friend class WaitableHandle;
+
+	//TaskHandle() = delete;
+	bool hasStarted() const;
+	bool hasFinished() const;
+	bool isInProgress() const;
+private:
+	GenericHandle handle;
+};
+
+class GateHandle
+{
+public:
+	friend class Threadpool;
+	friend class WaitableHandle;
+
+	//GateHandle() = delete;
+	void open();
+	bool isOpen() const;
+private:
+	GenericHandle handle;
+};
+
+class WaitableHandle
+{
+public:
+	friend class Threadpool;
+
+	//WaitableHandle() = delete;
+	WaitableHandle(const TaskHandle& task);
+	WaitableHandle(const GateHandle& gate);
+	void blockUntilComplete();
+	bool isComplete() const;
+private:
+	enum class Type
+	{
+		TASK,
+		GATE
+	};
+	GenericHandle handle;
+	Type type;
+};
+
+struct ThreadpoolTask
+{
+	ThreadpoolTask() {};
+	taskfunc_t func;
+	std::vector<WaitableHandle> dependencies; //Forces the task to be considered runnable only if all the input handles complete.
+};
 class Threadpool
 {
 public:
-	Threadpool(std::optional<size_t> numThreads = std::nullopt);
+	/*
+	friend class GenericHandle;
+	friend class TaskHandle;
+	friend class GateHandle;
+	friend class WaitableHandle;*/
+	Threadpool(size_t numThreads = 0);
 
-	//add a task to the pool. If `dependencies` is not empty, then the task will only start if all tasks with ids in `dependecies` have finished
-	//if wantedId is not nullopt, then the threadpool will attempt to give the specified ID to the added task. This will fail if the ID was not reserved beforehand
-	task_id addTask(const taskfunc_t& taskFunc, std::vector<task_id> dependencies = {}, std::optional<task_id> wantedId = std::nullopt);
-	task_id addTask(ThreadpoolTask task);
-	std::vector<task_id> addTaskBatch(const std::vector<ThreadpoolTask>& tasks);
+	//Adds task batch to the thread pool. Returns handles to tasks in the same order as in tasks vector.
+	std::vector<TaskHandle> addTaskBatch(const std::vector<ThreadpoolTask>& tasks);
 
-	std::vector<task_id> reserveTaskIds(uint64_t count);
+	//Adds a single task to the threadpool and returns a handle for it
+	TaskHandle addTask(const ThreadpoolTask& task);
 
-	void waitUntilTaskCompletes(task_id taskIndex);
-	void waitForMultipleTasks(const std::vector<task_id>& taskIds);
+	//Creates a new gate and returns a handle for it. The gates can be used as dependencies for tasks to prevent then from being ran before the gate opens
+	GateHandle createGate();
 
-	size_t getThreadCount() const;
-	std::pair<double, double> getLimitsForThread(size_t threadIndex, double min, double max, std::optional<size_t> threadCount = std::nullopt) const;
+	//Blocks the calling thread until all passed tasks are complete. Blocking is unsupported on worker threads and will throw an exception if it gets called by one.
+	void blockUntilTasksComplete(const std::vector<TaskHandle>& tasks);
 
-	~Threadpool() noexcept;
+	void blockUntilWaitablesComplete(const std::vector<WaitableHandle>& waitables);
 
-	static constexpr bool SINGLE_THREAD_MODE = DEBUG_BOOL;
-	static Threadpool* instance;
+	void blockUntilWaitableComplete(const WaitableHandle& waitable);
+	//Makes the calling thread execute other tasks until input tasks are completed. Care should be taken, since it may hang the caller for indeterminate amount of time
+	//void helpWhileWaiting(const std::vector<TaskHandle>& tasks);
+
+	bool hasTaskFinished(const TaskHandle& task);
+	bool isGateOpen(const GateHandle& gate);
+
+	//Opens the gate and signals all waiting threads.
+	void openGate(const GateHandle& gate);
+
+	//Returns true if this function is called by threadpool's worker thread
+	bool isWorkerThread() const;
+
+	size_t getWorkerCount() const;
+
+	std::pair<double, double> getLimitsForThread(size_t threadIndex, double min, double max, std::optional<size_t> threadCount) const;
 private:
-	std::recursive_mutex taskListMutex; //this mutex is used to protect accesses to all of these maps and sets
-	std::unordered_map<task_id, ThreadpoolTask> taskStore;
-	std::unordered_set<task_id> unassignedTasks;
-	std::unordered_set<task_id> inProgressTasks;
-	std::unordered_set<task_id> reservedTaskIds;
+	std::unique_ptr<std::jthread[]> workers;
+	size_t workerCount = 0;
+	std::atomic<uint64_t> lastFreeHandle = 1;
 
+	mutable std::condition_variable cv;
+	mutable std::mutex cv_mtx;
 
-	std::pair<double, double> getLimitsForThread(size_t threadIndex, double min, double max, std::optional<size_t> threadCount = std::nullopt) const;
+	mutable std::recursive_mutex structs_mtx;
+	std::unordered_map<uint64_t, ThreadpoolTask> unassignedTasks;
+	std::unordered_set<uint64_t> inProgressTaskIds;
+	std::unordered_set<uint64_t> closedGates;
 
-	std::condition_variable cv;
-	std::mutex cv_mtx;
-
-	std::atomic_bool threadpoolMarkedForTermination = false;
-	std::vector<bool> threadTerminated;
-
-	void workerRoutine(size_t workerNumber);
-	void spawnThreads(size_t numThreads);
-	std::optional<task_id> tryGetTask();
-
-	void markTaskFinished(task_id taskId);
-	void markTaskAsInProgress(task_id taskId);
-	bool isTaskFinished(task_id taskId);
+	void workerRoutine(size_t myNumber);
+	void spawnThreads(size_t threadCount);
+	std::optional<std::pair<uint64_t, ThreadpoolTask>> tryPopTask(); //if there are runnable tasks, then pops one and returns it. Else returns empty optional
+	void markTaskFinished(uint64_t id);
 };

@@ -66,9 +66,6 @@
     <ClCompile Include="src\Renderers\Rasterizing\primitives.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\ThreadpoolNew.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\bob\SSE_Vec4.h">
@@ -162,9 +159,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Renderers\Rasterizing\BufferZoneManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\ThreadpoolNew.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
