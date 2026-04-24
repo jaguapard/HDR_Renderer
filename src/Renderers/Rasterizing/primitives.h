@@ -105,7 +105,28 @@ namespace Rasterizing
 		size_t size() const;
 		void clear();
 
+		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
+		{
+			float32x16 src = 0.f;
+			std::array<__m128, 16> tmp;
+			int32x16 rawInd = ind * 4;
+			const float* p = this->xyzp.data();
+			for (int i = 0; i < 16; ++i)
+			{
+				if (mask.mask & (1 << i))
+				{
+					tmp[i] = _mm_loadu_ps(p + rawInd[i]);
+				}
+			}
+			
+			retXYZ.x = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60), tmp.data(), 4);
+			retXYZ.y = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61), tmp.data(), 4);
+			retXYZ.z = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62), tmp.data(), 4);
+			int32x16 packedUV = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, _mm512_setr_epi32(3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), tmp.data(), 4);
+			interleaved_ph_to_ps(packedUV, retU, retV);
+		}
 		//Gathers world XYZ positions for vertex indices using mask. Corresponding value in src is returned for masked out elements.
+		/*
 		__forceinline void gatherWorldXYZ(int32x16 ind, Mask16 mask, float32x16& retX, float32x16& retY, float32x16& retZ, float32x16 src = 0.f) const
 		{
 			retX = _mm512_mask_i32gather_ps(src, mask, ind, this->x.data(), 4);
@@ -122,7 +143,7 @@ namespace Rasterizing
 		{
 			int32x16 packedUv = _mm512_mask_i32gather_epi32(src, mask, ind, this->uvPacked.data(), 4);
 			interleaved_ph_to_ps(packedUv, retU, retV);
-		}
+		}*/
 
 		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret, float32x16 src = 0.f) const
 		{
@@ -131,8 +152,7 @@ namespace Rasterizing
 			ret.z = _mm512_mask_i32gather_ps(src, mask, ind, this->nz.data(), 4);
 		}
 	private:
-		std::vector<float> x, y, z, nx, ny, nz;
-		std::vector<uint32_t> uvPacked;
+		std::vector<float> xyzp, nx, ny, nz; //xyzp = world coords + packed uv's
 		//TODO: if gonna make this dynamic, make it cleanable and check
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
 	};
