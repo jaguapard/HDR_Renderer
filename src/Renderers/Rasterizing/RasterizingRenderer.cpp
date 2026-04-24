@@ -40,7 +40,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 {
 	Uint64 ticksBegin = SDL_GetTicksNS();
 	std::mutex mtx;
-	std::vector<task_id> tasks;
+	std::vector<TaskHandle> tasks;
 	std::string savePaths[] = {"new_sponza.bmdl2", "curtains.bmdl2", "tree.bmdl2", "ivy.bmdl2"};
 	auto currSavePath = std::begin(savePaths);
 	bool onlyConvertToBmdl = false;
@@ -59,13 +59,15 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 
 		size_t importModelCount = loadedModels.size();
 		std::vector<int> diffuseMapIndices(importModelCount, -1);
-		std::vector<task_id> textureLoadingTasks(importModelCount);
+		std::vector<TaskHandle> textureLoadingTasks(importModelCount);
 
+		ThreadpoolTask tsk;
 		for (int i = 0; i < importModelCount; ++i)
 		{
-			textureLoadingTasks[i] = Threadpool::instance->addTask([&, this, i]() {
+			tsk.func = [&, this, i]() {
 				if (loadedModels[i].diffuseMapPath) diffuseMapIndices[i] = this->textureManager.addTextureByPath(*loadedModels[i].diffuseMapPath);
-			});
+				};
+			textureLoadingTasks[i] = Threadpool::instance->addTask(tsk);
 		}
 
 		size_t loadedTriangles = 0;
@@ -100,7 +102,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 			//std::cout << "Loaded " << m.triangleStore.size() << " triangles out of " << loadedModels[i].triangles.size() << " (" << discardedTriangles << " discarded) from " << path << "\n";
 		}
 
-		Threadpool::instance->waitForMultipleTasks(textureLoadingTasks);
+		Threadpool::instance->blockUntilTasksComplete(textureLoadingTasks);
 		size_t lastModelInd = this->sceneModels.size() - 1;
 		for (int i = 0; i < loadedModels.size(); ++i)
 		{
@@ -116,7 +118,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		}
 	}
 
-	Threadpool::instance->waitForMultipleTasks(tasks);
+	Threadpool::instance->blockUntilTasksComplete(tasks);
 	Uint64 ticksEnd = SDL_GetTicksNS();
 	std::cout << "Scene loaded in " << (ticksEnd - ticksBegin) / 1e9 << " sec.\n";
 
@@ -160,7 +162,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 
 	Threadpool* threadpool = settings.threadpool;
-	int threadCount = threadpool->getThreadCount();
+	int threadCount = threadpool->getWorkerCount();
 
 	int w = (int)settings.outputTextureParams.Width;
 	int h = (int)settings.outputTextureParams.Height;
@@ -213,14 +215,14 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		//for (auto& it : *currSub.trianglesToZones) it.verticeStore = &this->vertexStore;
 	}
 
-	std::vector<task_id> transformTasks, drawTasks;
+	std::vector<TaskHandle> transformTasks, drawTasks;
+	ThreadpoolTask tsk;
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
-		transformTasks.emplace_back(threadpool->addTask(
-			[&, threadIndex]() {
-				this->binTrianglesIntoZones(threadIndex);
-			}
-		));
+		tsk.func = [&, threadIndex]() {
+			this->binTrianglesIntoZones(threadIndex);
+		};
+		transformTasks.emplace_back(threadpool->addTask(tsk));
 	}
 
 	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
@@ -241,31 +243,29 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
 	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
 
-	threadpool->waitForMultipleTasks(transformTasks);
+	threadpool->blockUntilTasksComplete(transformTasks);
 
 	size_t renderJobCount = 0;
 	//for (auto& it : this->renderJobsFromThreads) renderJobCount += it.size();
 	//std::cout << renderJobCount << " render jobs\n";
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
-		drawTasks.emplace_back(threadpool->addTask(
-			[&, threadIndex]() {
-				this->rasterizerRoutine(threadIndex);
-			}
-		));
+		tsk.func = [&, threadIndex]() {
+			this->rasterizerRoutine(threadIndex);
+			};
+		drawTasks.emplace_back(threadpool->addTask(tsk));
 	}
-	threadpool->waitForMultipleTasks(drawTasks);
+	threadpool->blockUntilTasksComplete(drawTasks);
 	drawTasks.clear();
 	
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
-		drawTasks.emplace_back(threadpool->addTask(
-			[&, threadIndex]() {
-				this->joinMainWithShadowMap(threadIndex);
-			}
-		));
+		tsk.func = [&, threadIndex]() {
+			this->joinMainWithShadowMap(threadIndex);
+		};
+		drawTasks.emplace_back(threadpool->addTask(tsk));
 	}
-	threadpool->waitForMultipleTasks(drawTasks);
+	threadpool->blockUntilTasksComplete(drawTasks);
 	
 	for (auto& currSub : this->drawCommands)
 	{
