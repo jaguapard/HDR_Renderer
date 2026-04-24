@@ -6,6 +6,8 @@
 static thread_local bool bIsWorkerThread = false;
 Threadpool::Threadpool(size_t numThreads)
 {
+	if (instance) throw std::runtime_error("Second threadpool attempted to be constructed while only one is allowed.");
+	instance = this;
 	size_t threadCount = numThreads;
 	if (!numThreads)
 	{
