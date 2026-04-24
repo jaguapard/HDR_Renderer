@@ -411,9 +411,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	std::array<VertexPack16, 3> originalVertices;
 	for (int i = 0; i < 3; ++i)
 	{
-		originalVertices[i].space.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.x.data(), 4);
-		originalVertices[i].space.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.y.data(), 4);
-		originalVertices[i].space.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.z.data(), 4);
+		this->original_verticeStore.gatherWorldXYZ(input.vertexIndices[i], input.validInputs, originalVertices[i].space);
 		originalVertices[i].space.w = 1;
 	}
 	bool UVs_loaded = false, normals_loaded = false;
@@ -464,8 +462,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 					for (int i = 0; i < 3; ++i)
 					{
 						//activeTriangles may be different between commands, so gather by least restrictive valid mask, which is the input valid mask
-						int32x16 packedUv = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.uvPacked.data(), 4);
-						interleaved_ph_to_ps(packedUv, originalVertices[i].u, originalVertices[i].v);
+						this->original_verticeStore.gatherUV(input.vertexIndices[i], input.validInputs, originalVertices[i].u, originalVertices[i].v);
 					}
 					UVs_loaded = true;
 				}
@@ -903,8 +900,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				untransformedVerts[i].space.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.y.data(), 4);
 				untransformedVerts[i].space.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.z.data(), 4);
 
-				int32x16 packedUv = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), filledPixels, vInd, this->original_verticeStore.uvPacked.data(), 4);
-				interleaved_ph_to_ps(packedUv, untransformedVerts[i].u, untransformedVerts[i].v);
+				this->original_verticeStore.gatherUV(vInd, filledPixels, untransformedVerts[i].u, untransformedVerts[i].v);
 				if (shadingMode == ShadingMode::SMOOTH)
 				{
 					untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nx.data(), 4);
