@@ -480,9 +480,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 				{
 					for (int i = 0; i < 3; ++i)
 					{
-						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->vertexStore.nx.data(), 4);
-						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->vertexStore.ny.data(), 4);
-						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->vertexStore.nz.data(), 4);
+						this->vertexStore.gatherNormals(input.vertexIndices[i], input.validInputs, originalVertices[i].normal);
 					}
 					normals_loaded = true;
 				}
@@ -896,16 +894,12 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			for (int i = 0; i < 3; ++i)
 			{
 				int32x16 vInd = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, triangleIndices, this->triangleStore.vertInd[i].data(), 4);
-				untransformedVerts[i].space.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.x.data(), 4);
-				untransformedVerts[i].space.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.y.data(), 4);
-				untransformedVerts[i].space.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.z.data(), 4);
+				this->vertexStore.gatherWorldXYZ(vInd, filledPixels, untransformedVerts[i].space);
 
 				this->vertexStore.gatherUV(vInd, filledPixels, untransformedVerts[i].u, untransformedVerts[i].v);
 				if (shadingMode == ShadingMode::SMOOTH)
 				{
-					untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.nx.data(), 4);
-					untransformedVerts[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.ny.data(), 4);
-					untransformedVerts[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.nz.data(), 4);
+					this->vertexStore.gatherNormals(vInd, filledPixels, untransformedVerts[i].normal);
 				}
 			}
 

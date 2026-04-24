@@ -98,10 +98,9 @@ namespace Rasterizing
 		BufferZoneManager zoneManager;
 	};
 
-	struct VertexStore
+	class VertexStore
 	{
-		std::vector<float> x, y, z, nx, ny, nz;
-		std::vector<uint32_t> uvPacked;
+	public:
 		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
 		size_t size() const;
 		void clear();
@@ -125,8 +124,15 @@ namespace Rasterizing
 			interleaved_ph_to_ps(packedUv, retU, retV);
 		}
 
-
+		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret, float32x16 src = 0.f) const
+		{
+			ret.x = _mm512_mask_i32gather_ps(src, mask, ind, this->nx.data(), 4);
+			ret.y = _mm512_mask_i32gather_ps(src, mask, ind, this->ny.data(), 4);
+			ret.z = _mm512_mask_i32gather_ps(src, mask, ind, this->nz.data(), 4);
+		}
 	private:
+		std::vector<float> x, y, z, nx, ny, nz;
+		std::vector<uint32_t> uvPacked;
 		//TODO: if gonna make this dynamic, make it cleanable and check
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
 	};
