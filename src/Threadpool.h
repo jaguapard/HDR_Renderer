@@ -61,8 +61,7 @@ private:
 	std::unordered_set<task_id> reservedTaskIds;
 
 
-	std::vector<std::jthread> threads;
-	std::atomic<task_id> lastFreeTaskId = 1;
+	std::pair<double, double> getLimitsForThread(size_t threadIndex, double min, double max, std::optional<size_t> threadCount = std::nullopt) const;
 
 	std::condition_variable cv;
 	std::mutex cv_mtx;

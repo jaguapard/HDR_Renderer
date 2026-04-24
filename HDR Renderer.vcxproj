@@ -395,6 +395,7 @@
     <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp" />
     <ClCompile Include="src\Statsman.cpp" />
     <ClCompile Include="src\Threadpool.cpp" />
+    <ClCompile Include="src\ThreadpoolNew.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\bob\AVX512_MaskedOp.h" />
@@ -427,6 +428,7 @@
     <ClInclude Include="src\smart.h" />
     <ClInclude Include="src\Statsman.h" />
     <ClInclude Include="src\Threadpool.h" />
+    <ClInclude Include="src\ThreadpoolNew.h" />
     <ClInclude Include="src\Vec.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
