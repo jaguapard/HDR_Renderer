@@ -113,10 +113,7 @@ namespace Rasterizing
 			const float* p = this->xyzp.data();
 			for (int i = 0; i < 16; ++i)
 			{
-				if (mask.mask & (1 << i))
-				{
-					tmp[i] = _mm_loadu_ps(p + rawInd[i]);
-				}
+				tmp[i] = _mm_maskz_loadu_ps(mask.mask & (1 << i) ? 15 : 0, p + rawInd[i]);
 			}
 			
 			retXYZ.x = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60), tmp.data(), 4);
