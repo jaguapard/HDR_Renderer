@@ -108,48 +108,33 @@ namespace Rasterizing
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
 			float32x16 src = 0.f;
-			float rx[16], ry[16], rz[16], ru[16];
+			float r0[16], r1[16], r2[16], r3[16];
 			int32x16 rawInd = ind * 4;
 			uint32_t* rawIndUnsigned = (uint32_t*)&rawInd;
 			const float* p = this->xyzp.data();
 			for (int i = 0; i < 16; i += 4)
 			{
-				//xmmj = xyzp for vertex i+j
+				//vj = xyzp for vertex i+j
 				Mask16 m = mask.mask & (1 << i) ? 15 : 0;
 				__m128 v0 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i]);
 				__m128 v1 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 1]);
 				__m128 v2 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 2]);
 				__m128 v3 = _mm_maskz_loadu_epi32(m, p + rawIndUnsigned[i + 3]);
 
-				//_mm_shuffle_ps(xmm0, xmm1, _MM_SHUFFLE(0, 0, 0, 0));
-				//now need to transpose the attributes. I.e. x = xmm0[0], xmm1[0], xmm2[0], xmm3[0], y = [1], z[2], uv=[3]. Relying heavily on compiler opitmizations here
-				//operating on ints because _mm_extract_ps returns int lmao, this is just more explicit and less footgun-ey way to do it
-				__m128 t0 = _mm_unpacklo_ps(v0, v1); // x0 x1 y0 y1
-				__m128 t1 = _mm_unpackhi_ps(v0, v1); // z0 z1 uv0 uv1
-				__m128 t2 = _mm_unpacklo_ps(v2, v3); // x2 x3 y2 y3
-				__m128 t3 = _mm_unpackhi_ps(v2, v3); // z2 z3 uv2 uv3
-
-				// Step 2: final assemble
-				__m128 x = _mm_movelh_ps(t0, t2);   // x0 x1 x2 x3
-				__m128 y = _mm_movehl_ps(t2, t0);   // y0 y1 y2 y3
-				__m128 z = _mm_movelh_ps(t1, t3);   // z0 z1 z2 z3
-				__m128 uv = _mm_movehl_ps(t3, t1);   // uv0 uv1 uv2 uv3
-
-				_mm_storeu_ps(&rx[i], x);
-				_mm_storeu_ps(&ry[i], y);
-				_mm_storeu_ps(&rz[i], z);
-				_mm_storeu_ps(&ru[i], uv);
+				_mm_storeu_ps(&r0[i], v0); //r0 = xyzp0,xyzp4,xyzp8,xyzp12
+				_mm_storeu_ps(&r1[i], v1); //r1 = xyzp1,xyzp5,xyzp9,xyzp13
+				_mm_storeu_ps(&r2[i], v2); //r2 = xyzp2,xyzp6,xyzp10,xyzp14
+				_mm_storeu_ps(&r3[i], v3); //r3 = xyzp3,xyzp7,xyzp11,xyzp15
 			}
 			
-			/*
-			retXYZ.x = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60), tmp.data(), 4);
-			retXYZ.y = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61), tmp.data(), 4);
-			retXYZ.z = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62), tmp.data(), 4);
-			int32x16 packedUV = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, _mm512_setr_epi32(3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), tmp.data(), 4);*/
-			retXYZ.x = rx;
-			retXYZ.y = ry;
-			retXYZ.z = rz;
-			interleaved_ph_to_ps(_mm512_load_ps(ru), retU, retV);
+			for (int i = 0; i < 4; ++i)
+			{
+				float32x16 a = _mm512_permutex2var_ps(_mm512_load_ps(r0), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28, 0, 0)), _mm512_load_ps(r1));
+				float32x16 b = _mm512_permutex2var_ps(_mm512_load_ps(r2), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 0, 0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28)), _mm512_load_ps(r3));
+				float32x16 c = _mm512_mask_mov_ps(a, 0b1100110011001100, b);
+				if (i < 3) retXYZ[i] = c;
+				else interleaved_ph_to_ps(_mm512_castps_si512(c), retU, retV);
+			}
 		}
 		//Gathers world XYZ positions for vertex indices using mask. Corresponding value in src is returned for masked out elements.
 		/*
