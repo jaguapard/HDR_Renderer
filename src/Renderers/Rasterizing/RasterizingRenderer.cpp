@@ -88,7 +88,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 				}
 				for (int k = 0; k < 3; ++k)
 				{
-					uint32_t vertInd = this->original_verticeStore.insert(
+					uint32_t vertInd = this->vertexStore.insert(
 						it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, it.v[k].diffuseMapCoords.x, 1 - it.v[k].diffuseMapCoords.y, it.v[k].normal.x, it.v[k].normal.y, it.v[k].normal.z
 					);
 
@@ -210,7 +210,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	for (auto& currSub : this->drawCommands)
 	{
 		if (currSub.trianglesToZones->size() != tCntSq) currSub.trianglesToZones->resize(tCntSq);
-		//for (auto& it : *currSub.trianglesToZones) it.verticeStore = &this->original_verticeStore;
+		//for (auto& it : *currSub.trianglesToZones) it.verticeStore = &this->vertexStore;
 	}
 
 	std::vector<task_id> transformTasks, drawTasks;
@@ -292,7 +292,7 @@ void RasterizingRenderer::loadScene(bool debugScene)
 	};
 	for (int k = 0; k < 3; ++k)
 	{
-		uint32_t vertInd = this->original_verticeStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, uvs[k].x, uvs[k].y, 1, 1, 1);
+		uint32_t vertInd = this->vertexStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, uvs[k].x, uvs[k].y, 1, 1, 1);
 		this->original_triangleStore.vertInd[k].push_back(vertInd);
 	}
 	this->original_triangleStore.diffuseMapIndex.push_back(0);
@@ -305,7 +305,7 @@ void RasterizingRenderer::clearScene()
 {
 	this->sceneModels.clear();
 	this->original_triangleStore.clear();
-	this->original_verticeStore.clear();
+	this->vertexStore.clear();
 }
 
 struct Vertex
@@ -411,7 +411,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	std::array<VertexPack16, 3> originalVertices;
 	for (int i = 0; i < 3; ++i)
 	{
-		this->original_verticeStore.gatherWorldXYZ(input.vertexIndices[i], input.validInputs, originalVertices[i].space);
+		this->vertexStore.gatherWorldXYZ(input.vertexIndices[i], input.validInputs, originalVertices[i].space);
 		originalVertices[i].space.w = 1;
 	}
 	bool UVs_loaded = false, normals_loaded = false;
@@ -462,7 +462,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 					for (int i = 0; i < 3; ++i)
 					{
 						//activeTriangles may be different between commands, so gather by least restrictive valid mask, which is the input valid mask
-						this->original_verticeStore.gatherUV(input.vertexIndices[i], input.validInputs, originalVertices[i].u, originalVertices[i].v);
+						this->vertexStore.gatherUV(input.vertexIndices[i], input.validInputs, originalVertices[i].u, originalVertices[i].v);
 					}
 					UVs_loaded = true;
 				}
@@ -480,9 +480,9 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 				{
 					for (int i = 0; i < 3; ++i)
 					{
-						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.nx.data(), 4);
-						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.ny.data(), 4);
-						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->original_verticeStore.nz.data(), 4);
+						originalVertices[i].normal.x = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->vertexStore.nx.data(), 4);
+						originalVertices[i].normal.y = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->vertexStore.ny.data(), 4);
+						originalVertices[i].normal.z = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), input.validInputs, input.vertexIndices[i], this->vertexStore.nz.data(), 4);
 					}
 					normals_loaded = true;
 				}
@@ -896,16 +896,16 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			for (int i = 0; i < 3; ++i)
 			{
 				int32x16 vInd = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, triangleIndices, this->original_triangleStore.vertInd[i].data(), 4);
-				untransformedVerts[i].space.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.x.data(), 4);
-				untransformedVerts[i].space.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.y.data(), 4);
-				untransformedVerts[i].space.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.z.data(), 4);
+				untransformedVerts[i].space.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.x.data(), 4);
+				untransformedVerts[i].space.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.y.data(), 4);
+				untransformedVerts[i].space.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.z.data(), 4);
 
-				this->original_verticeStore.gatherUV(vInd, filledPixels, untransformedVerts[i].u, untransformedVerts[i].v);
+				this->vertexStore.gatherUV(vInd, filledPixels, untransformedVerts[i].u, untransformedVerts[i].v);
 				if (shadingMode == ShadingMode::SMOOTH)
 				{
-					untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nx.data(), 4);
-					untransformedVerts[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.ny.data(), 4);
-					untransformedVerts[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->original_verticeStore.nz.data(), 4);
+					untransformedVerts[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.nx.data(), 4);
+					untransformedVerts[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.ny.data(), 4);
+					untransformedVerts[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), filledPixels, vInd, this->vertexStore.nz.data(), 4);
 				}
 			}
 

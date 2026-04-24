@@ -98,7 +98,7 @@ namespace Rasterizing
 		BufferZoneManager zoneManager;
 	};
 
-	struct Vertice_Store
+	struct VertexStore
 	{
 		std::vector<float> x, y, z, nx, ny, nz;
 		std::vector<uint32_t> uvPacked;

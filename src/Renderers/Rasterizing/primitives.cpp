@@ -1,6 +1,6 @@
 #include "primitives.h"
 
-uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, float v, float nx, float ny, float nz)
+uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, float v, float nx, float ny, float nz)
 {
 	assert(this->dedup.size() == this->x.size());
 	auto t = std::make_tuple(x, y, z, u, v, nx, ny, nz);
@@ -24,12 +24,12 @@ uint32_t Rasterizing::Vertice_Store::insert(float x, float y, float z, float u, 
 }
 
 
-size_t Rasterizing::Vertice_Store::size() const
+size_t Rasterizing::VertexStore::size() const
 {
 	return x.size();
 }
 
-void Rasterizing::Vertice_Store::clear()
+void Rasterizing::VertexStore::clear()
 {
 	this->dedup.clear();
 	this->x.clear();
