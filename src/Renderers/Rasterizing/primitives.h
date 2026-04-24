@@ -111,6 +111,8 @@ namespace Rasterizing
 			std::array<__m128, 16> tmp;
 			int32x16 rawInd = ind * 4;
 			const float* p = this->xyzp.data();
+
+			float32x16 rx, ry, rz, ru;
 			for (int i = 0; i < 16; i += 4)
 			{
 				//xmmj = xyzp for vertex i+j
@@ -127,10 +129,10 @@ namespace Rasterizing
 				__m128i y = _mm_setr_epi32(_mm_extract_epi32(xmm0, 1), _mm_extract_epi32(xmm1, 1), _mm_extract_epi32(xmm2, 1), _mm_extract_epi32(xmm3, 1));
 				__m128i z = _mm_setr_epi32(_mm_extract_epi32(xmm0, 2), _mm_extract_epi32(xmm1, 2), _mm_extract_epi32(xmm2, 2), _mm_extract_epi32(xmm3, 2));
 				__m128i uv = _mm_setr_epi32(_mm_extract_epi32(xmm0, 3), _mm_extract_epi32(xmm1, 3), _mm_extract_epi32(xmm2, 3), _mm_extract_epi32(xmm3, 3));
-				_mm_storeu_epi32(&retXYZ.x[i], x);
-				_mm_storeu_epi32(&retXYZ.y[i], y);
-				_mm_storeu_epi32(&retXYZ.z[i], z);
-				_mm_storeu_epi32(&retU[i], uv);
+				_mm_storeu_epi32(&rx[i], x);
+				_mm_storeu_epi32(&ry[i], y);
+				_mm_storeu_epi32(&rz[i], z);
+				_mm_storeu_epi32(&ru[i], uv);
 			}
 			
 			/*
@@ -138,7 +140,10 @@ namespace Rasterizing
 			retXYZ.y = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61), tmp.data(), 4);
 			retXYZ.z = _mm512_mask_i32gather_ps(src, mask, _mm512_setr_epi32(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62), tmp.data(), 4);
 			int32x16 packedUV = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), mask, _mm512_setr_epi32(3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), tmp.data(), 4);*/
-			interleaved_ph_to_ps(_mm512_load_epi32(&retU[0]), retU, retV);
+			retXYZ.x = rx;
+			retXYZ.y = ry;
+			retXYZ.z = rz;
+			interleaved_ph_to_ps(ru, retU, retV);
 		}
 		//Gathers world XYZ positions for vertex indices using mask. Corresponding value in src is returned for masked out elements.
 		/*
