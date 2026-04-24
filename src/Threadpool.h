@@ -75,11 +75,32 @@ private:
 	Type type;
 };
 
+struct DependencyStore
+{
+	std::vector<WaitableHandle> store;
+	DependencyStore() {};
+	
+	template<typename T> DependencyStore(const std::vector<T>& v) 
+	{ 
+		for (auto& it : v) store.emplace_back(it); 
+	}
+	template<typename T> DependencyStore& operator=(const std::vector<T>& v) 
+	{ 
+		store.clear(); 
+		for (auto& it : v) store.emplace_back(it); 
+		return *this; 
+	}
+
+	size_t size() const { return store.size(); }
+	void clear() { store.clear(); }
+	template<typename T> WaitableHandle& emplace_back(const T& t) { return store.emplace_back(t); }
+};
+
 struct ThreadpoolTask
 {
 	ThreadpoolTask() {};
 	taskfunc_t func;
-	std::vector<WaitableHandle> dependencies; //Forces the task to be considered runnable only if all the input handles complete.
+	DependencyStore dependencies; //Forces the task to be considered runnable only if all the input handles complete.
 };
 class Threadpool
 {

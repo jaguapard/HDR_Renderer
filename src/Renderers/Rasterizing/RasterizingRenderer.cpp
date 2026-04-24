@@ -243,7 +243,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
 	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
 
-	for (auto& it : transformTasks) tsk.dependencies.emplace_back(it);
+	tsk.dependencies = transformTasks;
 
 	size_t renderJobCount = 0;
 	//for (auto& it : this->renderJobsFromThreads) renderJobCount += it.size();
@@ -255,8 +255,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 			};
 		drawTasks.emplace_back(threadpool->addTask(tsk));
 	}
-	tsk.dependencies.clear();
-	for (auto& it : drawTasks) tsk.dependencies.emplace_back(it);
+	tsk.dependencies = drawTasks;
 	drawTasks.clear();
 	
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)

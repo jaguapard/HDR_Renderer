@@ -31,12 +31,12 @@ std::optional<std::pair<uint64_t, ThreadpoolTask>> Threadpool::tryPopTask()
 	for (auto& it : this->unassignedTasks)
 	{
 		size_t dependenciesSatisfied = 0;
-		for (auto& dep : it.second.dependencies)
+		for (auto& dep : it.second.dependencies.store)
 		{
 			if (dep.isComplete()) ++dependenciesSatisfied;
 			else break;
 		}
-		if (dependenciesSatisfied == it.second.dependencies.size())
+		if (dependenciesSatisfied == it.second.dependencies.store.size())
 		{
 			auto ret = it;
 			this->unassignedTasks.erase(it.first);
