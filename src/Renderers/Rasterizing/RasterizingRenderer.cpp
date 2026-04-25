@@ -248,38 +248,36 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
 	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
 
-	std::vector<task_id> tasks;
+	std::vector<TaskHandle> tasks;
+	ThreadpoolTask task;
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
-		tasks.emplace_back(threadpool->addTask(
-			[&, threadIndex]() {
-				this->workerRoutine(threadIndex);
-			}
-		));
-	}	
-	threadpool->waitForMultipleTasks(tasks);
+		task.func = [&, threadIndex]() {
+			this->workerRoutine(threadIndex);
+			};
+		tasks.emplace_back(threadpool->addTask(task));
+	}
 	
+	task.dependencies = tasks;
 	tasks.clear();
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
-		tasks.emplace_back(threadpool->addTask(
-			[&, threadIndex]() {
-				this->processBatchesSentByOtherThreads(threadIndex);
-			}
-		));
+		task.func = [&, threadIndex]() {
+			this->processBatchesSentByOtherThreads(threadIndex);
+			};
+		tasks.emplace_back(threadpool->addTask(task));
 	}
-	threadpool->waitForMultipleTasks(tasks);
 
+	task.dependencies = tasks;
 	tasks.clear();
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
-		tasks.emplace_back(threadpool->addTask(
-			[&, threadIndex]() {
-				this->joinMainWithShadowMap(threadIndex);
-			}
-		));
+		task.func = [&, threadIndex]() {
+			this->joinMainWithShadowMap(threadIndex);
+			};
+		tasks.emplace_back(threadpool->addTask(task));
 	}
-	threadpool->waitForMultipleTasks(tasks);
+	threadpool->blockUntilTasksComplete(tasks);
 	
 	for (auto& currSub : this->drawCommands)
 	{
@@ -462,10 +460,8 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 					int32x16 behindNearPlaneCount = 0;
 					for (int i = 0; i < 3; ++i)
 					{
-						int32x16 vertInd = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.vertInd[i].data() + currTriangleIndex);
-						originalWorld[i].x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.x.data(), 4);
-						originalWorld[i].y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.y.data(), 4);
-						originalWorld[i].z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), storeBounds, vertInd, this->original_verticeStore.z.data(), 4);
+						int32x16 vertInd = _mm512_maskz_loadu_epi32(storeBounds, this->triangleStore.vertInd[i].data() + currTriangleIndex);
+						this->vertexStore.gatherXYZUV(vertInd, storeBounds, originalWorld[i], transformed[i].u, transformed[i].v);
 						originalWorld[i].w = 1;
 						vertIndCache[i] = vertInd;
 
@@ -479,7 +475,7 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 
 					if (currCmd.faceCullingType != FaceCullingType::NONE)
 					{
-						const auto* flagsPtr = this->original_triangleStore.modelFlags.data();
+						const auto* flagsPtr = this->triangleStore.modelFlags.data();
 						int32x16 modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + currTriangleIndex);
 
 						Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(transformed[0].space, transformed[1].space, transformed[2].space);
@@ -493,21 +489,20 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 						if (!activeTriangles) continue;
 					}
 
-					int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->original_triangleStore.diffuseMapIndex.data() + currTriangleIndex);
+					int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->triangleStore.diffuseMapIndex.data() + currTriangleIndex);
 					if (this->skipTrianglesWithFallbackTexure) activeTriangles &= diffuseMapIndices != 0;
 					if (!activeTriangles) continue;
 					for (int i = 0; i < 3; ++i)
 					{
+						/*
 						if (currCmd.needsUVs)
 						{
 							transformed[i].u = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.u.data(), 4);
 							transformed[i].v = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.v.data(), 4);
-						}
+						}*/
 						if (currCmd.needsNormals)
 						{
-							transformed[i].normal.x = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nx.data(), 4);
-							transformed[i].normal.y = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.ny.data(), 4);
-							transformed[i].normal.z = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), activeTriangles, vertIndCache[i], this->original_verticeStore.nz.data(), 4);
+							this->vertexStore.gatherNormals(vertIndCache[i], activeTriangles, transformed[i].normal);
 						}
 					}
 					this->performNearPlaneClipping(nearPlaneZ, transformed, behindNearPlaneCount, behindNearPlaneMasks);
