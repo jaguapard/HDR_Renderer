@@ -109,14 +109,13 @@ std::string vec2str(Vec4f v, int componentsToPrint = 4)
 }
 
 Threadpool threadpool;
-Threadpool* Threadpool::instance = &threadpool;
 
 int main(int argc, char* argv[]) 
 {
     try
     {
-        Statsman::statsmenForThreads.resize(threadpool.getThreadCount() + 1); //last one for main thread
-        if (!SDL_Init(SDL_INIT_VIDEO)) RAISE_ERROR("SDL_Init failed");
+        Statsman::statsmenForThreads.resize(threadpool.getWorkerCount() + 1); //last one for main thread
+        if (!SDL_Init(SDL_INIT_VIDEO)) RAISE_ERROR("SDL_Init failed"); 
         C_Input::getInstance();
      
         int w = 2560;
