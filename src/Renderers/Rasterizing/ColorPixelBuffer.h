@@ -31,6 +31,7 @@ namespace Rasterizing
 	struct Mapper
 	{
 		static std::pair<float, float> wrapUV(float u, float v);
+		static std::pair<float32x8, float32x8> wrapUV(float32x8 u, float32x8 v);
 		static std::pair<float32x16, float32x16> wrapUV(float32x16 u, float32x16 v);
 
 		//wraps integers a and b into range 0 <= a < amax, 0 <= b < bmax
@@ -149,6 +150,16 @@ namespace Rasterizing
 		const ColorPixelBuffer* buf;
 	};
 	
+	struct ColorPixelBufferGatherAccessor256
+	{
+	public:
+		void gatherLinearRGB(Vec4_f32x8& output) const;
+		float32x8 gatherA() const;
+
+		__m256i gatherInd, gatherMask;
+		const ColorPixelBuffer* buf;
+	};
+	
 	//TODO: remake this class into templated PixelBuffer<PixelFormat>? Or even polymorphic type? Or even wrapper around SDL surface of same format?
 	class ColorPixelBuffer
 	{
@@ -159,6 +170,7 @@ namespace Rasterizing
 		Vec4_f32x16 gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask = 0xFFFF) const;
 		//void setPixelLinearIntensityUnsafe(int x, int y, float r, float g, float b, float a);
 		ColorPixelBufferGatherAccessor getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
+		ColorPixelBufferGatherAccessor256 getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const;
 
 		Vec4f getLinearIntensity(float u, float v) const;
 		bool areAllPixelsOpaque() const;
@@ -180,5 +192,6 @@ namespace Rasterizing
 
 		friend class Rasterizing::TextureManager;
 		friend class Rasterizing::ColorPixelBufferGatherAccessor;
+		friend class Rasterizing::ColorPixelBufferGatherAccessor256;
 	};
 }

@@ -107,24 +107,71 @@ namespace Rasterizing
 		std::atomic<size_t> threadsDone = 0;
 	};
 
-	struct Vertice_Store
+	class VertexStore
 	{
-		std::vector<float> x, y, z, u, v, nx, ny, nz;
+	public:
 		uint32_t insert(float x, float y, float z, float u, float v, float nx, float ny, float nz);
 		size_t size() const;
 		void clear();
-		void resize(size_t newSize)
+
+		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
-			this->x.resize(newSize);
-			this->y.resize(newSize);
-			this->z.resize(newSize);
-			this->u.resize(newSize);
-			this->v.resize(newSize);
-			this->nx.resize(newSize);
-			this->ny.resize(newSize);
-			this->nz.resize(newSize);
+			ind *= 4;
+			float32x16 src = 0.f;
+			float r0[16], r1[16], r2[16], r3[16];
+			uint32_t* rawIndUnsigned = (uint32_t*)&ind;
+			const float* p = this->xyzp.data();
+			__mmask64 m = duplicate_mmask_bits_16_to_64(mask);
+			for (int i = 0; i < 16; i += 4)
+			{
+				__m128 v0 = _mm_maskz_loadu_epi32(m >> i * 4, p + rawIndUnsigned[i]);
+				__m128 v1 = _mm_maskz_loadu_epi32(m >> (i + 1) * 4, p + rawIndUnsigned[i + 1]);
+				__m128 v2 = _mm_maskz_loadu_epi32(m >> (i + 2) * 4, p + rawIndUnsigned[i + 2]);
+				__m128 v3 = _mm_maskz_loadu_epi32(m >> (i + 3) * 4, p + rawIndUnsigned[i + 3]);
+
+				_mm_storeu_ps(&r0[i], v0); //r0 = xyzp0,xyzp4,xyzp8,xyzp12
+				_mm_storeu_ps(&r1[i], v1); //r1 = xyzp1,xyzp5,xyzp9,xyzp13
+				_mm_storeu_ps(&r2[i], v2); //r2 = xyzp2,xyzp6,xyzp10,xyzp14
+				_mm_storeu_ps(&r3[i], v3); //r3 = xyzp3,xyzp7,xyzp11,xyzp15
+			}
+			
+			for (int i = 0; i < 4; ++i)
+			{
+				float32x16 a = _mm512_permutex2var_ps(_mm512_load_ps(r0), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28, 0, 0)), _mm512_load_ps(r1));
+				float32x16 b = _mm512_permutex2var_ps(_mm512_load_ps(r2), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 0, 0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28)), _mm512_load_ps(r3));
+				float32x16 c = _mm512_mask_mov_ps(a, 0b1100110011001100, b);
+				if (i < 3) retXYZ[i] = c;
+				else interleaved_ph_to_ps(_mm512_castps_si512(c), retU, retV);
+			}
+		}
+		//Gathers world XYZ positions for vertex indices using mask. Corresponding value in src is returned for masked out elements.
+		/*
+		__forceinline void gatherWorldXYZ(int32x16 ind, Mask16 mask, float32x16& retX, float32x16& retY, float32x16& retZ, float32x16 src = 0.f) const
+		{
+			retX = _mm512_mask_i32gather_ps(src, mask, ind, this->x.data(), 4);
+			retY = _mm512_mask_i32gather_ps(src, mask, ind, this->y.data(), 4);
+			retZ = _mm512_mask_i32gather_ps(src, mask, ind, this->z.data(), 4);
+		}
+
+		__forceinline void gatherWorldXYZ(int32x16 ind, Mask16 mask, Vec4_f32x16& ret, float32x16 src = 0.f) const
+		{
+			this->gatherWorldXYZ(ind, mask, ret.x, ret.y, ret.z, src);
+		}
+
+		__forceinline void gatherUV(int32x16 ind, Mask16 mask, float32x16& retU, float32x16& retV, float32x16 src = 0.f) const
+		{
+			int32x16 packedUv = _mm512_mask_i32gather_epi32(src, mask, ind, this->uvPacked.data(), 4);
+			interleaved_ph_to_ps(packedUv, retU, retV);
+		}*/
+
+		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret, float32x16 src = 0.f) const
+		{
+			ret.x = _mm512_mask_i32gather_ps(src, mask, ind, this->nx.data(), 4);
+			ret.y = _mm512_mask_i32gather_ps(src, mask, ind, this->ny.data(), 4);
+			ret.z = _mm512_mask_i32gather_ps(src, mask, ind, this->nz.data(), 4);
 		}
 	private:
+		std::vector<float> xyzp, nx, ny, nz; //xyzp = world coords + packed uv's
 		//TODO: if gonna make this dynamic, make it cleanable and check
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
 	};
@@ -135,7 +182,7 @@ namespace Rasterizing
 		NO_BACKFACE_CULLING = 1 << 0,
 		NO_FRONTFACE_CULLING = 1 << 1,
 	};
-	struct Triangle_Store
+	struct TriangleStore
 	{
 		std::vector<uint32_t> vertInd[3];
 		std::vector<int> diffuseMapIndex, modelIndex;

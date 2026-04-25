@@ -48,10 +48,11 @@ private:
 	bool singleTriangleDebugMode = false;
 	Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 	std::vector<Rasterizing::Model> sceneModels;
-	Rasterizing::Vertice_Store original_verticeStore;
-	Rasterizing::Triangle_Store original_triangleStore;
+	Rasterizing::VertexStore vertexStore;
+	Rasterizing::TriangleStore triangleStore;
+	bool shadowMapEnabled = true;
 
-	std::array<Rasterizing::DrawCommand, 2> drawCommands;
+	std::vector<Rasterizing::DrawCommand> drawCommands;
 
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;

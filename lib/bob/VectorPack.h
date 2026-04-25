@@ -3,7 +3,7 @@
 #include <array>
 
 #include "SSE_Vec4.h"
-//#include "float32x8.h"
+#include "float32x8.h"
 #include "float32x16.h"
 
 //class representing 8 packed 4-dimensional vectors.
@@ -520,4 +520,5 @@ namespace bob
 
 	//typedef VectorPack<float32x8> Vec4_f32x8;
 	typedef VectorPack<float32x16> Vec4_f32x16;
+	typedef VectorPack<float32x8> Vec4_f32x8;
 }

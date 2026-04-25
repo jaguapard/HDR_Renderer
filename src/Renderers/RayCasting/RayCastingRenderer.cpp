@@ -133,10 +133,11 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	float widthToHeightRatio = double(bufW) / bufH;
 	Vec4f* pixels = (Vec4f*)settings.graphicsOutputBuffer;
 
-	std::vector<task_id> tasks;
+	std::vector<TaskHandle> tasks;
+	ThreadpoolTask tsk;
 	for (int y = 0; y < bufH; ++y)
 	{
-		tasks.emplace_back(settings.threadpool->addTask([&, y]() {
+		tsk.func = [&, y]() {
 			std::vector<OctreeNode*> stack(2048);
 			for (int x = 0; x < bufW; ++x)
 			{
@@ -204,9 +205,11 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					}
 				}*/
 			}
-		}));
+		};
+		tasks.emplace_back(settings.threadpool->addTask(tsk));
 	}
-	settings.threadpool->waitForMultipleTasks(tasks);
+	
+	settings.threadpool->blockUntilTasksComplete(tasks);
 }
 
 BoundingBox RayCasting::OctreeNode::getBoundingBoxForChildIndex(int i) const
