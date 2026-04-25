@@ -170,10 +170,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		return;
 	}
 
-
-	Threadpool* threadpool = settings.threadpool;
-	int threadCount = threadpool->getWorkerCount();
-
 	int w = (int)settings.outputTextureParams.Width;
 	int h = (int)settings.outputTextureParams.Height;
 	this->drawCommands.clear();
@@ -193,7 +189,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.frameBuffer.data = (uint64_t*)this->currGs->graphicsOutputBuffer;
 	mainDrawCmd.triangleIndexBuffer.data = this->deferredTriangleIndices.data();
 	mainDrawCmd.triangleIndexBuffer.manager = mainDrawCmd.frameBuffer.manager = mainDrawCmd.zBuffer.manager = BufferZoneManager(threadCount, w, h);	
-	mainDrawCmd.zoneManager = BufferZoneManager(threadCount, w, h);
 
 	if (this->shadowMapEnabled)
 	{
@@ -208,7 +203,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		shadowMapDrawCmd.trianglesToZones = &this->trianglesByZones[1];
 		shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
 		shadowMapDrawCmd.renderH = shadowMapH;
-		shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
 		shadowMapDrawCmd.needsUVs = true;
 		shadowMapDrawCmd.needsNormals = false;
 		shadowMapDrawCmd.faceCullingType = this->useShadowMapFrontFaceCulling ? FaceCullingType::FRONTFACE : FaceCullingType::NONE; //FaceCullingType::FRONT
@@ -216,7 +210,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		shadowMapDrawCmd.renderW = shadowMapW;
 		shadowMapDrawCmd.renderH = shadowMapH;
 		shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
-		shadowMapDrawCmd.zoneManager = BufferZoneManager(threadCount, shadowMapW, shadowMapH);
 	}
 
 	for (auto& it : this->drawCommands)
@@ -870,10 +863,9 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	uint32_t* triangleIndexBuffer = this->drawCommands[0].triangleIndexBuffer.data;
 	float my_yMin, my_yMax, my_xMin, my_xMax;
 	this->drawCommands[0].zBuffer.manager.getLimitsForThread(threadIndex, my_xMin, my_yMin, my_xMax, my_yMax);
-	float* shadowMap_zBuffer = (float*)this->drawCommands[1].zBuffer.data;
-	float* main_zBuffer = (float*)this->drawCommands[0].zBuffer.data;
-	float* main_frameBuffer = (float*)this->drawCommands[0].zBuffer.data;
 	uint32_t* renderJobPtrsBuffer = (uint32_t*)this->drawCommands[0].triangleIndexBuffer.data;
+	bool texturingEnabled = this->currGs->texturingEnabled;
+	size_t w = this->drawCommands[0].renderH;
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;
@@ -1008,10 +1000,6 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			else totalLight += this->lightIntesity;
 		}
 	}
-	for (auto& it : this->vertInd) it.clear();
-	this->diffuseMapIndex.clear();
-	this->modelFlags.clear();
-	this->modelIndex.clear();
 }
 
 /*
