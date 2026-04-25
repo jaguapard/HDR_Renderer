@@ -1004,6 +1004,10 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				totalLight += _mm512_max_ps(float32x16(0.f), normalDot * this->lightIntesity);
 			}
 			else totalLight += this->lightIntesity;
+
+			for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
+			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
+			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
 		}
 	}
 }
