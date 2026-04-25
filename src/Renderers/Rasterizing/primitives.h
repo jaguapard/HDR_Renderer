@@ -103,8 +103,7 @@ namespace Rasterizing
 		uint32_t renderW, renderH;
 		uint32_t threadCount = -1;
 		DrawRecipe recipe;
-		std::atomic<size_t> lastClaimedTriangle = 0;
-		std::atomic<size_t> threadsDone = 0;
+		std::unique_ptr<std::atomic<size_t>> lastClaimedTriangle, threadsDone;
 	};
 
 	class VertexStore
@@ -137,8 +136,8 @@ namespace Rasterizing
 			
 			for (int i = 0; i < 4; ++i)
 			{
-				float32x16 a = _mm512_permutex2var_ps(_mm512_load_ps(r0), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28, 0, 0)), _mm512_load_ps(r1));
-				float32x16 b = _mm512_permutex2var_ps(_mm512_load_ps(r2), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 0, 0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28)), _mm512_load_ps(r3));
+				float32x16 a = _mm512_permutex2var_ps(_mm512_loadu_ps(r0), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28, 0, 0)), _mm512_loadu_ps(r1));
+				float32x16 b = _mm512_permutex2var_ps(_mm512_loadu_ps(r2), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 0, 0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28)), _mm512_loadu_ps(r3));
 				float32x16 c = _mm512_mask_mov_ps(a, 0b1100110011001100, b);
 				if (i < 3) retXYZ[i] = c;
 				else interleaved_ph_to_ps(_mm512_castps_si512(c), retU, retV);

@@ -188,7 +188,9 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.zBuffer.data = this->zBuffer.data();
 	mainDrawCmd.frameBuffer.data = (uint64_t*)this->currGs->graphicsOutputBuffer;
 	mainDrawCmd.triangleIndexBuffer.data = this->deferredTriangleIndices.data();
-	mainDrawCmd.triangleIndexBuffer.manager = mainDrawCmd.frameBuffer.manager = mainDrawCmd.zBuffer.manager = BufferZoneManager(threadCount, w, h);	
+	mainDrawCmd.triangleIndexBuffer.manager = mainDrawCmd.frameBuffer.manager = mainDrawCmd.zBuffer.manager = BufferZoneManager(threadCount, w, h);
+	mainDrawCmd.lastClaimedTriangle = std::make_unique<std::atomic<size_t>>();
+	mainDrawCmd.threadsDone = std::make_unique<std::atomic<size_t>>();
 
 	if (this->shadowMapEnabled)
 	{
@@ -210,12 +212,16 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		shadowMapDrawCmd.renderW = shadowMapW;
 		shadowMapDrawCmd.renderH = shadowMapH;
 		shadowMapDrawCmd.recipe = DrawRecipe::SHADOW_MAP_DEPTH;
+		shadowMapDrawCmd.lastClaimedTriangle = std::make_unique<std::atomic<size_t>>();
+		shadowMapDrawCmd.threadsDone = std::make_unique<std::atomic<size_t>>();
+		shadowMapDrawCmd.zBuffer.data = this->shadowMap_zBuffer.data();
+		shadowMapDrawCmd.zBuffer.manager = BufferZoneManager(threadCount, shadowMapW, shadowMapH);
 	}
 
 	for (auto& it : this->drawCommands)
 	{
-		it.threadsDone = 0;
-		it.lastClaimedTriangle = 0;
+		*it.threadsDone = 0;
+		*it.lastClaimedTriangle = 0;
 	}
 
 	int tCntSq = threadCount * threadCount;
@@ -426,11 +432,11 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 		batch->drawCmdIndex = cmdIndex;
 		while (true) //Process new batch
 		{
-			size_t currTriangleIndex = currCmd.lastClaimedTriangle.fetch_add(WORKER_JOB_BATCH_SIZE);
+			size_t currTriangleIndex = currCmd.lastClaimedTriangle->fetch_add(WORKER_JOB_BATCH_SIZE);
 			size_t stopInd = std::min(triangleCount, currTriangleIndex + WORKER_JOB_BATCH_SIZE);
 			if (currTriangleIndex >= triangleCount)
 			{
-				currCmd.threadsDone++;
+				(*currCmd.threadsDone)++;
 				break;
 			}
 			while (currTriangleIndex < stopInd) //since batches can be force interrupted, we should run this again to fullfil claimed triangles contract. Each iteration of this loop is a new batch
