@@ -418,13 +418,13 @@ void RasterizingRenderer::workerRoutine(const int threadIndex)
 	float nearPlaneZ = this->currGs->cameraPlane_zDist;
 	TriangleBatchHandle batch = this->triangleBatchPool.allocate();
 
-	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->original_triangleStore.size());
+	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
 	int threadCount = this->currGs->threadpool->getThreadCount();
 	std::vector<int> recievers(threadCount);
 
 	constexpr uint64_t MAX_AREA_ALLOWANCE = UINT64_MAX;//16 * TriangleBatch::WORKER_JOB_BATCH_SIZE; //disabled for now, too slow
-	size_t triangleCount = this->original_triangleStore.size();
+	size_t triangleCount = this->triangleStore.size();
 	//TODO: remake this to process all commands together?
 	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
 	{
@@ -864,21 +864,16 @@ __m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512
 
 void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 {
-	auto [d_low, d_high] = this->currGs->threadpool->getLimitsForThread(threadIndex, 0, this->drawCommands[0].renderH);
-	int threadCount = this->currGs->threadpool->getThreadCount();
-	float my_yMin = floor(d_low);
-	float my_yMax = std::min<float>(floor(d_high), this->drawCommands[0].renderH - 1);
-	float my_xMin = 0;
 	float* shadowMap_zBuffer = this->drawCommands[1].zBuffer.data;
 	float* main_zBuffer = this->drawCommands[0].zBuffer.data;
 	uint64_t* main_frameBuffer = this->drawCommands[0].frameBuffer.data;
 	uint32_t* triangleIndexBuffer = this->drawCommands[0].triangleIndexBuffer.data;
 	float my_yMin, my_yMax, my_xMin, my_xMax;
 	this->drawCommands[0].zBuffer.manager.getLimitsForThread(threadIndex, my_xMin, my_yMin, my_xMax, my_yMax);
-	float* shadowMap_zBuffer = (float*)this->drawCommands[1].buffers[0].data;
-	float* main_zBuffer = (float*)this->drawCommands[0].buffers[0].data;
-	float* main_frameBuffer = (float*)this->drawCommands[0].buffers[1].data;
-	uint32_t* renderJobPtrsBuffer = (uint32_t*)this->drawCommands[0].buffers[2].data;
+	float* shadowMap_zBuffer = (float*)this->drawCommands[1].zBuffer.data;
+	float* main_zBuffer = (float*)this->drawCommands[0].zBuffer.data;
+	float* main_frameBuffer = (float*)this->drawCommands[0].zBuffer.data;
+	uint32_t* renderJobPtrsBuffer = (uint32_t*)this->drawCommands[0].triangleIndexBuffer.data;
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;
