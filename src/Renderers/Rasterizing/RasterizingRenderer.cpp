@@ -871,7 +871,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	this->drawCommands[0].zBuffer.manager.getLimitsForThread(threadIndex, my_xMin, my_yMin, my_xMax, my_yMax);
 	uint32_t* renderJobPtrsBuffer = (uint32_t*)this->drawCommands[0].triangleIndexBuffer.data;
 	bool texturingEnabled = this->currGs->texturingEnabled;
-	size_t w = this->drawCommands[0].renderH;
+	size_t w = this->drawCommands[0].renderW;
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;
