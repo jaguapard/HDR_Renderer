@@ -141,6 +141,7 @@ public:
 	bool isWorkerThread() const;
 
 	size_t getWorkerCount() const;
+	size_t getThreadCount() const;
 
 	std::pair<double, double> getLimitsForThread(size_t threadIndex, double min, double max, std::optional<size_t> threadCount) const;
 

@@ -143,6 +143,11 @@ size_t Threadpool::getWorkerCount() const
 	return this->workerCount;
 }
 
+size_t Threadpool::getThreadCount() const
+{
+	return this->getWorkerCount();
+}
+
 std::vector<TaskHandle> Threadpool::addTaskBatch(const std::vector<ThreadpoolTask>& tasks)
 {
 	size_t sz = tasks.size();
