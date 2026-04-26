@@ -43,7 +43,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
         const uint32_t* srcPixels = std::bit_cast<uint32_t*>(s->pixels);
         this->init(w, h);
         
-        std::vector<TaskHandle> tasks;
+        std::vector<Threadpool::TaskHandle> tasks;
         int tCount = Threadpool::instance->getWorkerCount();
         for (int tIndex = 0; tIndex < tCount; ++tIndex)
         {
