@@ -43,7 +43,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
         const uint32_t* srcPixels = std::bit_cast<uint32_t*>(s->pixels);
         this->init(w, h);
         
-        std::vector<TaskHandle> tasks;
+        std::vector<Threadpool::TaskHandle> tasks;
         int tCount = Threadpool::instance->getWorkerCount();
         for (int tIndex = 0; tIndex < tCount; ++tIndex)
         {
@@ -264,7 +264,7 @@ float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
 
 float32x8 Rasterizing::ColorPixelBufferGatherAccessor256::gatherA() const
 {
-    __m256i gathered = _mm256_mask_i32gather_epi32(_mm256_set1_epi32(0), this->buf->opacityMap.get(), _mm256_srli_epi32(this->gatherInd, 5), this->gatherMask, 4);
+    __m256i gathered = _mm256_mask_i32gather_epi32(_mm256_set1_epi32(0), (const int*)(this->buf->opacityMap.get()), _mm256_srli_epi32(this->gatherInd, 5), this->gatherMask, 4);
     __m256i shifts = _mm256_and_si256(this->gatherInd, _mm256_set1_epi32(31));
     __m256i opacityMapValuesForPixels = _mm256_and_si256(gathered, _mm256_sllv_epi32(_mm256_set1_epi32(1), shifts));
     return _mm256_blendv_ps(_mm256_set1_ps(1), _mm256_set1_ps(0), _mm256_castsi256_ps(_mm256_cmpeq_epi32(opacityMapValuesForPixels, _mm256_set1_epi32(0))));
