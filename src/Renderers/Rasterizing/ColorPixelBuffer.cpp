@@ -80,9 +80,9 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                         encodedG = encodedG.clamp(0, 2047);
                         encodedB = encodedB.clamp(0, 1023);
 
-                        int32x16 dstR = _mm512_cvtps_epi32(encodedR);
-                        int32x16 dstG = _mm512_cvtps_epi32(encodedG);
-                        int32x16 dstB = _mm512_cvtps_epi32(encodedB);
+                        int32x16 dstR = _mm512_cvttps_epi32(encodedR);
+                        int32x16 dstG = _mm512_cvttps_epi32(encodedG);
+                        int32x16 dstB = _mm512_cvttps_epi32(encodedB);
                         int32x16 dstFull = dstR | (dstG << 10) | (dstB << 21);// | 0x80000000; //storeA = (srcUint32 >> 24) ? 1 : 0;
                         dstFull = _mm512_mask_or_epi32(dstFull.zmm, _mm512_cmpgt_epu32_mask(srcUint32.zmm, _mm512_set1_epi32(0x00FFFFFF)), dstFull.zmm, int32x16(0x80000000).zmm);
 
