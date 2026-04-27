@@ -234,48 +234,86 @@ ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccess
 }*/
 
 
-Vec4f Rasterizing::ColorPixelBuffer::sampleMipLevel(float u, float v, const MipLevel& mipLevel) const
+Vec4f Rasterizing::ColorPixelBuffer::sampleMipLevels(float u, float v, const MipLevel& mipLevel, const MipLevel* nextLevel, float t) const
 {
-    auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, mipLevel.sizes.fw, mipLevel.sizes.fh);
-    BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
-    std::array<Vec4f, 4> linear;
-    for (int i = 0; i < 4; ++i)
+    Vec4f interpolands[2];
+    const MipLevel* currLevel = &mipLevel;
+    for (int k = 0; k < 2; ++k)
     {
-        auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], mipLevel.sizes.w, mipLevel.sizes.h);
-        uint32_t channels = mipLevel.packedColors[y * mipLevel.sizes.w + x];
-        linear[i] = _mm_castsi128_ps(_mm_setr_epi32(
-            std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
-            std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
-            std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
-            (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
+        auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, currLevel->sizes.fw, currLevel->sizes.fh);
+        BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
+        std::array<Vec4f, 4> linear;
+        for (int i = 0; i < 4; ++i)
+        {
+            auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], currLevel->sizes.w, currLevel->sizes.h);
+            uint32_t channels = currLevel->packedColors[y * currLevel->sizes.w + x];
+            linear[i] = _mm_castsi128_ps(_mm_setr_epi32(
+                std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
+                std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
+                std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
+                (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
+        }
+        interpolands[k] = ctx.interpolate(linear); //TODO: force alpha to first parent?
+        if (!nextLevel) return interpolands[k];
+        currLevel = nextLevel;
     }
-    return ctx.interpolate(linear); //TODO: force alpha to first parent?
+    return lerp(interpolands[0], interpolands[1], t);
 }
 
 Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float du_dx, float du_dy, float dv_dx, float dv_dy) const
 {
     const MipLevel& full = this->mipLevels[0];
-    float du_dxp = du_dx * full.sizes.fw;
-    float du_dyp = du_dy * full.sizes.fh;
-    float dv_dxp = dv_dx * full.sizes.fw;
-    float dv_dyp = dv_dy * full.sizes.fh;
-    float ro_x = std::sqrt(du_dxp * du_dxp + dv_dxp * dv_dxp);
-    float ro_y = std::sqrt(du_dyp * du_dyp + dv_dyp * dv_dyp);
-    float ro_max = std::max(ro_x, ro_y);
-    float ro_min = std::min(ro_x, ro_y);
-    float lod = std::log2(ro_min);
-    int targetMipLevel = std::clamp<float>(lod, 0.f, this->mipLevels.size() - 1);
-
-    float t = lod - floor(lod);
-
-    Vec4f levelSamples[2];
-    for (int interpolationIteration = 0; interpolationIteration < 2; ++interpolationIteration)
+    float pixelFootprintXU = du_dx * full.sizes.fw; //footprint of pixel for X step in screen space, measured in texels
+    float pixelFootprintXV = dv_dx * full.sizes.fh;
+    float pixelFootprintYU = du_dy * full.sizes.fw; //footprint of pixel for Y step in screen space, measured in texels
+    float pixelFootprintYV = dv_dy * full.sizes.fh;
+    float footprintLenX_texels = std::sqrt(pixelFootprintXU * pixelFootprintXU + pixelFootprintXV * pixelFootprintXV);
+    float footprintLenY_texels = std::sqrt(pixelFootprintYU * pixelFootprintYU + pixelFootprintYV * pixelFootprintYV);
+    float majorAxisLen_texels, minorAxisLen_texels, aniso_uStep, aniso_vStep;
+    Vec4f majorAxis_texels, minorAxis_texels;
+    bool usingFoorprintX;
+    if (footprintLenX_texels >= footprintLenY_texels)
     {
-        const MipLevel& target = this->mipLevels[targetMipLevel+interpolationIteration];
-        levelSamples[interpolationIteration] = this->sampleMipLevel(u, v, target);
-        if (targetMipLevel > this->mipLevels.size() - 2) return levelSamples[0]; //no next level, just return what we've got
+        majorAxisLen_texels = footprintLenX_texels;
+        majorAxis_texels = { pixelFootprintXU, pixelFootprintXV };
+        minorAxisLen_texels = footprintLenY_texels;
+        minorAxis_texels = { pixelFootprintYU, pixelFootprintYV };
+        usingFoorprintX = true;
     }
-    return lerp(levelSamples[0], levelSamples[1], t);
+    else
+    {
+        majorAxisLen_texels = footprintLenY_texels;
+        majorAxis_texels = { pixelFootprintYU, pixelFootprintYV };
+        minorAxisLen_texels = footprintLenX_texels;
+        minorAxis_texels = { pixelFootprintXU, pixelFootprintXV };
+        usingFoorprintX = false;
+    }
+    float stepCount = std::min(std::ceil(majorAxisLen_texels / minorAxisLen_texels), 16.f);
+    float wantedMipLevel = std::log2(minorAxisLen_texels);
+
+    int targetMipLevel = std::clamp<float>(wantedMipLevel, 0.f, this->mipLevels.size() - 1);
+    const MipLevel& mainMipLevel = this->mipLevels[targetMipLevel];
+    const MipLevel* nextMipLevel = targetMipLevel < this->mipLevels.size() - 1 ? &this->mipLevels[targetMipLevel + 1] : nullptr;
+    float trilinearLerpT = wantedMipLevel - floor(wantedMipLevel);
+
+    if (usingFoorprintX)
+    {
+        aniso_uStep = du_dx;
+        aniso_vStep = dv_dx;
+    }
+    else
+    {
+        aniso_uStep = du_dy;
+        aniso_vStep = dv_dy;
+    }
+    Vec4f tauAniso = 0;
+    for (float i = 1; i <= stepCount; ++i)
+    {
+        float tu = u + aniso_uStep * (i / (stepCount + 1) - 0.5);
+        float tv = v + aniso_vStep * (i / (stepCount + 1) - 0.5);
+        tauAniso += this->sampleMipLevels(tu, tv, mainMipLevel, nextMipLevel, trilinearLerpT);
+    }
+    return tauAniso / stepCount;
 }
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const

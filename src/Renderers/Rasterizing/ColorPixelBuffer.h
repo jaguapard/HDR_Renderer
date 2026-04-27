@@ -199,7 +199,7 @@ namespace Rasterizing
 		std::vector<MipLevel> mipLevels;
 		void init(uint32_t w, uint32_t h);
 
-		Vec4f sampleMipLevel(float u, float v, const MipLevel& mipLevel) const;
+		Vec4f sampleMipLevels(float u, float v, const MipLevel& mipLevel, const MipLevel* nextLevel, float t) const;
 		
 		static inline std::unique_ptr<float[]> toLinearLUT_fp32;
 		static inline std::unique_ptr<int16_t[]> toLinearLUT_fp16;
