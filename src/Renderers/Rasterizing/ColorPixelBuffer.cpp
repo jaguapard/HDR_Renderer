@@ -243,7 +243,7 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     float ro_x = std::sqrt(du_dxp * du_dxp + dv_dxp * dv_dxp);
     float ro_y = std::sqrt(du_dyp * du_dyp + dv_dyp * dv_dyp);
     float ro = std::max(ro_x, ro_y);
-    float lod = std::log2(ro);
+    float lod = round(std::log2(ro));
     int targetMipLevel = std::clamp<float>(lod, 0.f, this->mipLevels.size() - 1);
 
     const MipLevel& target = this->mipLevels[targetMipLevel];
