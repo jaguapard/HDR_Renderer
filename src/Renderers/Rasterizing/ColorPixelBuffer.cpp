@@ -225,6 +225,18 @@ void Rasterizing::ColorPixelBuffer::setPixelLinearIntensityUnsafe(int x, int y, 
 
 void Rasterizing::ColorPixelBuffer::init(uint32_t w, uint32_t h)
 {
+    if (!this->toLinearLUT_fp16 || !this->toLinearLUT_fp32)
+    {
+        this->toLinearLUT_fp16 = std::make_unique<int16_t[]>(256);
+        this->toLinearLUT_fp32 = std::make_unique<float[]>(256);
+        for (int i = 0; i < 256; ++i)
+        {
+            double normalized = i / 255.0;
+            float linear = std::pow(normalized, 2.2);
+            this->toLinearLUT_fp32[i] = linear;
+            this->toLinearLUT_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(linear), 0), 0);
+        }
+    }
     uint32_t totalPixels = w * h;
     this->packedColors = std::make_unique<uint32_t[]>(totalPixels);
     this->opacityMap = std::make_unique<uint32_t[]>(totalPixels / 32 + 1);
