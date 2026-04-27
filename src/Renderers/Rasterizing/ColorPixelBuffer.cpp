@@ -268,7 +268,7 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
         levelSamples[interpolationIteration] = ctx.interpolate(linear); //TODO: force alpha to first parent?
         if (targetMipLevel > this->mipLevels.size() - 2) return levelSamples[0]; //no next level, just return what we've got
     }
-    return levelSamples[0] * (1 - t) + levelSamples[1] * t;
+    return lerp(levelSamples[0], levelSamples[1], t);
 }
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
