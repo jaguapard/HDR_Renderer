@@ -187,7 +187,7 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
             this->toLinearLUT_fp32[channels & 0xFF],
             this->toLinearLUT_fp32[(channels >> 8) & 0xFF],
             this->toLinearLUT_fp32[(channels >> 16) & 0xFF],
-            this->toLinearLUT_fp32[(channels >> 24)]);
+            (channels >> 24) ? 1 : 0);
     }
     return ctx.interpolate(linear); //TODO: force alpha to first parent?
 }
