@@ -851,6 +851,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	float my_xMin, my_xMax, my_yMin, my_yMax;
 	this->drawCommands[0].zoneManager.getLimitsForThread(threadIndex, my_xMin, my_yMin, my_xMax, my_yMax);
 	int w = this->drawCommands[0].renderW;
+	int h = this->drawCommands[0].renderH;
 	bool texturingEnabled = this->currGs->texturingEnabled;
 
 	float* shadowMap_zBuffer = this->shadowMapEnabled ? (float*)this->drawCommands[1].buffers[0].data : nullptr;
@@ -885,7 +886,25 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 
 			float32x16 zInvSrc = _mm512_maskz_loadu_ps(xBoundsMask, main_zBuffer + yInt * w + xInt);
 			Vec4_f32x16 screenPos(x, y, 1, zInvSrc);
+			//to avoid loading the last and headache of OOB, just sample left instead of right for rightmost pixel. TODO: properly sample it.
+			Vec4_f32x16 screenPosDx(x + float32x16(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1), y, 1, _mm512_permutexvar_ps(_mm512_setr_epi32(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 14), zInvSrc));
+			Vec4_f32x16 screenPosDy;
+			screenPosDy.x = x;
+			screenPosDy.z = 1;
+			if (yInt < h - 1) //sample down if not on last row
+			{
+				screenPosDy.y = y + 1;
+				screenPosDy.w = _mm512_maskz_loadu_ps(xBoundsMask, main_zBuffer + (yInt+1) * w + xInt);
+			}
+			else //can't sample down, sample up instead
+			{
+				screenPosDy.y = y - 1;
+				screenPosDy.w = _mm512_maskz_loadu_ps(xBoundsMask, main_zBuffer + (yInt - 1) * w + xInt);
+			}
+
 			Vec4_f32x16 worldCoords = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPos);
+			Vec4_f32x16 worldCoordsDx = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPosDx);
+			Vec4_f32x16 worldCoordsDy = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPosDy);
 
 			int32x16 triangleIndices = _mm512_maskz_loadu_epi32(xBoundsMask, renderJobPtrsBuffer + yInt * w + xInt);
 			Mask16 filledPixels = xBoundsMask & (triangleIndices != -1);
@@ -906,12 +925,23 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			const Vec4_f32x16& r2 = untransformedVerts[1].space;
 			const Vec4_f32x16& r3 = untransformedVerts[2].space;
 
-			float32x16 alpha, beta, gamma;
+			float32x16 alpha, beta, gamma, alphaDx, alphaDy, betaDx, betaDy, gammaDx, gammaDy;
 			calculateBarycentricCoordinates3D(worldCoords, r1, r2, r3, alpha, beta, gamma);
+			calculateBarycentricCoordinates3D(worldCoordsDx, r1, r2, r3, alphaDx, betaDx, gammaDx);
+			calculateBarycentricCoordinates3D(worldCoordsDy, r1, r2, r3, alphaDy, betaDy, gammaDy);
 
 			Vec4_f32x16 uv = Vec4_f32x16(untransformedVerts[0].u, untransformedVerts[0].v, 0.f, 0.f) * alpha +
 				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
 				Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
+			Vec4_f32x16 uvDx = Vec4_f32x16(untransformedVerts[0].u, untransformedVerts[0].v, 0.f, 0.f) * alphaDx +
+				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * betaDx +
+				Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gammaDx;
+			Vec4_f32x16 uvDy = Vec4_f32x16(untransformedVerts[0].u, untransformedVerts[0].v, 0.f, 0.f) * alphaDy +
+				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * betaDy +
+				Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gammaDy;
+
+			Vec4_f32x16 duv_dx = uvDx - uv;
+			Vec4_f32x16 duv_dy = uvDy - uv;
 			//Vec4_f32x16 normals = Vec4_f32x16(untransformedVerts[0].normal.x, untransformedVerts[0].normal.y, 0.f, 0.f) * alpha +
 			//	Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
 			//	Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
@@ -925,7 +955,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				{
 					if (!(filledPixels.mask & (1 << j))) continue;
 					int diffuseMapIndex = this->triangleStore.diffuseMapIndex[triangleIndices[j]];
-					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
+					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j], duv_dx.x[j], duv_dy.x[j], duv_dx.y[j], duv_dy.y[j]);
 					texturePixels.x[j] = pixel.x;
 					texturePixels.y[j] = pixel.y;
 					texturePixels.z[j] = pixel.z;
