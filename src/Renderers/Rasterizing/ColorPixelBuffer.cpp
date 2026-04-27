@@ -248,27 +248,19 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
 
     const MipLevel& target = this->mipLevels[targetMipLevel];
     auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, target.sizes.fw, target.sizes.fh);
-    auto [x, y] = Mapper::wrapInts(fx, fy, target.sizes.w, target.sizes.h);
-    uint32_t channels = target.packedColors[y * target.sizes.w + x];
-    return _mm_castsi128_ps(_mm_setr_epi32(
-        std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
-        std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
-        std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
-        (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
-    /*
     BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
     std::array<Vec4f, 4> linear;
     for (int i = 0; i < 4; ++i)
     {
-        auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], this->sizes.w, this->sizes.h);
-        uint32_t channels = this->packedColors[y * sizes.w + x];
+        auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], target.sizes.w, target.sizes.h);
+        uint32_t channels = target.packedColors[y * target.sizes.w + x];
         linear[i] = _mm_castsi128_ps(_mm_setr_epi32(
             std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
             std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
             std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
             (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
     }
-    return ctx.interpolate(linear); //TODO: force alpha to first parent?*/
+    return ctx.interpolate(linear); //TODO: force alpha to first parent?
 }
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
