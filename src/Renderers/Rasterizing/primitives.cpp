@@ -18,6 +18,8 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 		this->nx.push_back(nx);
 		this->ny.push_back(ny);
 		this->nz.push_back(nz);
+		size_t sz = this->xyzp.capacity() / 4;
+		if (sz % 16 != 0) this->reserve(sz + 16 - sz % 16);
 		return ret;
 	}
 	return it->second;
@@ -26,7 +28,16 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 
 size_t Rasterizing::VertexStore::size() const
 {
-	return this->dedup.size();
+	assert(xyzp.size() % 4 == 0);
+	return this->xyzp.size() / 4;
+}
+
+void Rasterizing::VertexStore::reserve(size_t newSize)
+{
+	this->xyzp.reserve(newSize * 4);
+	this->nx.reserve(newSize);
+	this->ny.reserve(newSize);
+	this->nz.reserve(newSize);
 }
 
 void Rasterizing::VertexStore::clear()
