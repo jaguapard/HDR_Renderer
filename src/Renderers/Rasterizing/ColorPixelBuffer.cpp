@@ -84,7 +84,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
         
         std::vector<float> prevLevelLinear = std::move(initialLinearTexture);
         uint32_t prevW, prevH;
-        while (w > 0 && h > 0)
+        while (w > 1 && h > 1)
         {
             prevW = w;
             prevH = h;
@@ -196,10 +196,10 @@ Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x,
     int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), gatherMask, pixelsIndices, this->packedColors.get(), 4);
     return Decoder::R10G11B10A1_gamma2_to_linear(gathered);
 }
-
+*/
 Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
 {
-    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
+    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, this->mipLevels[0].sizes.w, this->mipLevels[0].sizes.h);
     int32x16 intX = pixelsX.trunc();
     int32x16 intY = pixelsY.trunc();
     for (int i = 0; i < 16; ++i)
@@ -212,11 +212,11 @@ Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGa
     }
 
     ColorPixelBufferGatherAccessor accessor;
-    accessor.gatherInd = intY * sizes.w + intX;
+    accessor.gatherInd = intY * this->mipLevels[0].sizes.w + intX;
     accessor.gatherMask = mask;
     accessor.buf = this;
     return accessor;
-}*/
+}
 /*
 ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const
 {
@@ -317,15 +317,15 @@ void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& o
     output.g = fg * fg;
     output.b = fb * fb;
 }
-
+*/
 float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
 {
-    int32x16 gathered = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), this->gatherMask, (this->gatherInd >> 5).zmm, this->buf->opacityMap.get(), 4);
+    int32x16 gathered = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), this->gatherMask, (this->gatherInd >> 5).zmm, this->buf->mipLevels[0].opacityMap.get(), 4);
     int32x16 shifts = this->gatherInd & 31;
     int32x16 opacityMapValuesForPixels = gathered & (int32x16(1) << shifts);
     return _mm512_maskz_mov_ps(opacityMapValuesForPixels != 0, _mm512_set1_ps(1));
 }
-
+/*
 float32x8 Rasterizing::ColorPixelBufferGatherAccessor256::gatherA() const
 {
     __m256i gathered = _mm256_mask_i32gather_epi32(_mm256_set1_epi32(0), (const int*)(this->buf->opacityMap.get()), _mm256_srli_epi32(this->gatherInd, 5), this->gatherMask, 4);
