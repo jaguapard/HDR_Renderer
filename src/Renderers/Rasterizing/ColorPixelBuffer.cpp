@@ -243,24 +243,32 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     float ro_x = std::sqrt(du_dxp * du_dxp + dv_dxp * dv_dxp);
     float ro_y = std::sqrt(du_dyp * du_dyp + dv_dyp * dv_dyp);
     float ro = std::max(ro_x, ro_y);
-    float lod = round(std::log2(ro));
+    float lod = std::log2(ro);
     int targetMipLevel = std::clamp<float>(lod, 0.f, this->mipLevels.size() - 1);
 
-    const MipLevel& target = this->mipLevels[targetMipLevel];
-    auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, target.sizes.fw, target.sizes.fh);
-    BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
-    std::array<Vec4f, 4> linear;
-    for (int i = 0; i < 4; ++i)
+    float t = lod - floor(lod);
+
+    Vec4f levelSamples[2];
+    for (int interpolationIteration = 0; interpolationIteration < 2; ++interpolationIteration)
     {
-        auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], target.sizes.w, target.sizes.h);
-        uint32_t channels = target.packedColors[y * target.sizes.w + x];
-        linear[i] = _mm_castsi128_ps(_mm_setr_epi32(
-            std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
-            std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
-            std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
-            (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
+        const MipLevel& target = this->mipLevels[targetMipLevel+interpolationIteration];
+        auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, target.sizes.fw, target.sizes.fh);
+        BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
+        std::array<Vec4f, 4> linear;
+        for (int i = 0; i < 4; ++i)
+        {
+            auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], target.sizes.w, target.sizes.h);
+            uint32_t channels = target.packedColors[y * target.sizes.w + x];
+            linear[i] = _mm_castsi128_ps(_mm_setr_epi32(
+                std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
+                std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
+                std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
+                (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
+        }
+        levelSamples[interpolationIteration] = ctx.interpolate(linear); //TODO: force alpha to first parent?
+        if (targetMipLevel > this->mipLevels.size() - 2) return levelSamples[0]; //no next level, just return what we've got
     }
-    return ctx.interpolate(linear); //TODO: force alpha to first parent?
+    return levelSamples[0] * (1 - t) + levelSamples[1] * t;
 }
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
