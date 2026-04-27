@@ -167,20 +167,14 @@ namespace Rasterizing
 		ColorPixelBuffer(ColorPixelBuffer&& dying);
 		ColorPixelBuffer(uint32_t w, uint32_t h); //initializes empty color buffer
 		ColorPixelBuffer(const SDL_Surface* s);
-		Vec4_f32x16 gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask = 0xFFFF) const;
+		//Vec4_f32x16 gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask = 0xFFFF) const;
 		//void setPixelLinearIntensityUnsafe(int x, int y, float r, float g, float b, float a);
 		ColorPixelBufferGatherAccessor getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
-		ColorPixelBufferGatherAccessor256 getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const;
+		//ColorPixelBufferGatherAccessor256 getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const;
 
 		Vec4f getLinearIntensity(float u, float v) const;
 		bool areAllPixelsOpaque() const;
 	private:
-		void init(uint32_t w, uint32_t h);
-		std::unique_ptr<uint32_t[]> packedColors, opacityMap;
-		bool isFullyOpaque = true;
-		
-		static inline std::unique_ptr<float[]> toLinearLUT_fp32;
-		static inline std::unique_ptr<int16_t[]> toLinearLUT_fp16;
 		struct Sizes
 		{
 			Sizes() {};
@@ -190,7 +184,20 @@ namespace Rasterizing
 			float fw, fh, rcpW, rcpH;
 			float float_maxSafeX, float_maxSafeY, rcp_maxSafeX, rcp_maxSafeY;
 		};
-		Sizes sizes;
+
+		struct MipLevel
+		{
+			MipLevel(uint32_t w, uint32_t h);
+			std::unique_ptr<uint32_t[]> packedColors, opacityMap;
+			Sizes sizes;
+			bool isFullyOpaque = true;
+			void init(uint32_t w, uint32_t h);
+		};
+
+		std::vector<MipLevel> mipLevels;
+		
+		static inline std::unique_ptr<float[]> toLinearLUT_fp32;
+		static inline std::unique_ptr<int16_t[]> toLinearLUT_fp16;
 
 		friend class Rasterizing::TextureManager;
 		friend class Rasterizing::ColorPixelBufferGatherAccessor;

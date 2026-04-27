@@ -5,16 +5,20 @@
 using namespace Rasterizing;
 
 Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
-    packedColors(std::move(dying.packedColors)),
-    opacityMap(std::move(dying.opacityMap)),
-    sizes(dying.sizes),
-    isFullyOpaque(dying.isFullyOpaque)
+    mipLevels(std::move(dying.mipLevels))
+   // isFullyOpaque(dying.isFullyOpaque)
 {
 }
 
 Rasterizing::ColorPixelBuffer::ColorPixelBuffer(uint32_t w, uint32_t h)
 {
-    this->init(w, h);
+    while (w > 0 && h > 0)
+    {
+        this->mipLevels.emplace_back(w, h);
+        w /= 2;
+        h /= 2;
+    }
+    //this->init(w, h);
 }
 
 
@@ -203,18 +207,23 @@ void Rasterizing::ColorPixelBuffer::setPixelLinearIntensityUnsafe(int x, int y, 
     //float 
 }*/
 
-void Rasterizing::ColorPixelBuffer::init(uint32_t w, uint32_t h)
+Rasterizing::ColorPixelBuffer::MipLevel::MipLevel(uint32_t w, uint32_t h)
 {
-    if (!this->toLinearLUT_fp16 || !this->toLinearLUT_fp32)
+    this->init(w, h);
+}
+
+void Rasterizing::ColorPixelBuffer::MipLevel::init(uint32_t w, uint32_t h)
+{
+    if (!ColorPixelBuffer::toLinearLUT_fp16 || !ColorPixelBuffer::toLinearLUT_fp32)
     {
-        this->toLinearLUT_fp16 = std::make_unique<int16_t[]>(256);
-        this->toLinearLUT_fp32 = std::make_unique<float[]>(256);
+        ColorPixelBuffer::toLinearLUT_fp16 = std::make_unique<int16_t[]>(256);
+        ColorPixelBuffer::toLinearLUT_fp32 = std::make_unique<float[]>(256);
         for (int i = 0; i < 256; ++i)
         {
             double normalized = i / 255.0;
             float linear = std::pow(normalized, 2.2);
-            this->toLinearLUT_fp32[i] = linear;
-            this->toLinearLUT_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(linear), 0), 0);
+            ColorPixelBuffer::toLinearLUT_fp32[i] = linear;
+            ColorPixelBuffer::toLinearLUT_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(linear), 0), 0);
         }
     }
     uint32_t totalPixels = w * h;
