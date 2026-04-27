@@ -36,14 +36,14 @@ int Rasterizing::TextureManager::addTextureBySurface(SDL_Surface* s)
 	ColorPixelBuffer buf = converted.get();
 	std::lock_guard lck(this->mtx);
 	this->textures.emplace_back(std::move(buf));
-
+	/*
 	this->bufferForTexture.clear();
 	this->sizesForTexture.clear();
 	for (auto& it : this->textures)
 	{
 		this->bufferForTexture.emplace_back(it.packedColors.get());
 		this->sizesForTexture.emplace_back(it.sizes);
-	}
+	}*/
 	return this->textures.size() - 1;
 }
 int Rasterizing::TextureManager::addTextureByPath(std::string path)

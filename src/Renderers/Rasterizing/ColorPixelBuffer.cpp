@@ -294,7 +294,7 @@ void Rasterizing::ColorPixelBuffer::MipLevel::init(uint32_t w, uint32_t h)
     this->opacityMap = std::make_unique<uint32_t[]>(totalPixels / 32 + 1);
     this->sizes = { w,h };
 }
-
+/*
 void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& output) const
 {
     int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0).zmm, this->gatherMask, this->gatherInd.zmm, this->buf->packedColors.get(), 4);
@@ -351,6 +351,7 @@ Vec4_f32x16 Rasterizing::Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
     fb *= 1.f / 1023;
     return { fr * fr, fg * fg, fb * fb, fa };
 }
+*/
 
 std::pair<float, float> Rasterizing::Mapper::wrapUV(float u, float v)
 {
