@@ -122,7 +122,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
         throw std::runtime_error("Unsupported pixel format for ColorPixelBuffer import: ");
     }
 }
-
+/*
 Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(x, y, sizes.w, sizes.h);
@@ -161,8 +161,8 @@ Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGa
     accessor.gatherMask = mask;
     accessor.buf = this;
     return accessor;
-}
-
+}*/
+/*
 ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
@@ -176,11 +176,31 @@ ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccess
     accessor.gatherMask = _mm256_castps_si256(mask);
     accessor.buf = this;
     return accessor;
-}
+}*/
 
-Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
+Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float du_dx, float du_dy, float dv_dx, float dv_dy) const
 {
-    auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.fw, sizes.fh);
+    const MipLevel& full = this->mipLevels[0];
+    float du_dxp = du_dx * full.sizes.fw;
+    float du_dyp = du_dy * full.sizes.fh;
+    float dv_dxp = dv_dx * full.sizes.fw;
+    float dv_dyp = dv_dy * full.sizes.fh;
+    float ro_x = std::sqrt(du_dxp * du_dxp + dv_dxp * dv_dxp);
+    float ro_y = std::sqrt(du_dyp * du_dyp + dv_dyp * dv_dyp);
+    float ro = std::max(ro_x, ro_y);
+    float lod = std::log2(ro);
+    int targetMipLevel = std::clamp<float>(lod, 0.f, this->mipLevels.size() - 1);
+
+    const MipLevel& target = this->mipLevels[targetMipLevel];
+    auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, target.sizes.fw, target.sizes.fh);
+    auto [x, y] = Mapper::wrapInts(fx, fy, target.sizes.w, target.sizes.h);
+    uint32_t channels = target.packedColors[y * target.sizes.w + x];
+    return _mm_castsi128_ps(_mm_setr_epi32(
+        std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
+        std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
+        std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
+        (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
+    /*
     BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
     std::array<Vec4f, 4> linear;
     for (int i = 0; i < 4; ++i)
@@ -193,12 +213,12 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
             std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
             (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
     }
-    return ctx.interpolate(linear); //TODO: force alpha to first parent?
+    return ctx.interpolate(linear); //TODO: force alpha to first parent?*/
 }
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
 {
-    return this->isFullyOpaque;
+    return this->mipLevels[0].isFullyOpaque;
 }
 
 /*

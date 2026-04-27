@@ -46,6 +46,7 @@ namespace Rasterizing
 		//uses special value provided to replace division with multiplication and shift
 		static uint32_t wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_aMax);
 
+		//Maps UV coordinates to texture XY coordinates using specified MappingType
 		template <MappingType M, typename T>
 		static std::pair<T, T> UV_to_XY(T u, T v, float w, float h)
 		{
@@ -172,7 +173,7 @@ namespace Rasterizing
 		ColorPixelBufferGatherAccessor getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
 		//ColorPixelBufferGatherAccessor256 getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const;
 
-		Vec4f getLinearIntensity(float u, float v) const;
+		Vec4f getLinearIntensity(float u, float v, float du_dx, float du_dy, float dv_dx, float dv_dy) const;
 		bool areAllPixelsOpaque() const;
 	private:
 		struct Sizes
