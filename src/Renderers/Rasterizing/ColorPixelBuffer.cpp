@@ -131,17 +131,21 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             prevLevelLinear = std::move(mipLinear);
         }
        
-        for (int i = 0; i < totalPixels; i += 32)
+        for (auto& mipLevel : this->mipLevels)
         {
-            Mask16 boundsMask1 = (int32x16::sequence() + i) < totalPixels;
-            Mask16 boundsMask2 = (int32x16::sequence() + i + 16) < totalPixels;
-            int32x16 packed1 = _mm512_maskz_loadu_epi32(boundsMask1, this->packedColors.get() + i);
-            int32x16 packed2 = _mm512_maskz_loadu_epi32(boundsMask2, this->packedColors.get() + i + 16);
-            Mask16 m1 = (packed1 & int32x16(0x80000000)) != 0;
-            Mask16 m2 = (packed2 & int32x16(0x80000000)) != 0;
-            uint32_t mt = (uint32_t(m2) << 16) | m1;
-            this->opacityMap[i / 32] = mt;
-            if (~mt) this->isFullyOpaque = false;
+            int totalPixels = mipLevel.sizes.w * mipLevel.sizes.h;
+            for (int i = 0; i < totalPixels; i += 32)
+            {
+                Mask16 boundsMask1 = (int32x16::sequence() + i) < totalPixels;
+                Mask16 boundsMask2 = (int32x16::sequence() + i + 16) < totalPixels;
+                int32x16 packed1 = _mm512_maskz_loadu_epi32(boundsMask1, mipLevel.packedColors.get() + i);
+                int32x16 packed2 = _mm512_maskz_loadu_epi32(boundsMask2, mipLevel.packedColors.get() + i + 16);
+                Mask16 m1 = (packed1 & int32x16(0x80000000)) != 0;
+                Mask16 m2 = (packed2 & int32x16(0x80000000)) != 0;
+                uint32_t mt = (uint32_t(m2) << 16) | m1;
+                mipLevel.opacityMap[i / 32] = mt;
+                if (~mt) mipLevel.isFullyOpaque = false;
+            }
         }
     }
 
