@@ -56,39 +56,19 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                     const uint32_t* srcRow = std::bit_cast<const uint32_t*>(size_t(srcPixels) + s->pitch * y);
                     for (int x = 0; x < w; x += 16)
                     {
-                        //reencode gamma 2.2 texture into gamma 2 with expanded precision for internal use. Gamma 2 greatly simplifies texture->linear conversion (x*x instead of x^2.2),
-                        //meaning you can just use multiplication instead of power, much faster, and error is >1% mostly, more on very dark shades.
                         //alpha is binary, all values above 0 considered fully opaque. TODO: when implementing transparency, change this
                         Mask16 boundsMask = (int32x16::sequence() + x) < w;
                         int32x16 srcUint32 = _mm512_maskz_loadu_epi32(boundsMask, srcRow + x);
+                        uint32_t dstPixelIndex = y * w + x;
 
-                        int32x16 srcR = srcUint32 & 0xFF;
-                        int32x16 srcG = (srcUint32 >> 8) & 0xFF;
-                        int32x16 srcB = (srcUint32 >> 16) & 0xFF;
-                        float32x16 floatR = _mm512_mul_ps(_mm512_cvtepu32_ps(srcR.zmm), float32x16(1.f / 255));
-                        float32x16 floatG = _mm512_mul_ps(_mm512_cvtepu32_ps(srcG.zmm), float32x16(1.f / 255));
-                        float32x16 floatB = _mm512_mul_ps(_mm512_cvtepu32_ps(srcB.zmm), float32x16(1.f / 255));
-                        float32x16 encodedR, encodedG, encodedB;
-                        for (int i = 0; i < 16; ++i)
-                        {
-                            encodedR[i] = powf(floatR[i], 1.1) * 1023;
-                            encodedG[i] = powf(floatG[i], 1.1) * 2047;
-                            encodedB[i] = powf(floatB[i], 1.1) * 1023;
-                        }
+                        int32x16 srcA = srcUint32 >> 24;
+                        Mask16 transparent = srcA == 0;
 
-                        encodedR = encodedR.clamp(0, 1023);
-                        encodedG = encodedG.clamp(0, 2047);
-                        encodedB = encodedB.clamp(0, 1023);
-
-                        int32x16 dstR = _mm512_cvttps_epi32(encodedR);
-                        int32x16 dstG = _mm512_cvttps_epi32(encodedG);
-                        int32x16 dstB = _mm512_cvttps_epi32(encodedB);
-                        int32x16 dstFull = dstR | (dstG << 10) | (dstB << 21);// | 0x80000000; //storeA = (srcUint32 >> 24) ? 1 : 0;
-                        dstFull = _mm512_mask_or_epi32(dstFull.zmm, _mm512_cmpgt_epu32_mask(srcUint32.zmm, _mm512_set1_epi32(0x00FFFFFF)), dstFull.zmm, int32x16(0x80000000).zmm);
-
-                        //R10G11B10A1
-                        _mm512_mask_storeu_epi32(&this->packedColors[y * w + x], boundsMask, dstFull.zmm);
-                        //this->packedColors[y * w + x] = storeUint;
+                        //force alpha to binary
+                        int32x16 dstUint32_transparent = srcUint32 & 0x00FFFFFF;
+                        int32x16 dstUint32_opaque = srcUint32 | 0xFF000000;
+                        int32x16 dstUint32 = _mm512_mask_mov_epi32(dstUint32_opaque, transparent, dstUint32_transparent);
+                        _mm512_mask_storeu_epi32(&this->packedColors[dstPixelIndex], boundsMask, dstUint32);
                     }
                 }
             }
@@ -203,13 +183,11 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
     {
         auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], this->sizes.w, this->sizes.h);
         __m128i channels = _mm_set1_epi32(this->packedColors[y * sizes.w + x]);
-        channels = _mm_srlv_epi32(channels, _mm_setr_epi32(0, 10, 21, 31));
-        channels = _mm_and_si128(channels, _mm_setr_epi32(1023, 2047, 1023, 1));
-        Vec4f gammaEncodedChannels = _mm_cvtepu32_ps(channels);
-        Vec4f normalized = gammaEncodedChannels * Vec4f(_mm_setr_ps(1.f / 1023, 1.f / 2047, 1.f / 1023, 1)); //TODO: alpha will get messed up if it's not 0 or 1!
-        linear[i] = normalized * normalized;
+        channels = _mm_srlv_epi32(channels, _mm_setr_epi32(0, 8, 16, 24));
+        channels = _mm_and_si128(channels, _mm_set1_epi32(0xFF));
+        linear[i] = _mm_i32gather_ps(this->toLinearLUT_fp32.get(), channels, 4);
     }
-    return ctx.interpolate(linear);
+    return ctx.interpolate(linear); //TODO: force alpha to first parent?
 }
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
