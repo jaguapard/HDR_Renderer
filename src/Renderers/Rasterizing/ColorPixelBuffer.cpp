@@ -12,13 +12,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
 
 Rasterizing::ColorPixelBuffer::ColorPixelBuffer(uint32_t w, uint32_t h)
 {
-    while (w > 0 && h > 0)
-    {
-        this->mipLevels.emplace_back(w, h);
-        w /= 2;
-        h /= 2;
-    }
-    //this->init(w, h);
+    this->init(w, h);
 }
 
 
@@ -37,6 +31,22 @@ int32x16 morton(int32x16 x, int32x16 y)
     return morton_half(x) | (morton_half(y) << 1);
 }
 
+void Rasterizing::ColorPixelBuffer::init(uint32_t w, uint32_t h)
+{
+    if (!ColorPixelBuffer::toLinearLUT_fp16 || !ColorPixelBuffer::toLinearLUT_fp32)
+    {
+        ColorPixelBuffer::toLinearLUT_fp16 = std::make_unique<int16_t[]>(256);
+        ColorPixelBuffer::toLinearLUT_fp32 = std::make_unique<float[]>(256);
+        for (int i = 0; i < 256; ++i)
+        {
+            double normalized = i / 255.0;
+            float linear = std::pow(normalized, 2.2);
+            ColorPixelBuffer::toLinearLUT_fp32[i] = linear;
+            ColorPixelBuffer::toLinearLUT_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(linear), 0), 0);
+        }
+    }
+}
+
 Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
 {
     int w = s->w;
@@ -46,40 +56,81 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
     {
         const uint32_t* srcPixels = std::bit_cast<uint32_t*>(s->pixels);
         this->init(w, h);
-        
-        std::vector<Threadpool::TaskHandle> tasks;
-        int tCount = Threadpool::instance->getWorkerCount();
-        for (int tIndex = 0; tIndex < tCount; ++tIndex)
+        assert(this->mipLevels.size() == 0);
+
+        int pixelCount = w * h;
+        std::vector<float> initialLinearTexture(pixelCount * 4);
+        MipLevel& fullTexture = this->mipLevels.emplace_back(w, h);
+        for (int y = 0; y < h; ++y)
         {
-            //TODO: this kills everything. Threadpool is not ready for tasks within tasks yet
-            //tasks.push_back(Threadpool::instance->addTask([&, tIndex, this] 
+            const uint32_t* srcRow = std::bit_cast<const uint32_t*>(size_t(srcPixels) + s->pitch * y);
+            for (int x = 0; x < w; ++x)
             {
-                auto [low, high] = Threadpool::instance->getLimitsForThread(tIndex, 0, h, tCount);
-                for (int y = low; y < high; ++y)
+                uint32_t sourcePixel = srcRow[x];
+                uint32_t r = sourcePixel & 0xFF;
+                uint32_t g = (sourcePixel >> 8) & 0xFF;
+                uint32_t b = (sourcePixel >> 16) & 0xFF;
+                uint32_t a = (sourcePixel >> 24) & 0xFF;
+
+                uint32_t dstPixelIndex = (y * w + x);
+                uint32_t dstLinearIndex = dstPixelIndex * 4;
+                fullTexture.packedColors[y * w + x] = sourcePixel;
+                initialLinearTexture[dstLinearIndex] = ColorPixelBuffer::toLinearLUT_fp32[r];
+                initialLinearTexture[dstLinearIndex + 1] = ColorPixelBuffer::toLinearLUT_fp32[g];
+                initialLinearTexture[dstLinearIndex + 2] = ColorPixelBuffer::toLinearLUT_fp32[b];
+                initialLinearTexture[dstLinearIndex + 3] = a / 255.f;
+            }
+        }
+        
+        std::vector<float> prevLevelLinear = std::move(initialLinearTexture);
+        uint32_t prevW, prevH;
+        while (w > 0 && h > 0)
+        {
+            prevW = w;
+            prevH = h;
+            w /= 2;
+            h /= 2;
+            std::vector<float> mipLinear(w * h * 4);
+            MipLevel& currMipMap = this->mipLevels.emplace_back(w, h);
+            for (int mipY = 0; mipY < h; ++mipY)
+            {
+                for (int mipX = 0; mipX < w; ++mipX)
                 {
-                    const uint32_t* srcRow = std::bit_cast<const uint32_t*>(size_t(srcPixels) + s->pitch * y);
-                    for (int x = 0; x < w; x += 16)
+                    //uint32_t dstInd = y * w + x;
+                    float linearMipR = 0, linearMipG = 0, linearMipB = 0, srcA;
+                    for (int oy = 0; oy < 2; ++oy)
                     {
-                        //alpha is binary, all values above 0 considered fully opaque. TODO: when implementing transparency, change this
-                        Mask16 boundsMask = (int32x16::sequence() + x) < w;
-                        int32x16 srcUint32 = _mm512_maskz_loadu_epi32(boundsMask, srcRow + x);
-                        uint32_t dstPixelIndex = y * w + x;
-
-                        int32x16 srcA = srcUint32 >> 24;
-                        Mask16 transparent = srcA == 0;
-
-                        //force alpha to binary
-                        int32x16 dstUint32_transparent = srcUint32 & 0x00FFFFFF;
-                        int32x16 dstUint32_opaque = srcUint32 | 0xFF000000;
-                        int32x16 dstUint32 = _mm512_mask_mov_epi32(dstUint32_opaque, transparent, dstUint32_transparent);
-                        _mm512_mask_storeu_epi32(&this->packedColors[dstPixelIndex], boundsMask, dstUint32);
+                        for (int ox = 0; ox < 2; ++ox)
+                        {
+                            uint32_t srcIndStart = ((mipY * 2 + oy) * prevW + (mipX * 2 + ox)) * 4;
+                            linearMipR += prevLevelLinear[srcIndStart];
+                            linearMipG += prevLevelLinear[srcIndStart + 1];
+                            linearMipB += prevLevelLinear[srcIndStart + 2];
+                            if (ox == 0 && oy == 0) srcA = prevLevelLinear[srcIndStart + 3]; //pass through parent alpha for now
+                        }
                     }
+                    uint32_t pixelStoreIndex = mipY * w + mipX;
+                    uint32_t linearStoreIndexStart = pixelStoreIndex * 4;
+                    linearMipR /= 4;
+                    linearMipG /= 4;
+                    linearMipB /= 4;
+                    mipLinear[linearStoreIndexStart] = linearMipR;
+                    mipLinear[linearStoreIndexStart + 1] = linearMipG;
+                    mipLinear[linearStoreIndexStart + 2] = linearMipB;
+                    mipLinear[linearStoreIndexStart + 3] = srcA;
+
+                    uint32_t uR = std::pow(linearMipR, 1.f / 2.2) * 255;
+                    uint32_t uG = std::pow(linearMipG, 1.f / 2.2) * 255;
+                    uint32_t uB = std::pow(linearMipB, 1.f / 2.2) * 255;
+                    uint32_t uA = srcA * 255;
+                    uint32_t dstUint32 = uR | (uG << 8) | (uB << 16) | (uA << 24);
+                    currMipMap.packedColors[pixelStoreIndex] = dstUint32;
                 }
             }
-            //));
+
+            prevLevelLinear = std::move(mipLinear);
         }
-        //Threadpool::instance->waitForMultipleTasks(tasks);
-        int totalPixels = w * h;
+       
         for (int i = 0; i < totalPixels; i += 32)
         {
             Mask16 boundsMask1 = (int32x16::sequence() + i) < totalPixels;
@@ -234,18 +285,6 @@ Rasterizing::ColorPixelBuffer::MipLevel::MipLevel(uint32_t w, uint32_t h)
 
 void Rasterizing::ColorPixelBuffer::MipLevel::init(uint32_t w, uint32_t h)
 {
-    if (!ColorPixelBuffer::toLinearLUT_fp16 || !ColorPixelBuffer::toLinearLUT_fp32)
-    {
-        ColorPixelBuffer::toLinearLUT_fp16 = std::make_unique<int16_t[]>(256);
-        ColorPixelBuffer::toLinearLUT_fp32 = std::make_unique<float[]>(256);
-        for (int i = 0; i < 256; ++i)
-        {
-            double normalized = i / 255.0;
-            float linear = std::pow(normalized, 2.2);
-            ColorPixelBuffer::toLinearLUT_fp32[i] = linear;
-            ColorPixelBuffer::toLinearLUT_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(linear), 0), 0);
-        }
-    }
     uint32_t totalPixels = w * h;
     this->packedColors = std::make_unique<uint32_t[]>(totalPixels);
     this->opacityMap = std::make_unique<uint32_t[]>(totalPixels / 32 + 1);

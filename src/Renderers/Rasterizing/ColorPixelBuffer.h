@@ -196,6 +196,7 @@ namespace Rasterizing
 		};
 
 		std::vector<MipLevel> mipLevels;
+		void init(uint32_t w, uint32_t h);
 		
 		static inline std::unique_ptr<float[]> toLinearLUT_fp32;
 		static inline std::unique_ptr<int16_t[]> toLinearLUT_fp16;
