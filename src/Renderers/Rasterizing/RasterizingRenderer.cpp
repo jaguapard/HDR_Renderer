@@ -940,8 +940,10 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * betaDy +
 				Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gammaDy;
 
-			Vec4_f32x16 duv_dx = uvDx - uv;
-			Vec4_f32x16 duv_dy = uvDy - uv;
+			float32x16 du_dx = uvDx.x - uv.x;
+			float32x16 dv_dx = uvDx.y - uv.y;
+			float32x16 du_dy = uvDy.x - uv.x;
+			float32x16 dv_dy = uvDy.y - uv.y;
 			//Vec4_f32x16 normals = Vec4_f32x16(untransformedVerts[0].normal.x, untransformedVerts[0].normal.y, 0.f, 0.f) * alpha +
 			//	Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
 			//	Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
@@ -955,7 +957,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				{
 					if (!(filledPixels.mask & (1 << j))) continue;
 					int diffuseMapIndex = this->triangleStore.diffuseMapIndex[triangleIndices[j]];
-					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j], duv_dx.x[j], duv_dy.x[j], duv_dx.y[j], duv_dy.y[j]);
+					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j], du_dx[j], du_dy[j], dv_dx[j], dv_dy[j]);
 					texturePixels.x[j] = pixel.x;
 					texturePixels.y[j] = pixel.y;
 					texturePixels.z[j] = pixel.z;
