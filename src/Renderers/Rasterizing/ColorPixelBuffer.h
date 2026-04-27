@@ -174,6 +174,7 @@ namespace Rasterizing
 		//ColorPixelBufferGatherAccessor256 getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const;
 
 		Vec4f getLinearIntensity(float u, float v, float du_dx, float du_dy, float dv_dx, float dv_dy) const;
+		
 		bool areAllPixelsOpaque() const;
 	private:
 		struct Sizes
@@ -197,6 +198,8 @@ namespace Rasterizing
 
 		std::vector<MipLevel> mipLevels;
 		void init(uint32_t w, uint32_t h);
+
+		Vec4f sampleMipLevel(float u, float v, const MipLevel& mipLevel) const;
 		
 		static inline std::unique_ptr<float[]> toLinearLUT_fp32;
 		static inline std::unique_ptr<int16_t[]> toLinearLUT_fp16;

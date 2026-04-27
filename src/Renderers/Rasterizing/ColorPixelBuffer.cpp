@@ -233,6 +233,25 @@ ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccess
     return accessor;
 }*/
 
+
+Vec4f Rasterizing::ColorPixelBuffer::sampleMipLevel(float u, float v, const MipLevel& mipLevel) const
+{
+    auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, mipLevel.sizes.fw, mipLevel.sizes.fh);
+    BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
+    std::array<Vec4f, 4> linear;
+    for (int i = 0; i < 4; ++i)
+    {
+        auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], mipLevel.sizes.w, mipLevel.sizes.h);
+        uint32_t channels = mipLevel.packedColors[y * mipLevel.sizes.w + x];
+        linear[i] = _mm_castsi128_ps(_mm_setr_epi32(
+            std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
+            std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
+            std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
+            (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
+    }
+    return ctx.interpolate(linear); //TODO: force alpha to first parent?
+}
+
 Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float du_dx, float du_dy, float dv_dx, float dv_dy) const
 {
     const MipLevel& full = this->mipLevels[0];
@@ -242,8 +261,9 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     float dv_dyp = dv_dy * full.sizes.fh;
     float ro_x = std::sqrt(du_dxp * du_dxp + dv_dxp * dv_dxp);
     float ro_y = std::sqrt(du_dyp * du_dyp + dv_dyp * dv_dyp);
-    float ro = std::max(ro_x, ro_y);
-    float lod = std::log2(ro);
+    float ro_max = std::max(ro_x, ro_y);
+    float ro_min = std::min(ro_x, ro_y);
+    float lod = std::log2(ro_min);
     int targetMipLevel = std::clamp<float>(lod, 0.f, this->mipLevels.size() - 1);
 
     float t = lod - floor(lod);
@@ -252,20 +272,7 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     for (int interpolationIteration = 0; interpolationIteration < 2; ++interpolationIteration)
     {
         const MipLevel& target = this->mipLevels[targetMipLevel+interpolationIteration];
-        auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, target.sizes.fw, target.sizes.fh);
-        BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
-        std::array<Vec4f, 4> linear;
-        for (int i = 0; i < 4; ++i)
-        {
-            auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], target.sizes.w, target.sizes.h);
-            uint32_t channels = target.packedColors[y * target.sizes.w + x];
-            linear[i] = _mm_castsi128_ps(_mm_setr_epi32(
-                std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
-                std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
-                std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
-                (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
-        }
-        levelSamples[interpolationIteration] = ctx.interpolate(linear); //TODO: force alpha to first parent?
+        levelSamples[interpolationIteration] = this->sampleMipLevel(u, v, target);
         if (targetMipLevel > this->mipLevels.size() - 2) return levelSamples[0]; //no next level, just return what we've got
     }
     return lerp(levelSamples[0], levelSamples[1], t);
