@@ -183,11 +183,11 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
     {
         auto [x, y] = Mapper::wrapInts(ctx.ix[i], ctx.iy[i], this->sizes.w, this->sizes.h);
         uint32_t channels = this->packedColors[y * sizes.w + x];
-        linear[i] = _mm_setr_ps(
-            this->toLinearLUT_fp32[channels & 0xFF],
-            this->toLinearLUT_fp32[(channels >> 8) & 0xFF],
-            this->toLinearLUT_fp32[(channels >> 16) & 0xFF],
-            (channels >> 24) ? 1 : 0);
+        linear[i] = _mm_castsi128_ps(_mm_setr_epi32(
+            std::bit_cast<int>(this->toLinearLUT_fp32[channels & 0xFF]),
+            std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 8) & 0xFF]),
+            std::bit_cast<int>(this->toLinearLUT_fp32[(channels >> 16) & 0xFF]),
+            (channels >> 24) ? 0x3F800000 : 0)); //Force alpha to 0 if it's 0, or 1 if it's not
     }
     return ctx.interpolate(linear); //TODO: force alpha to first parent?
 }
