@@ -410,6 +410,7 @@
     <ClInclude Include="lib\bob\VectorPack.h" />
     <ClInclude Include="src\AssetLoader.h" />
     <ClInclude Include="src\BlockStore.h" />
+    <ClInclude Include="src\CacheController.h" />
     <ClInclude Include="src\C_Input.h" />
     <ClInclude Include="src\EnumCycler.h" />
     <ClInclude Include="src\GameSettings.h" />
