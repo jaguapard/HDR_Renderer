@@ -37,6 +37,9 @@ namespace Rasterizing
 		//wraps integers a and b into range 0 <= a < amax, 0 <= b < bmax
 		static std::pair<uint32_t, uint32_t> wrapIntsWithRcp(int a, int b, uint32_t amax, uint64_t rcp_aMax, uint32_t bmax, uint64_t rcp_bMax);
 
+		//wraps integers a and b into range 0 <= a < amax, 0 <= b < bmax. Works on 16 separate lanes at once
+		static std::pair<int32x16, int32x16> wrapIntsWithRcp(int32x16 a, int32x16 b, int32x16 amax, __m512i rcp_aMax_low, __m512i rcp_aMax_hi, int32x16 bmax, __m512i rcp_bMax_low, __m512i rcp_bMax_hi);
+
 		//wraps integers a and b into range 0 <= a < amax, 0 <= b < bmax
 		static std::pair<uint32_t, uint32_t> wrapInts(int a, int b, uint32_t amax, uint32_t bmax);
 
@@ -45,6 +48,9 @@ namespace Rasterizing
 
 		//uses special value provided to replace division with multiplication and shift
 		static uint32_t wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_aMax);
+
+		//uses special value provided to replace division with multiplication and shift. Works on 16 separate lanes at once
+		static int32x16 wrapIntWithRcp(int32x16 a, int32x16 amax, __m512i rcp_aMax_low, __m512i rcp_aMax_hi);
 
 		//Maps UV coordinates to texture XY coordinates using specified MappingType
 		template <MappingType M, typename T>

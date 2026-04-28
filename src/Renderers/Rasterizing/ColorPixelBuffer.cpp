@@ -437,6 +437,11 @@ std::pair<uint32_t, uint32_t> Rasterizing::Mapper::wrapIntsWithRcp(int a, int b,
     return { wrapIntWithRcp(a,amax,rcp_aMax), wrapIntWithRcp(b,bmax,rcp_bMax) };
 }
 
+std::pair<int32x16, int32x16> Rasterizing::Mapper::wrapIntsWithRcp(int32x16 a, int32x16 b, int32x16 amax, __m512i rcp_aMax_low, __m512i rcp_aMax_hi, int32x16 bmax, __m512i rcp_bMax_low, __m512i rcp_bMax_hi)
+{
+    return { wrapIntWithRcp(a, amax, rcp_aMax_low, rcp_aMax_hi), wrapIntWithRcp(b,bmax,rcp_bMax_low,rcp_bMax_hi) };
+}
+
 std::pair<uint32_t, uint32_t> Rasterizing::Mapper::wrapInts(int a, int b, uint32_t amax, uint32_t bmax)
 {
     return { wrapInt(a,amax), wrapInt(b,bmax) };
@@ -464,6 +469,15 @@ uint32_t Rasterizing::Mapper::wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_
 #endif
     assert(rem >= 0 && rem < amax);
     return rem;
+}
+
+int32x16 Rasterizing::Mapper::wrapIntWithRcp(int32x16 a, int32x16 amax, __m512i rcp_aMax_low, __m512i rcp_aMax_hi)
+{
+    __m512i divLo = _mm512_mullo_epi64(_mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(a, 0)), rcp_aMax_low);
+    __m512i divHi = _mm512_mullo_epi64(_mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(a, 1)), rcp_aMax_hi);
+    int32x16 div = _mm512_permutex2var_epi32(divLo, _mm512_setr_epi32(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31), divHi);
+    int32x16 rem = a - div * amax;
+    return _mm512_mask_add_epi32(rem, rem >= 0, rem, amax);
 }
 
 Rasterizing::ColorPixelBuffer::Sizes::Sizes(uint32_t w, uint32_t h)
