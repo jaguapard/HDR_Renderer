@@ -59,7 +59,6 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
         assert(this->mipLevels.size() == 0);
 
         int pixelCount = w * h;
-        std::vector<float> initialLinearTexture(pixelCount * 4);
         MipLevel& fullTexture = this->mipLevels.emplace_back(w, h);
         for (int y = 0; y < h; ++y)
         {
@@ -75,15 +74,12 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                 uint32_t dstPixelIndex = (y * w + x);
                 uint32_t dstLinearIndex = dstPixelIndex * 4;
                 fullTexture.packedColors[y * w + x] = sourcePixel;
-                initialLinearTexture[dstLinearIndex] = ColorPixelBuffer::toLinearLUT_fp32[r];
-                initialLinearTexture[dstLinearIndex + 1] = ColorPixelBuffer::toLinearLUT_fp32[g];
-                initialLinearTexture[dstLinearIndex + 2] = ColorPixelBuffer::toLinearLUT_fp32[b];
-                initialLinearTexture[dstLinearIndex + 3] = a / 255.f;
             }
         }
         
-        std::vector<float> prevLevelLinear = std::move(initialLinearTexture);
+        std::vector<float> prevLevelLinear;
         uint32_t prevW, prevH;
+        bool firstMipLevel = true;
         while (w > 1 && h > 1)
         {
             prevW = w;
@@ -102,11 +98,26 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                     {
                         for (int ox = 0; ox < 2; ++ox)
                         {
-                            uint32_t srcIndStart = ((mipY * 2 + oy) * prevW + (mipX * 2 + ox)) * 4;
-                            linearMipR += prevLevelLinear[srcIndStart];
-                            linearMipG += prevLevelLinear[srcIndStart + 1];
-                            linearMipB += prevLevelLinear[srcIndStart + 2];
-                            linearMipA += prevLevelLinear[srcIndStart + 3];
+                            uint32_t srcPixelIndex = (mipY * 2 + oy) * prevW + (mipX * 2 + ox);
+                            uint32_t srcIndStart = srcPixelIndex * 4;
+                            //special case - since full-size texture doesn't change the input colors, it can be sampled directly.
+                            //This also helps to ease memory consumption explosion, since it goes to like 15 GB peak on new Sponza without this special case, while with it it's ~9, not much above the vertex store size
+                            if (firstMipLevel)
+                            {
+                                uint32_t fullSizePixel = this->mipLevels[0].packedColors[srcPixelIndex];
+                                linearMipR += ColorPixelBuffer::toLinearLUT_fp32[fullSizePixel & 0xFF];
+                                linearMipG += ColorPixelBuffer::toLinearLUT_fp32[(fullSizePixel >> 8) & 0xFF];
+                                linearMipB += ColorPixelBuffer::toLinearLUT_fp32[(fullSizePixel >> 16) & 0xFF];
+                                linearMipA += ((fullSizePixel >> 24) & 0xFF) / 255.f;
+                            }
+                            else //however, on next maps we shouldn't use this simplification, since values are quantized when stored and information is lost. This, however, may be too cautious approach and may be changed in the future
+                            {
+                                linearMipR += prevLevelLinear[srcIndStart];
+                                linearMipG += prevLevelLinear[srcIndStart + 1];
+                                linearMipB += prevLevelLinear[srcIndStart + 2];
+                                linearMipA += prevLevelLinear[srcIndStart + 3];
+                            }
+                           
                         }
                     }
                     uint32_t pixelStoreIndex = mipY * w + mipX;
@@ -130,6 +141,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             }
 
             prevLevelLinear = std::move(mipLinear);
+            firstMipLevel = false;
         }
        
         for (auto& mipLevel : this->mipLevels)
