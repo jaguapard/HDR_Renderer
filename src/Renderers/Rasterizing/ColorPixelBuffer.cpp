@@ -269,7 +269,7 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     float pixelFootprintYV = dv_dy * full.sizes.fh;
     float footprintLenX_texels = std::sqrt(pixelFootprintXU * pixelFootprintXU + pixelFootprintXV * pixelFootprintXV);
     float footprintLenY_texels = std::sqrt(pixelFootprintYU * pixelFootprintYU + pixelFootprintYV * pixelFootprintYV);
-    float majorAxisLen_texels, minorAxisLen_texels, aniso_uStep, aniso_vStep;
+    float majorAxisLen_texels, minorAxisLen_texels;
     Vec4f majorAxis_texels, minorAxis_texels;
     bool usingFoorprintX;
     if (footprintLenX_texels >= footprintLenY_texels)
@@ -297,22 +297,13 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     const MipLevel& mainMipLevel = this->mipLevels[targetMipLevel];
     const MipLevel* nextMipLevelPtr = (nextMipLevel == targetMipLevel) ? nullptr : &this->mipLevels[nextMipLevel];
     
-    if (usingFoorprintX)
-    {
-        aniso_uStep = du_dx / stepCount;
-        aniso_vStep = dv_dx / stepCount;
-    }
-    else
-    {
-        aniso_uStep = du_dy / stepCount;
-        aniso_vStep = dv_dy / stepCount;
-    }
+    Vec4f anisoStep = (majorAxis_texels / Vec4f(full.sizes.fw, full.sizes.fh)) / stepCount;
     Vec4f tauAniso = 0;
     for (float i = 1; i <= stepCount; ++i)
     {
         float steps = (i + 0.5) / stepCount - 0.5;
-        float tu = u + aniso_uStep * steps;
-        float tv = v + aniso_vStep * steps;
+        float tu = u + anisoStep.x * steps;
+        float tv = v + anisoStep.y * steps;
         tauAniso += this->sampleMipLevels(tu, tv, mainMipLevel, nextMipLevelPtr, trilinearLerpT);
     }
     return tauAniso / stepCount;
