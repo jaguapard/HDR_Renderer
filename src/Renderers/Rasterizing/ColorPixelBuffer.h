@@ -144,6 +144,7 @@ namespace Rasterizing
 	struct Decoder
 	{
 		static Vec4_f32x16 R10G11B10A1_gamma2_to_linear(int32x16 packed);
+		static Vec4_f32x16 RGBA8888_to_linear(int32x16 packed, Mask16 mask);
 	};
 
 	struct ColorPixelBufferGatherAccessor
@@ -171,15 +172,17 @@ namespace Rasterizing
 	class ColorPixelBuffer
 	{
 	public:
+		friend class Decoder;
+		
 		ColorPixelBuffer(ColorPixelBuffer&& dying);
 		ColorPixelBuffer(uint32_t w, uint32_t h); //initializes empty color buffer
 		ColorPixelBuffer(const SDL_Surface* s);
-		//Vec4_f32x16 gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask = 0xFFFF) const;
 		//void setPixelLinearIntensityUnsafe(int x, int y, float r, float g, float b, float a);
 		ColorPixelBufferGatherAccessor getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
 		//ColorPixelBufferGatherAccessor256 getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const;
 
 		Vec4f getLinearIntensity(float u, float v, float du_dx, float du_dy, float dv_dx, float dv_dy) const;
+		Vec4_f32x16 gatherAnisotropicLinearIntensities(float32x16 u, float32x16 v, Mask16 mask, float32x16 du_dx, float32x16 du_dy, float32x16 dv_dx, float32x16 dv_dy) const;
 		
 		bool areAllPixelsOpaque() const;
 	private:
@@ -200,6 +203,8 @@ namespace Rasterizing
 			Sizes sizes;
 			bool isFullyOpaque = true;
 			void init(uint32_t w, uint32_t h);
+
+			Vec4_f32x16 gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask = 0xFFFF) const;
 		};
 
 		std::vector<MipLevel> mipLevels;

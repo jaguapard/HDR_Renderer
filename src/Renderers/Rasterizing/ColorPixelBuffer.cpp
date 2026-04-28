@@ -190,8 +190,8 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
         throw std::runtime_error("Unsupported pixel format for ColorPixelBuffer import: ");
     }
 }
-/*
-Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
+
+Vec4_f32x16 Rasterizing::ColorPixelBuffer::MipLevel::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(x, y, sizes.w, sizes.h);
     int32x16 intX = pixelsX.trunc();
@@ -209,7 +209,7 @@ Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x,
     int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), gatherMask, pixelsIndices, this->packedColors.get(), 4);
     return Decoder::R10G11B10A1_gamma2_to_linear(gathered);
 }
-*/
+
 Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, this->mipLevels[0].sizes.w, this->mipLevels[0].sizes.h);
@@ -311,7 +311,19 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     const MipLevel& mainMipLevel = this->mipLevels[targetMipLevel];
     const MipLevel* nextMipLevelPtr = (nextMipLevel == targetMipLevel) ? nullptr : &this->mipLevels[nextMipLevel];
     
+    float32x16 steps = (float32x16::sequence() + 1.5f) / stepCount - 0.5f;
     Vec4f anisoStep = (majorAxis_texels / Vec4f(full.sizes.fw, full.sizes.fh)) / stepCount;
+    float32x16 tu = steps * anisoStep.x + u;
+    float32x16 tv = steps * anisoStep.y + v;
+    Mask16 mask = (float32x16::sequence() + 1.f) <= stepCount;
+    Vec4_f32x16 mainTexels = mainMipLevel.gatherLinearIntensities(tu, tv, mask);
+
+    if (nextMipLevelPtr)
+    {
+        Vec4_f32x16 nextTexels = nextMipLevelPtr->gatherLinearIntensities(tu, tv, mask);
+        return lerp(mainTexels, nextTexels, trilinearLerpT);
+    }
+  
     Vec4f tauAniso = 0;
     for (float i = 1; i <= stepCount; ++i)
     {
@@ -322,6 +334,11 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     }
     return tauAniso / stepCount;
 }
+/*
+Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherAnisotropicLinearIntensities(float32x16 u, float32x16 v, Mask16 mask, float32x16 du_dx, float32x16 du_dy, float32x16 dv_dx, float32x16 dv_dy) const
+{
+    return Vec4_f32x16();
+}*/
 
 bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
 {
@@ -368,8 +385,8 @@ void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& o
     output.r = fr * fr;
     output.g = fg * fg;
     output.b = fb * fb;
-}
-*/
+}*/
+
 float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
 {
     int32x16 gathered = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), this->gatherMask, (this->gatherInd >> 5).zmm, this->buf->mipLevels[0].opacityMap.get(), 4);
@@ -404,6 +421,20 @@ Vec4_f32x16 Rasterizing::Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
     return { fr * fr, fg * fg, fb * fb, fa };
 }
 */
+
+Vec4_f32x16 Rasterizing::Decoder::RGBA8888_to_linear(int32x16 packed, Mask16 activeMask)
+{
+    int32x16 r = packed & 0xFF;
+    int32x16 g = (packed >> 8) & 0xFF;
+    int32x16 b = (packed >> 16) & 0xFF;
+    int32x16 a = packed >> 24;
+    Vec4_f32x16 ret;
+    ret.r = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeMask, r, ColorPixelBuffer::toLinearLUT_fp32.get(), 4);
+    ret.g = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeMask, g, ColorPixelBuffer::toLinearLUT_fp32.get(), 4);
+    ret.b = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), activeMask, b, ColorPixelBuffer::toLinearLUT_fp32.get(), 4);
+    ret.a = _mm512_mul_ps(_mm512_cvtepu32_ps(a), float32x16(1.f / 255));
+    return ret;
+}
 
 std::pair<float, float> Rasterizing::Mapper::wrapUV(float u, float v)
 {
