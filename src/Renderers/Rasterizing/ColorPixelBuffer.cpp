@@ -97,7 +97,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                 for (int mipX = 0; mipX < w; ++mipX)
                 {
                     //uint32_t dstInd = y * w + x;
-                    float linearMipR = 0, linearMipG = 0, linearMipB = 0, srcA;
+                    float linearMipR = 0, linearMipG = 0, linearMipB = 0, linearMipA;
                     for (int oy = 0; oy < 2; ++oy)
                     {
                         for (int ox = 0; ox < 2; ++ox)
@@ -106,7 +106,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                             linearMipR += prevLevelLinear[srcIndStart];
                             linearMipG += prevLevelLinear[srcIndStart + 1];
                             linearMipB += prevLevelLinear[srcIndStart + 2];
-                            if (ox == 0 && oy == 0) srcA = prevLevelLinear[srcIndStart + 3]; //pass through parent alpha for now
+                            linearMipA += prevLevelLinear[srcIndStart + 3];
                         }
                     }
                     uint32_t pixelStoreIndex = mipY * w + mipX;
@@ -114,15 +114,16 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                     linearMipR /= 4;
                     linearMipG /= 4;
                     linearMipB /= 4;
+                    linearMipA /= 4;
                     mipLinear[linearStoreIndexStart] = linearMipR;
                     mipLinear[linearStoreIndexStart + 1] = linearMipG;
                     mipLinear[linearStoreIndexStart + 2] = linearMipB;
-                    mipLinear[linearStoreIndexStart + 3] = srcA;
+                    mipLinear[linearStoreIndexStart + 3] = linearMipA;
 
                     uint32_t uR = std::pow(linearMipR, 1.f / 2.2) * 255;
                     uint32_t uG = std::pow(linearMipG, 1.f / 2.2) * 255;
                     uint32_t uB = std::pow(linearMipB, 1.f / 2.2) * 255;
-                    uint32_t uA = srcA * 255;
+                    uint32_t uA = linearMipA * 255;
                     uint32_t dstUint32 = uR | (uG << 8) | (uB << 16) | (uA << 24);
                     currMipMap.packedColors[pixelStoreIndex] = dstUint32;
                 }
