@@ -291,11 +291,12 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     float stepCount = std::min(std::ceil(majorAxisLen_texels / minorAxisLen_texels), 16.f);
     float wantedMipLevel = std::log2(minorAxisLen_texels);
 
-    int targetMipLevel = std::clamp<float>(wantedMipLevel, 0.f, this->mipLevels.size() - 1);
-    const MipLevel& mainMipLevel = this->mipLevels[targetMipLevel];
-    const MipLevel* nextMipLevel = targetMipLevel < this->mipLevels.size() - 1 ? &this->mipLevels[targetMipLevel + 1] : nullptr;
     float trilinearLerpT = wantedMipLevel - floor(wantedMipLevel);
-
+    int targetMipLevel = std::clamp<float>(wantedMipLevel, 0.f, this->mipLevels.size() - 1);
+    int nextMipLevel = std::clamp<float>(wantedMipLevel+1, 0.f, this->mipLevels.size() - 1);
+    const MipLevel& mainMipLevel = this->mipLevels[targetMipLevel];
+    const MipLevel* nextMipLevelPtr = (nextMipLevel == targetMipLevel) ? nullptr : &this->mipLevels[nextMipLevel];
+    
     if (usingFoorprintX)
     {
         aniso_uStep = du_dx;
@@ -312,7 +313,7 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
         float steps = (i + 0.5) / stepCount - 0.5;
         float tu = u + aniso_uStep * steps;
         float tv = v + aniso_vStep * steps;
-        tauAniso += this->sampleMipLevels(tu, tv, mainMipLevel, nextMipLevel, trilinearLerpT);
+        tauAniso += this->sampleMipLevels(tu, tv, mainMipLevel, nextMipLevelPtr, trilinearLerpT);
     }
     return tauAniso / stepCount;
 }
