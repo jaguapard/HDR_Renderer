@@ -289,7 +289,8 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
         minorAxis_texels = { pixelFootprintXU, pixelFootprintXV };
         usingFoorprintX = false;
     }
-    float stepCount = std::min(std::ceil(majorAxisLen_texels / minorAxisLen_texels), 16.f);
+    constexpr int MAX_ANISOTROPY = 16;
+    float stepCount = std::min<float>(std::ceil(majorAxisLen_texels / minorAxisLen_texels), MAX_ANISOTROPY);
     float wantedMipLevel = std::log2(minorAxisLen_texels);
 
     float trilinearLerpT = wantedMipLevel - floor(wantedMipLevel);
