@@ -97,7 +97,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                 for (int mipX = 0; mipX < w; ++mipX)
                 {
                     //uint32_t dstInd = y * w + x;
-                    float linearMipR = 0, linearMipG = 0, linearMipB = 0, linearMipA;
+                    float linearMipR = 0, linearMipG = 0, linearMipB = 0, linearMipA = 0;
                     for (int oy = 0; oy < 2; ++oy)
                     {
                         for (int ox = 0; ox < 2; ++ox)
