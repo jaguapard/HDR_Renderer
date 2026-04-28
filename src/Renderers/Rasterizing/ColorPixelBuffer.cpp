@@ -299,13 +299,13 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     
     if (usingFoorprintX)
     {
-        aniso_uStep = du_dx;
-        aniso_vStep = dv_dx;
+        aniso_uStep = du_dx / stepCount;
+        aniso_vStep = dv_dx / stepCount;
     }
     else
     {
-        aniso_uStep = du_dy;
-        aniso_vStep = dv_dy;
+        aniso_uStep = du_dy / stepCount;
+        aniso_vStep = dv_dy / stepCount;
     }
     Vec4f tauAniso = 0;
     for (float i = 1; i <= stepCount; ++i)
