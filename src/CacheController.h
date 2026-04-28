@@ -2,11 +2,16 @@
 #include <array>
 #include <optional>
 #include "Vec.h"
+#include <memory>
 
 template<typename KeyType, typename ValueType, size_t CAPACITY>
 class CacheController
 {
 public:
+	CacheController()
+	{
+		this->buckets = std::make_unique<std::pair<KeyType, ValueType>[]>(CACHE_CAPACITY);
+	}
 	static inline constexpr size_t CACHE_CAPACITY = CAPACITY;
 	void insert(const KeyType& k, const ValueType& v)
 	{
@@ -72,5 +77,5 @@ public:
 		return xorshift_state;
 	}*/
 private:
-	std::array<std::pair<KeyType, ValueType>, CACHE_CAPACITY> buckets;
+	std::unique_ptr<std::pair<KeyType, ValueType>[]> buckets;
 };
