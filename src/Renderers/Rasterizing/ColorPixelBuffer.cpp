@@ -301,7 +301,7 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v, float 
     Vec4f tauAniso = 0;
     for (float i = 1; i <= stepCount; ++i)
     {
-        float steps = (i + 0.5) / stepCount - 0.5;
+        float steps = (i + 0.5f) / stepCount - 0.5f;
         float tu = u + anisoStep.x * steps;
         float tv = v + anisoStep.y * steps;
         tauAniso += this->sampleMipLevels(tu, tv, mainMipLevel, nextMipLevelPtr, trilinearLerpT);
