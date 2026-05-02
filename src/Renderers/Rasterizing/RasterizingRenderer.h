@@ -99,8 +99,12 @@ private:
 		std::vector<VertexStageOutputTriangle> triangles;
 		TriangleBatch() : progenitorTriangleIndices(STORAGE_TRIANGLES), triangles(STORAGE_TRIANGLES) {}
 	};
-	std::vector<std::vector<std::vector<std::shared_ptr<TriangleBatch>>>> pendingTriangleBatches;
-	std::vector<std::vector<std::mutex>> pendingTriangleBatchesMutexes;
+	struct TriangleBatchMailbox
+	{
+		std::mutex mtx;
+		std::vector<std::shared_ptr<TriangleBatch>> pendingBatches;
+	};
+	std::vector<std::vector<std::unique_ptr<TriangleBatchMailbox>>> triangleBatchMailboxes;
 
 	struct PixelStageInput
 	{

@@ -209,8 +209,20 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	}
 
 	int tCntSq = threadCount * threadCount;
-	this->pendingTriangleBatches.assign(this->drawCommands.size(), std::vector<std::vector<std::shared_ptr<TriangleBatch>>>(threadCount));
-	this->pendingTriangleBatchesMutexes.assign(this->drawCommands.size(), std::vector<std::mutex>(threadCount));
+	if (this->triangleBatchMailboxes.size() != this->drawCommands.size()) this->triangleBatchMailboxes.resize(this->drawCommands.size());
+	for (auto& cmdBoxes : this->triangleBatchMailboxes)
+	{
+		if (cmdBoxes.size() != threadCount)
+		{
+			cmdBoxes.clear();
+			cmdBoxes.reserve(threadCount);
+			for (int i = 0; i < threadCount; ++i) cmdBoxes.emplace_back(std::make_unique<TriangleBatchMailbox>());
+		}
+		else
+		{
+			for (auto& box : cmdBoxes) box->pendingBatches.clear();
+		}
+	}
 	for (auto& currSub : this->drawCommands)
 	{
 		if (currSub.trianglesToZones->size() != tCntSq) currSub.trianglesToZones->resize(tCntSq);
@@ -571,8 +583,9 @@ void RasterizingRenderer::flushTriangleBatch(int senderThreadIndex, int receiver
 	else
 	{
 		auto queued = batch;
-		std::lock_guard<std::mutex> lk(this->pendingTriangleBatchesMutexes[cmdIndex][receiverThreadIndex]);
-		this->pendingTriangleBatches[cmdIndex][receiverThreadIndex].push_back(queued);
+		auto& mailbox = *this->triangleBatchMailboxes[cmdIndex][receiverThreadIndex];
+		std::lock_guard<std::mutex> lk(mailbox.mtx);
+		mailbox.pendingBatches.push_back(queued);
 	}
 	batch = std::make_shared<TriangleBatch>();
 }
@@ -583,8 +596,9 @@ void RasterizingRenderer::drainPendingTriangleBatches(int receiverThreadIndex)
 	{
 		std::vector<std::shared_ptr<TriangleBatch>> local;
 		{
-			std::lock_guard<std::mutex> lk(this->pendingTriangleBatchesMutexes[cmdIndex][receiverThreadIndex]);
-			local.swap(this->pendingTriangleBatches[cmdIndex][receiverThreadIndex]);
+			auto& mailbox = *this->triangleBatchMailboxes[cmdIndex][receiverThreadIndex];
+			std::lock_guard<std::mutex> lk(mailbox.mtx);
+			local.swap(mailbox.pendingBatches);
 		}
 		for (auto& b : local)
 		{
@@ -644,7 +658,11 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 				if (!active) continue;
 				firstT = firstT.clamp(0, threadCount - 1);
 				lastT = lastT.clamp(0, threadCount - 1);
-				for (int i = 0; i < 16; ++i) if (active.mask & (1 << i)) {
+				alignas(64) int activeLanes[16];
+				_mm512_storeu_epi32(activeLanes, _mm512_maskz_compress_epi32(active, int32x16::sequence()));
+				int activeCount = _mm_popcnt_u32(active.mask);
+				for (int laneIdx = 0; laneIdx < activeCount; ++laneIdx) {
+					int i = activeLanes[laneIdx];
 					for (int t = firstT[i]; t <= lastT[i]; ++t) {
 						auto& batch = outgoing[cmdIndex][t];
 						int ind = batch->size++;
