@@ -59,6 +59,44 @@ namespace Rasterizing
 		std::mutex mtx;
 		std::vector<std::shared_ptr<TriangleBatch>> pendingBatches;
 	};
+
+	struct TriangleBatchPool;
+	struct TriangleBatch;
+	class TriangleBatchHandle
+	{
+	public:
+		TriangleBatch* operator&();
+		TriangleBatch* operator->();
+		TriangleBatch& operator*();
+		TriangleBatchHandle& operator=(const TriangleBatchHandle& other);
+		TriangleBatchHandle& operator=(TriangleBatchHandle&& other) noexcept;
+		TriangleBatchHandle(const TriangleBatchHandle& other);
+		TriangleBatchHandle(TriangleBatchHandle&& other) noexcept;
+		~TriangleBatchHandle() noexcept;
+		friend struct TriangleBatchPool;
+	private:
+		TriangleBatchHandle() {};
+		void decrementRefCnt() const;
+		void incrementRefCnt() const;
+		mutable TriangleBatchPool* pool = nullptr;
+		int indexInPool;
+	};
+
+	struct TriangleBatchPool
+	{
+		static inline constexpr int MAX_OUTSTANDING_BATCHES = 8192;
+		friend struct TriangleBatch;
+		TriangleBatchHandle allocate();
+		void free(const TriangleBatchHandle& h);
+		TriangleBatchPool();
+		friend struct TriangleBatchHandle;
+	private:
+		TriangleBatch* memory;
+		std::array<std::atomic_int, MAX_OUTSTANDING_BATCHES> refCount;
+		std::array<int, MAX_OUTSTANDING_BATCHES> freeBatchIndices;
+		int topIndex;
+		std::recursive_mutex mtx;
+	};
 }
 class RasterizingRenderer : public RendererBase
 {

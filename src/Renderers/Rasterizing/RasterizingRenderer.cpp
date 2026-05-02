@@ -1023,3 +1023,109 @@ std::array<VertexPack16,3> Rasterizing::RenderJob_Store::loadVertices16(size_t f
 	return ret;
 }
 */
+
+Rasterizing::TriangleBatchHandle Rasterizing::TriangleBatchPool::allocate()
+{
+	int ind;
+	{
+		std::lock_guard lck(this->mtx);
+		ind = this->freeBatchIndices[this->topIndex--];
+	}
+	this->refCount[ind] = 1;
+	TriangleBatchHandle h;
+	h.indexInPool = ind;
+	h.pool = this;
+	return h;
+}
+
+void Rasterizing::TriangleBatchPool::free(const TriangleBatchHandle& h)
+{
+	this->refCount[h.indexInPool] = 0;
+	std::lock_guard lck(this->mtx);
+	this->freeBatchIndices[++this->topIndex] = h.indexInPool;
+}
+
+Rasterizing::TriangleBatchPool::TriangleBatchPool()
+{
+	this->memory = (TriangleBatch*)malloc(sizeof(TriangleBatch) * MAX_OUTSTANDING_BATCHES);
+	for (int i = 0; i < MAX_OUTSTANDING_BATCHES; ++i)
+	{
+		this->refCount[i] = 0;
+		this->freeBatchIndices[i] = i;
+	}
+	this->topIndex = MAX_OUTSTANDING_BATCHES - 1;
+}
+
+Rasterizing::TriangleBatch* Rasterizing::TriangleBatchHandle::operator&()
+{
+	return pool->memory + this->indexInPool;
+}
+Rasterizing::TriangleBatch* Rasterizing::TriangleBatchHandle::operator->()
+{
+	return (pool->memory + this->indexInPool);
+}
+Rasterizing::TriangleBatch& Rasterizing::TriangleBatchHandle::operator*()
+{
+	return *(pool->memory + this->indexInPool);
+}
+Rasterizing::TriangleBatchHandle& Rasterizing::TriangleBatchHandle::operator=(const TriangleBatchHandle& other)
+{
+	if (this != std::addressof(other))
+	{
+		this->decrementRefCnt();
+		this->pool = other.pool;
+		this->indexInPool = other.indexInPool;
+		this->incrementRefCnt();
+	}
+	return *this;
+}
+
+Rasterizing::TriangleBatchHandle& Rasterizing::TriangleBatchHandle::operator=(TriangleBatchHandle&& other) noexcept
+{
+	if (this != std::addressof(other))
+	{
+		this->decrementRefCnt();
+		this->pool = other.pool;
+		this->indexInPool = other.indexInPool;
+		other.pool = nullptr;
+	}
+	return *this;
+}
+
+Rasterizing::TriangleBatchHandle::TriangleBatchHandle(const TriangleBatchHandle& other)
+{
+	if (this == std::addressof(other)) return;
+	this->pool = other.pool;
+	this->indexInPool = other.indexInPool;
+	this->incrementRefCnt();
+}
+
+Rasterizing::TriangleBatchHandle::TriangleBatchHandle(TriangleBatchHandle&& other) noexcept
+{
+	this->pool = other.pool;
+	this->indexInPool = other.indexInPool;
+	other.pool = nullptr;
+}
+
+Rasterizing::TriangleBatchHandle::~TriangleBatchHandle() noexcept
+{
+	decrementRefCnt();
+}
+
+void Rasterizing::TriangleBatchHandle::decrementRefCnt() const
+{
+	if (!pool) return;
+	int cnt = --pool->refCount[indexInPool];
+	assert(cnt >= 0);
+	if (cnt == 0)
+	{
+		pool->free(*this);
+	}
+}
+
+void Rasterizing::TriangleBatchHandle::incrementRefCnt() const
+{
+	if (!pool) return;
+	int cnt = pool->refCount[indexInPool]++;
+	assert(cnt >= 1);
+}
