@@ -3,6 +3,9 @@
 #include <map>
 #include "CoordinateTransformer.h"
 #include <array>
+#include <memory>
+#include <mutex>
+#include <atomic>
 #include "TextureManager.h"
 #include "../../helpers.h"
 #include "RenderJobStore.h"
@@ -61,8 +64,6 @@ private:
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint32_t> deferredTriangleIndices;
-	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
-	
 
 	struct VertexStageInput
 	{
@@ -88,6 +89,20 @@ private:
 		int32x16 behindNearPlaneCount; //counts of vertices behind near plane for each triangle composed by input vertices
 		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
 	};
+
+	struct TriangleWorkItem
+	{
+		int cmdIndex = 0;
+		int32x16 progenitorTriangleIndices;
+		VertexStageOutput vertexOutput;
+	};
+	struct RasterMailbox
+	{
+		std::mutex mtx;
+		std::vector<std::shared_ptr<TriangleWorkItem>> pending;
+	};
+	std::vector<RasterMailbox> rasterMailboxes;
+	std::atomic<int> transformersDone = 0;
 
 	struct PixelStageInput
 	{

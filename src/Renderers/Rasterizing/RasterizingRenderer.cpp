@@ -7,6 +7,7 @@
 #include "../../Threadpool.h"
 #include <map>
 #include <iostream>
+#include <thread>
 #include "../../Statsman.h"
 #include "../../helpers.h"
 #include "../../C_Input.h"
@@ -177,8 +178,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = false;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
-	mainDrawCmd.trianglesToZones = &this->trianglesByZones[0];
-	mainDrawCmd.threadCount = threadCount;
+		mainDrawCmd.threadCount = threadCount;
 	mainDrawCmd.renderW = w;
 	mainDrawCmd.renderH = h;
 	mainDrawCmd.recipe = DrawRecipe::MAIN_DEPTH_PREPASS;
@@ -194,8 +194,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
 		//shadowMapDrawCmd.ctr.prepare(Vec4f(44.960358, 2656.120605,-223.813354, 0.000000), Vec4f(0.000000,1.054968,0.813000,0.000000));
 		//shadowMapDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
-		shadowMapDrawCmd.trianglesToZones = &this->trianglesByZones[1];
-		shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
+				shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
 		shadowMapDrawCmd.renderH = shadowMapH;
 		shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
 		shadowMapDrawCmd.needsUVs = true;
@@ -208,12 +207,9 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		shadowMapDrawCmd.zoneManager = BufferZoneManager(threadCount, shadowMapW, shadowMapH);
 	}
 
-	int tCntSq = threadCount * threadCount;
-	for (auto& currSub : this->drawCommands)
-	{
-		if (currSub.trianglesToZones->size() != tCntSq) currSub.trianglesToZones->resize(tCntSq);
-		//for (auto& it : *currSub.trianglesToZones) it.verticeStore = &this->vertexStore;
-	}
+	this->rasterMailboxes.clear();
+	this->rasterMailboxes.resize(threadCount);
+	this->transformersDone.store(0);
 
 	std::vector<Threadpool::TaskHandle> transformTasks, drawTasks;
 	Threadpool::Task tsk;
@@ -267,12 +263,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	}
 	threadpool->blockUntilComplete(drawTasks);
 	
-	for (auto& currSub : this->drawCommands)
-	{
-		for (auto& store : *currSub.trianglesToZones)
-			store.reset();
-	}
-	//for (auto& it : renderJobsFromThreads) it.clear();
 }
 
 void RasterizingRenderer::loadScene(bool debugScene)
@@ -555,13 +545,12 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
 	int threadCount = this->currGs->threadpool->getWorkerCount();
-
 	VertexStageInput inp;
 	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
 	inp.stage = 1;
 	inp.firstCmd = 0;
 	inp.lastCmd = this->drawCommands.size() - 1;
-	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
+	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size());
 	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
 	{
 		int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
@@ -572,47 +561,49 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 			groupActiveTriangles &= diffuseMapIndices != 0;
 			if (!groupActiveTriangles) continue;
 		}
-
 		inp.triangleIndices = triangleIndices;
 		inp.validInputs = groupActiveTriangles;
-		for (int i = 0; i < 3; ++i)
-		{
-			inp.vertexIndices[i] = _mm512_maskz_loadu_epi32(groupActiveTriangles, this->triangleStore.vertInd[i].data() + currTriangleIndex);
-		}
-
+		for (int i = 0; i < 3; ++i) inp.vertexIndices[i] = _mm512_maskz_loadu_epi32(groupActiveTriangles, this->triangleStore.vertInd[i].data() + currTriangleIndex);
 		this->transformVertices(inp, transformedResults.get());
-		
 		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
 		{
+			auto& currCmd = this->drawCommands[cmdIndex];
+			float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
 			for (int outputTriangleIndex = 0; outputTriangleIndex < 2; ++outputTriangleIndex)
 			{
 				const auto& currTriangles = transformedResults[cmdIndex].outputTriangles[outputTriangleIndex];
 				Mask16 currActiveTriangles = currTriangles.activeTrianges;
-				if (!currActiveTriangles) break; //yes, break, not continue. If first outputted triangle is invalid, then none are (at least in current pipeline)
-				auto& currCmd = this->drawCommands[cmdIndex];
-				float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
-				auto& currOutput = transformedResults[cmdIndex];
-
+				if (!currActiveTriangles) break;
 				int32x16 vecFirstThread = _mm512_cvttps_epi32(currTriangles.minY * rcpScreenHeightPerThread);
 				int32x16 vecLastThread = _mm512_cvttps_epi32(currTriangles.maxY * rcpScreenHeightPerThread);
 				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
 				if (!currActiveTriangles) continue;
-
 				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
 				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
-
 				for (int i = 0; i < 16; ++i)
 				{
 					if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
 					for (int currReceiverThread = vecFirstThread[i]; currReceiverThread <= vecLastThread[i]; ++currReceiverThread)
 					{
-						auto& targetStore = (*currCmd.trianglesToZones)[threadIndex * threadCount + currReceiverThread];
-						targetStore.append(currTriangleIndex + i);
+						auto item = std::make_shared<TriangleWorkItem>();
+						item->cmdIndex = cmdIndex;
+						item->progenitorTriangleIndices = triangleIndices;
+						item->vertexOutput = transformedResults[cmdIndex];
+						if (currReceiverThread == threadIndex)
+						{
+							PixelStageInput pxInp{triangleIndices,&currCmd,&item->vertexOutput,0,0,0,0}; this->drawTriangleBatch(pxInp, threadIndex);
+						}
+						else
+						{
+							std::scoped_lock lk(this->rasterMailboxes[currReceiverThread].mtx);
+							this->rasterMailboxes[currReceiverThread].pending.push_back(std::move(item));
+						}
 					}
 				}
 			}
 		}
 	}
+	this->transformersDone.fetch_add(1);
 }
 
 __forceinline void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
@@ -800,40 +791,17 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 {
 	int threadCount = this->currGs->threadpool->getWorkerCount();
-	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
-
-	VertexStageInput inp;
-	inp.stage = 2;
-	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
-	for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
+	while (this->transformersDone.load() < threadCount || !this->rasterMailboxes[threadIndex].pending.empty())
 	{
-		int storeIndex = senderThreadIndex * threadCount + threadIndex;
-		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
+		std::vector<std::shared_ptr<TriangleWorkItem>> jobs;
+		{ std::scoped_lock lk(this->rasterMailboxes[threadIndex].mtx); jobs.swap(this->rasterMailboxes[threadIndex].pending); }
+		for (const auto& job : jobs)
 		{
-			auto& currCmd = this->drawCommands[cmdIndex];
-			auto& currStore = (*currCmd.trianglesToZones)[storeIndex];
-			int storeSize = currStore.size();
-			for (int currIndex = 0; currIndex < storeSize; currIndex += 16)
-			{
-				Mask16 storeBounds = (int32x16::sequence() + currIndex) < storeSize;
-				static_assert(currStore.ELEMENTS_PER_BLOCK % 16 == 0, "Triangle bin block store is expected to be 16-element aligned.");
-				int32x16 triangleIndices = _mm512_maskz_loadu_epi32(storeBounds, &currStore[currIndex]); //this will read out of block's bounds if ELEMENTS_PER_BLOCK is not divisible by 16.
-				inp.triangleIndices = triangleIndices;
-				inp.validInputs = storeBounds;
-				inp.firstCmd = inp.lastCmd = cmdIndex;
-				for (int i = 0; i < 3; ++i)
-				{
-					inp.vertexIndices[i] = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), storeBounds, triangleIndices, this->triangleStore.vertInd[i].data(), 4);
-				}
-
-				this->transformVertices(inp, transformedResults.get());
-				PixelStageInput pxInp;
-				pxInp.cmd = &currCmd;
-				pxInp.vertexStageOutput = &transformedResults[cmdIndex];
-				pxInp.progenitorTriangleIndices = triangleIndices;
-				this->drawTriangleBatch(pxInp, threadIndex);
-			}
+			auto& currCmd = this->drawCommands[job->cmdIndex];
+			PixelStageInput pxInp{job->progenitorTriangleIndices,&currCmd,&job->vertexOutput,0,0,0,0};
+			this->drawTriangleBatch(pxInp, threadIndex);
 		}
+		if (jobs.empty()) std::this_thread::yield();
 	}
 }
 __m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512i ptrs8_15, int attrOffsetInRenderJob, Mask16 mask)
