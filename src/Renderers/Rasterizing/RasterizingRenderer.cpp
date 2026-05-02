@@ -579,7 +579,7 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 					vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
 					vecLastThread = vecLastThread.clamp(0, threadCount - 1);
 					Mask16 trianglesForMe = activeTriangles & vecFirstThread <= threadIndex & vecLastThread >= threadIndex;
-					Mask16 trianglesOnlyInMyZone = activeTriangles & (vecFirstThread == threadIndex & vecFirstThread == threadIndex);
+					Mask16 trianglesOnlyInMyZone = activeTriangles & (vecFirstThread == threadIndex & vecLastThread == threadIndex);
 					if (trianglesForMe)
 					{
 						TrianglePack16 pack;
@@ -612,11 +612,12 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 						uint32_t storeIndex = peerBatch.batchSize;
 						for (int j = 0; j < 3; ++j)
 						{
-							_mm512_storeu_ps(peerBatch.scrX[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[j].space.x));
-							_mm512_storeu_ps(peerBatch.scrY[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[j].space.y));
-							_mm512_storeu_ps(peerBatch.rcpZ[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[j].space.z));
-							_mm512_storeu_ps(peerBatch.zDividedU[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[j].u));
-							_mm512_storeu_ps(peerBatch.zDividedV[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[j].v));
+							uint32_t vi = outputTriangleIndex * 3 + j;
+							_mm512_storeu_ps(peerBatch.scrX[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].space.x));
+							_mm512_storeu_ps(peerBatch.scrY[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].space.y));
+							_mm512_storeu_ps(peerBatch.rcpZ[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].space.z));
+							_mm512_storeu_ps(peerBatch.zDividedU[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].u));
+							_mm512_storeu_ps(peerBatch.zDividedV[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].v));
 						}
 						_mm512_storeu_ps(peerBatch.minX.data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, minX));
 						_mm512_storeu_ps(peerBatch.maxX.data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, maxX));
