@@ -1,6 +1,8 @@
 #include <vector>
 #include "../RendererBase.h"
 #include <map>
+#include <mutex>
+#include <memory>
 #include "CoordinateTransformer.h"
 #include <array>
 #include "TextureManager.h"
@@ -61,7 +63,7 @@ private:
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint32_t> deferredTriangleIndices;
-	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
+	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones; //legacy, unused by JIT path
 	
 
 	struct VertexStageInput
@@ -88,6 +90,17 @@ private:
 		int32x16 behindNearPlaneCount; //counts of vertices behind near plane for each triangle composed by input vertices
 		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
 	};
+	struct TriangleBatch
+	{
+		static constexpr int MAX_TRIANGLES = 256;
+		static constexpr int STORAGE_TRIANGLES = MAX_TRIANGLES + 16;
+		int size = 0;
+		std::vector<int> progenitorTriangleIndices;
+		std::vector<VertexStageOutputTriangle> triangles;
+		TriangleBatch() : progenitorTriangleIndices(STORAGE_TRIANGLES), triangles(STORAGE_TRIANGLES) {}
+	};
+	std::vector<std::vector<std::vector<std::shared_ptr<TriangleBatch>>>> pendingTriangleBatches;
+	std::vector<std::vector<std::mutex>> pendingTriangleBatchesMutexes;
 
 	struct PixelStageInput
 	{
@@ -108,6 +121,8 @@ private:
 	void transformVertices(const VertexStageInput& input, VertexStageOutput* output) const;
 
 	void binTrianglesIntoZones(const int threadIndex);
+	void flushTriangleBatch(int senderThreadIndex, int receiverThreadIndex, int cmdIndex, std::shared_ptr<TriangleBatch>& batch);
+	void drainPendingTriangleBatches(int receiverThreadIndex);
 
 	void drawTriangleBatch(const PixelStageInput& inp, const int threadIndex);
 

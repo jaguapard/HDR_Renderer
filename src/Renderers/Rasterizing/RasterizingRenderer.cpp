@@ -209,6 +209,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	}
 
 	int tCntSq = threadCount * threadCount;
+	this->pendingTriangleBatches.assign(this->drawCommands.size(), std::vector<std::vector<std::shared_ptr<TriangleBatch>>>(threadCount));
+	this->pendingTriangleBatchesMutexes.assign(this->drawCommands.size(), std::vector<std::mutex>(threadCount));
 	for (auto& currSub : this->drawCommands)
 	{
 		if (currSub.trianglesToZones->size() != tCntSq) currSub.trianglesToZones->resize(tCntSq);
@@ -550,69 +552,115 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	}
 }
 
+void RasterizingRenderer::flushTriangleBatch(int senderThreadIndex, int receiverThreadIndex, int cmdIndex, std::shared_ptr<TriangleBatch>& batch)
+{
+	if (batch->size == 0) return;
+	if (receiverThreadIndex == senderThreadIndex)
+	{
+		PixelStageInput pxInp{};
+		pxInp.cmd = &this->drawCommands[cmdIndex];
+		for (int i = 0; i < batch->size; i += 16)
+		{
+			VertexStageOutput out{};
+			out.outputTriangles[0] = batch->triangles[i];
+			pxInp.vertexStageOutput = &out;
+			pxInp.progenitorTriangleIndices = _mm512_loadu_epi32(batch->progenitorTriangleIndices.data() + i);
+			this->drawTriangleBatch(pxInp, senderThreadIndex);
+		}
+	}
+	else
+	{
+		auto queued = batch;
+		std::lock_guard<std::mutex> lk(this->pendingTriangleBatchesMutexes[cmdIndex][receiverThreadIndex]);
+		this->pendingTriangleBatches[cmdIndex][receiverThreadIndex].push_back(queued);
+	}
+	batch = std::make_shared<TriangleBatch>();
+}
+
+void RasterizingRenderer::drainPendingTriangleBatches(int receiverThreadIndex)
+{
+	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
+	{
+		std::vector<std::shared_ptr<TriangleBatch>> local;
+		{
+			std::lock_guard<std::mutex> lk(this->pendingTriangleBatchesMutexes[cmdIndex][receiverThreadIndex]);
+			local.swap(this->pendingTriangleBatches[cmdIndex][receiverThreadIndex]);
+		}
+		for (auto& b : local)
+		{
+			PixelStageInput pxInp{};
+			pxInp.cmd = &this->drawCommands[cmdIndex];
+			for (int i = 0; i < b->size; i += 16)
+			{
+				VertexStageOutput out{};
+				out.outputTriangles[0] = b->triangles[i];
+				pxInp.vertexStageOutput = &out;
+				pxInp.progenitorTriangleIndices = _mm512_loadu_epi32(b->progenitorTriangleIndices.data() + i);
+				this->drawTriangleBatch(pxInp, receiverThreadIndex);
+			}
+		}
+	}
+}
+
 void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->triangleStore.size());
-	size_t startInd = d_low, stopInd = d_high;
 	int threadCount = this->currGs->threadpool->getWorkerCount();
-
-	VertexStageInput inp;
+	VertexStageInput inp{};
 	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
 	inp.stage = 1;
 	inp.firstCmd = 0;
 	inp.lastCmd = this->drawCommands.size() - 1;
-	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
-	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
+	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size());
+	std::vector<std::vector<std::shared_ptr<TriangleBatch>>> outgoing(this->drawCommands.size(), std::vector<std::shared_ptr<TriangleBatch>>(threadCount));
+	for (auto& perCmd : outgoing) for (auto& b : perCmd) b = std::make_shared<TriangleBatch>();
+
+	for (size_t currTriangleIndex = d_low; currTriangleIndex < d_high; currTriangleIndex += 16)
 	{
 		int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
-		Mask16 groupActiveTriangles = triangleIndices < stopInd;
+		Mask16 groupActiveTriangles = triangleIndices < d_high;
 		if (this->skipTrianglesWithFallbackTexure)
 		{
 			int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(groupActiveTriangles, this->triangleStore.diffuseMapIndex.data() + currTriangleIndex);
 			groupActiveTriangles &= diffuseMapIndices != 0;
 			if (!groupActiveTriangles) continue;
 		}
-
 		inp.triangleIndices = triangleIndices;
 		inp.validInputs = groupActiveTriangles;
-		for (int i = 0; i < 3; ++i)
-		{
-			inp.vertexIndices[i] = _mm512_maskz_loadu_epi32(groupActiveTriangles, this->triangleStore.vertInd[i].data() + currTriangleIndex);
-		}
-
+		for (int i = 0; i < 3; ++i) inp.vertexIndices[i] = _mm512_maskz_loadu_epi32(groupActiveTriangles, this->triangleStore.vertInd[i].data() + currTriangleIndex);
 		this->transformVertices(inp, transformedResults.get());
-		
 		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
 		{
+			auto& currCmd = this->drawCommands[cmdIndex];
+			float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
 			for (int outputTriangleIndex = 0; outputTriangleIndex < 2; ++outputTriangleIndex)
 			{
-				const auto& currTriangles = transformedResults[cmdIndex].outputTriangles[outputTriangleIndex];
-				Mask16 currActiveTriangles = currTriangles.activeTrianges;
-				if (!currActiveTriangles) break; //yes, break, not continue. If first outputted triangle is invalid, then none are (at least in current pipeline)
-				auto& currCmd = this->drawCommands[cmdIndex];
-				float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
-				auto& currOutput = transformedResults[cmdIndex];
-
-				int32x16 vecFirstThread = _mm512_cvttps_epi32(currTriangles.minY * rcpScreenHeightPerThread);
-				int32x16 vecLastThread = _mm512_cvttps_epi32(currTriangles.maxY * rcpScreenHeightPerThread);
-				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
-				if (!currActiveTriangles) continue;
-
-				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
-				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
-
-				for (int i = 0; i < 16; ++i)
-				{
-					if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
-					for (int currReceiverThread = vecFirstThread[i]; currReceiverThread <= vecLastThread[i]; ++currReceiverThread)
-					{
-						auto& targetStore = (*currCmd.trianglesToZones)[threadIndex * threadCount + currReceiverThread];
-						targetStore.append(currTriangleIndex + i);
+				auto& triPack = transformedResults[cmdIndex].outputTriangles[outputTriangleIndex];
+				Mask16 active = triPack.activeTrianges;
+				if (!active) break;
+				int32x16 firstT = _mm512_cvttps_epi32(triPack.minY * rcpScreenHeightPerThread);
+				int32x16 lastT = _mm512_cvttps_epi32(triPack.maxY * rcpScreenHeightPerThread);
+				active &= (lastT >= 0) & (firstT < threadCount);
+				if (!active) continue;
+				firstT = firstT.clamp(0, threadCount - 1);
+				lastT = lastT.clamp(0, threadCount - 1);
+				for (int i = 0; i < 16; ++i) if (active.mask & (1 << i)) {
+					for (int t = firstT[i]; t <= lastT[i]; ++t) {
+						auto& batch = outgoing[cmdIndex][t];
+						int ind = batch->size++;
+						batch->triangles[ind] = triPack;
+						batch->triangles[ind].activeTrianges = Mask16(1 << i);
+						batch->progenitorTriangleIndices[ind] = currTriangleIndex + i;
+						if (batch->size >= TriangleBatch::MAX_TRIANGLES) flushTriangleBatch(threadIndex, t, cmdIndex, batch);
 					}
 				}
 			}
 		}
+		drainPendingTriangleBatches(threadIndex);
 	}
+	for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
+		for (int t = 0; t < threadCount; ++t) flushTriangleBatch(threadIndex, t, cmdIndex, outgoing[cmdIndex][t]);
+	drainPendingTriangleBatches(threadIndex);
 }
 
 __forceinline void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
@@ -799,42 +847,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 
 void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 {
-	int threadCount = this->currGs->threadpool->getWorkerCount();
-	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
-
-	VertexStageInput inp;
-	inp.stage = 2;
-	inp.nearPlaneZ = this->currGs->cameraPlane_zDist;
-	for (int senderThreadIndex = 0; senderThreadIndex < threadCount; ++senderThreadIndex)
-	{
-		int storeIndex = senderThreadIndex * threadCount + threadIndex;
-		for (int cmdIndex = 0; cmdIndex < this->drawCommands.size(); ++cmdIndex)
-		{
-			auto& currCmd = this->drawCommands[cmdIndex];
-			auto& currStore = (*currCmd.trianglesToZones)[storeIndex];
-			int storeSize = currStore.size();
-			for (int currIndex = 0; currIndex < storeSize; currIndex += 16)
-			{
-				Mask16 storeBounds = (int32x16::sequence() + currIndex) < storeSize;
-				static_assert(currStore.ELEMENTS_PER_BLOCK % 16 == 0, "Triangle bin block store is expected to be 16-element aligned.");
-				int32x16 triangleIndices = _mm512_maskz_loadu_epi32(storeBounds, &currStore[currIndex]); //this will read out of block's bounds if ELEMENTS_PER_BLOCK is not divisible by 16.
-				inp.triangleIndices = triangleIndices;
-				inp.validInputs = storeBounds;
-				inp.firstCmd = inp.lastCmd = cmdIndex;
-				for (int i = 0; i < 3; ++i)
-				{
-					inp.vertexIndices[i] = _mm512_mask_i32gather_epi32(_mm512_setzero_si512(), storeBounds, triangleIndices, this->triangleStore.vertInd[i].data(), 4);
-				}
-
-				this->transformVertices(inp, transformedResults.get());
-				PixelStageInput pxInp;
-				pxInp.cmd = &currCmd;
-				pxInp.vertexStageOutput = &transformedResults[cmdIndex];
-				pxInp.progenitorTriangleIndices = triangleIndices;
-				this->drawTriangleBatch(pxInp, threadIndex);
-			}
-		}
-	}
+	this->drainPendingTriangleBatches(threadIndex);
 }
 __m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512i ptrs8_15, int attrOffsetInRenderJob, Mask16 mask)
 {
