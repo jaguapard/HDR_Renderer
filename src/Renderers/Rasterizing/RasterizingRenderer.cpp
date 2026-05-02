@@ -730,7 +730,8 @@ void RasterizingRenderer::drawTrianglePack(const TrianglePack16& pack, const uin
 	float32x16 my_xMax = fRenderW - 1;
 	
 	float32x16 my_yMin = fRenderH / threadCount * threadIndex;
-	float32x16 my_yMax = (fRenderH / threadCount * (threadIndex + 1)) - 1;
+	float32x16 my_yMax = (fRenderH / threadCount * (threadIndex + 1));
+	my_yMax = _mm512_min_ps(my_yMax, fRenderH - 1);
 
 	float32x16 group_xBeg = _mm512_max_ps((my_xMin), pack.minX);
 	float32x16 group_yBeg = _mm512_max_ps((my_yMin), pack.minY);
