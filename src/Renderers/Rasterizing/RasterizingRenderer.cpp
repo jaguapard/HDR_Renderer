@@ -605,7 +605,7 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 					int maxThread = _mm512_reduce_max_epi32(_mm512_mask_mov_epi32(int32x16(INT32_MIN), trianglesForPeers, vecLastThread));
 					for (int i = minThread; i <= maxThread; ++i)
 					{
-						Mask16 trianglesForThreadI = vecFirstThread <= i & vecLastThread >= i;
+						Mask16 trianglesForThreadI = activeTriangles & vecFirstThread <= i & vecLastThread >= i;
 						if (!trianglesForThreadI) continue;
 
 						TriangleBatch& peerBatch = *batchesForPeers[i];
