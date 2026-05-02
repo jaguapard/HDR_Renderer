@@ -7,6 +7,9 @@
 #include "../../helpers.h"
 #include "RenderJobStore.h"
 #include "primitives.h"
+#include <memory>
+#include <mutex>
+#include <deque>
 namespace Rasterizing
 {
 	
@@ -100,6 +103,21 @@ private:
 	struct PixelStageOutput
 	{
 	};
+	struct TriangleBatch
+	{
+		static constexpr int MAX_PACKS = 64;
+		static constexpr int ALLOC_PACKS = MAX_PACKS + 4;
+		int cmdIndex = 0;
+		int packCount = 0;
+		std::array<VertexStageOutput, ALLOC_PACKS> transformed;
+		std::array<int32x16, ALLOC_PACKS> progenitorTriangleIndices;
+	};
+	struct ThreadMailbox
+	{
+		std::mutex mtx;
+		std::deque<std::shared_ptr<TriangleBatch>> pending;
+	};
+	std::vector<std::shared_ptr<ThreadMailbox>> rasterMailboxes;
 	void performNearPlaneClipping(float clippingZ, std::array<VertexStageOutputTriangle, 2>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
 	//For draw command i the output will be written to output[i]
