@@ -3,6 +3,9 @@
 #include <map>
 #include "CoordinateTransformer.h"
 #include <array>
+#include <mutex>
+#include <memory>
+#include <atomic>
 #include "TextureManager.h"
 #include "../../helpers.h"
 #include "RenderJobStore.h"
@@ -110,6 +113,21 @@ private:
 	void binTrianglesIntoZones(const int threadIndex);
 
 	void drawTriangleBatch(const PixelStageInput& inp, const int threadIndex);
+	void drawTransformedBatch(const DrawCommand& cmd, const TriangleBatch& batch, const int threadIndex);
+
+	struct TriangleBatch
+	{
+		static constexpr int MAX_BATCH_SIZE = 96;
+		static constexpr int STORAGE_SIZE = 112;
+		int cmdIndex = 0;
+		int size = 0;
+		int32_t progenitorTriangleIndices[STORAGE_SIZE];
+		VertexStageOutputTriangle triangles[STORAGE_SIZE];
+	};
+
+	std::vector<std::vector<std::shared_ptr<TriangleBatch>>> pendingRasterBatches;
+	std::vector<std::mutex> pendingRasterBatchesMtx;
+	std::atomic<int> transformThreadsRemaining = 0;
 
 	//Performs transformations and rasterization of binned triangles
 	void rasterizerRoutine(const int threadIndex);
