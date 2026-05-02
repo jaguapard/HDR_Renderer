@@ -1035,6 +1035,7 @@ Rasterizing::TriangleBatchHandle Rasterizing::TriangleBatchPool::allocate()
 	TriangleBatchHandle h;
 	h.indexInPool = ind;
 	h.pool = this;
+	h->reset();
 	return h;
 }
 
