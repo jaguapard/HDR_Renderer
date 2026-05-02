@@ -471,8 +471,12 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 		{
 			int32x16 triangleIndices = int32x16::sequence() + start;
 			Mask16 storeBounds = triangleIndices < triangleCount;
-			std::array<int32x16, 3> vertexIndices;
+			
+			int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->triangleStore.diffuseMapIndex.data() + start);
+			if (this->skipTrianglesWithFallbackTexure) storeBounds &= diffuseMapIndices != 0;
+			if (!storeBounds) continue;
 
+			std::array<int32x16, 3> vertexIndices;
 			std::array<VertexPack16, 3> originalVertices;
 			for (int i = 0; i < 3; ++i)
 			{
@@ -517,7 +521,6 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 					if (!activeTriangles) continue;
 				}
 
-				int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(activeTriangles, this->triangleStore.diffuseMapIndex.data() + start);
 				this->performNearPlaneClipping(nearPlaneZ, transformedVertices, behindNearPlaneCount, behindNearPlaneMasks);
 				float w = currCmd.renderW;
 				float h = currCmd.renderH;
