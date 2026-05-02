@@ -164,6 +164,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getWorkerCount();
 	this->claimedTriangles = 0;
+	this->threadCount = threadCount;
 	if (this->prevThreadCount != threadCount)
 	{
 		this->threadMailboxes = std::make_unique<ThreadMailbox[]>(threadCount);
@@ -254,6 +255,19 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	}
 	tsk.dependencies = transformTasks;
 	
+	threadpool->blockUntilComplete(transformTasks);
+
+	drawTasks.clear();
+	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
+	{
+		tsk.func = [&, threadIndex]() {
+			this->processMailbox(threadIndex);
+			};
+		drawTasks.emplace_back(threadpool->addTask(tsk));
+	}
+	threadpool->blockUntilComplete(drawTasks);
+
+	drawTasks.clear();
 	for (int threadIndex = 0; threadIndex < threadCount; ++threadIndex)
 	{
 		tsk.func = [&, threadIndex]() {
@@ -302,6 +316,47 @@ void RasterizingRenderer::clearScene()
 	this->sceneModels.clear();
 	this->triangleStore.clear();
 	this->vertexStore.clear();
+}
+
+void RasterizingRenderer::processMailbox(uint32_t threadIndex)
+{
+	std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
+	{
+		auto& myMailbox = this->threadMailboxes[threadIndex];
+		std::lock_guard lck(myMailbox.mtx);
+		if (!myMailbox.pendingBatches.empty())
+		{
+			poppedBatches = myMailbox.pendingBatches;
+			myMailbox.pendingBatches.clear();
+		}
+	}
+
+	for (auto& b : poppedBatches)
+	{
+		uint32_t bs = b->batchSize;
+		for (size_t i = 0; i < bs; i += 16)
+		{
+			TrianglePack16 pack;
+			pack.activeTrianges = (int32x16::sequence() + i) < bs;
+			pack.diffuseMapIndices = _mm512_loadu_epi32(b->diffuseMapIndices.data() + i);
+			pack.drawCmdIndices = _mm512_loadu_epi32(b->drawCmdIndices.data() + i);
+			pack.triangleIndices = _mm512_loadu_epi32(b->triangleIndices.data() + i);
+			pack.maxX = _mm512_loadu_ps(b->maxX.data() + i);
+			pack.maxY = _mm512_loadu_ps(b->maxY.data() + i);
+			pack.minX = _mm512_loadu_ps(b->minX.data() + i);
+			pack.minY = _mm512_loadu_ps(b->minY.data() + i);
+			pack.rcpSignedArea = _mm512_loadu_ps(b->rcpSignedArea.data() + i);
+			for (int j = 0; j < 3; ++j)
+			{
+				pack.vertices[j].space.x = _mm512_loadu_ps(b->scrX[j].data() + i);
+				pack.vertices[j].space.y = _mm512_loadu_ps(b->scrY[j].data() + i);
+				pack.vertices[j].space.z = _mm512_loadu_ps(b->rcpZ[j].data() + i);
+				pack.vertices[j].u = _mm512_loadu_ps(b->zDividedU[j].data() + i);
+				pack.vertices[j].v = _mm512_loadu_ps(b->zDividedV[j].data() + i);
+			}
+			this->drawTrianglePack(pack, threadIndex);
+		}
+	}
 }
 
 struct Vertex
@@ -410,45 +465,7 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 		start < triangleCount;
 		start = this->claimedTriangles.fetch_add(TriangleBatch::MAX_BATCH_SIZE))
 	{
-		{
-			std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
-			{
-				std::lock_guard lck(myMailbox.mtx);
-				if (!myMailbox.pendingBatches.empty())
-				{
-					poppedBatches = myMailbox.pendingBatches;
-					myMailbox.pendingBatches.clear();
-				}
-			}
-
-			for (auto& b : poppedBatches)
-			{
-				uint32_t bs = b->batchSize;
-				for (size_t i = 0; i < bs; i += 16)
-				{
-					TrianglePack16 pack;
-					pack.activeTrianges = (int32x16::sequence() + i) < bs;
-					pack.diffuseMapIndices = _mm512_loadu_epi32(b->diffuseMapIndices.data() + i);
-					pack.drawCmdIndices = _mm512_loadu_epi32(b->drawCmdIndices.data() + i);
-					pack.triangleIndices = _mm512_loadu_epi32(b->triangleIndices.data() + i);
-					pack.maxX = _mm512_loadu_ps(b->maxX.data() + i);
-					pack.maxY = _mm512_loadu_ps(b->maxY.data() + i);
-					pack.minX = _mm512_loadu_ps(b->minX.data() + i);
-					pack.minY = _mm512_loadu_ps(b->minY.data() + i);
-					pack.rcpSignedArea = _mm512_loadu_ps(b->rcpSignedArea.data() + i);
-					for (int j = 0; j < 3; ++j)
-					{
-						pack.vertices[j].space.x = _mm512_loadu_ps(b->scrX[j].data() + i);
-						pack.vertices[j].space.y = _mm512_loadu_ps(b->scrY[j].data() + i);
-						pack.vertices[j].space.z = _mm512_loadu_ps(b->rcpZ[j].data() + i);
-						pack.vertices[j].u = _mm512_loadu_ps(b->zDividedU[j].data() + i);
-						pack.vertices[j].v = _mm512_loadu_ps(b->zDividedV[j].data() + i);
-					}
-					this->drawTrianglePack(pack, threadIndex, threadCount);
-				}
-			}
-		}
-
+		this->processMailbox(threadIndex);
 		uint32_t end = std::min(triangleCount, start + TriangleBatch::MAX_BATCH_SIZE);
 		for (; start < end; start += 16)
 		{
@@ -579,7 +596,7 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 						{
 							pack.vertices[j] = transformedVertices[3 * outputTriangleIndex + j];
 						}
-						this->drawTrianglePack(pack, threadIndex, threadCount);
+						this->drawTrianglePack(pack, threadIndex);
 					}
 					Mask16 trianglesForPeers = activeTriangles & ~trianglesOnlyInMyZone;
 					if (!trianglesForPeers) continue;
@@ -624,8 +641,6 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 			}
 		}
 	}
-
-	int a = 0; //Heap corruption occurs after this line
 }
 
 __forceinline void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
@@ -703,7 +718,7 @@ Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int 
 	return ret;
 }
 
-void RasterizingRenderer::drawTrianglePack(const TrianglePack16& pack, const uint32_t threadIndex, const uint32_t threadCount)
+void RasterizingRenderer::drawTrianglePack(const TrianglePack16& pack, const uint32_t threadIndex)
 {
 	int32x16 renderW = _mm512_mask_i32gather_epi32(int32x16(0), pack.activeTrianges, pack.drawCmdIndices * sizeof(DrawCommand) + offsetof(DrawCommand, renderW), this->drawCommands.data(), 1);
 	int32x16 renderH = _mm512_mask_i32gather_epi32(int32x16(0), pack.activeTrianges, pack.drawCmdIndices * sizeof(DrawCommand) + offsetof(DrawCommand, renderH), this->drawCommands.data(), 1);

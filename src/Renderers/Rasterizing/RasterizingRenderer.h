@@ -69,6 +69,7 @@ public:
 private:
 	void loadScene(bool debugScene);
 	void clearScene();
+	void processMailbox(uint32_t threadIndex);
 	bool singleTriangleDebugMode = false;
 	Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 	std::vector<Rasterizing::Model> sceneModels;
@@ -88,6 +89,7 @@ private:
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
+	uint32_t threadCount;
 	
 	std::unique_ptr<Rasterizing::ThreadMailbox[]> threadMailboxes;
 	size_t prevThreadCount = -1;
@@ -104,7 +106,7 @@ private:
 	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& toClip, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 
 	//void drawTriangleBatch(const PixelStageInput& inp, const int threadIndex);
-	void drawTrianglePack(const TrianglePack16& pack, const uint32_t threadIndex, const uint32_t threadCount);
+	void drawTrianglePack(const TrianglePack16& pack, const uint32_t threadIndex);
 
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
