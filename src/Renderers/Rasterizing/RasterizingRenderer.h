@@ -7,6 +7,8 @@
 #include "../../helpers.h"
 #include "RenderJobStore.h"
 #include "primitives.h"
+#include <memory>
+
 namespace Rasterizing
 {
 	
@@ -34,7 +36,29 @@ namespace Rasterizing
 		int modelIndex;
 		//std::vector<SequentialRange> global_xyz_indices, global_uv_indices;
 		//std::vector<SequentialRange> 
-	};	
+	};
+
+	struct TriangleBatch
+	{
+		static inline constexpr int MAX_BATCH_SIZE = 2048;
+		static inline constexpr int BATCH_ALLOCATE_SIZE = MAX_BATCH_SIZE + 32; //to not bother about OOB, overprovision slightly
+
+		uint32_t batchSize = 0;
+		std::array<float, BATCH_ALLOCATE_SIZE> maxX, minX, maxY, minY, rcpSignedArea;
+		std::array<std::array<float, BATCH_ALLOCATE_SIZE>, 3> scrX, scrY, rcpZ, zDividedU, zDividedV;
+		std::array<uint32_t, BATCH_ALLOCATE_SIZE> diffuseMapIndices, drawCmdIndices, triangleIndices;
+		
+		TriangleBatch() { reset(); }
+		void reset()
+		{
+			this->batchSize = 0;
+		}
+	};
+	struct ThreadMailbox
+	{
+		std::mutex mtx;
+		std::vector<std::shared_ptr<TriangleBatch>> pendingBatches;
+	};
 }
 class RasterizingRenderer : public RendererBase
 {
@@ -52,6 +76,8 @@ private:
 	Rasterizing::TriangleStore triangleStore;
 	bool shadowMapEnabled = true;
 
+	void workerRoutine(const uint32_t threadIndex);
+
 	std::vector<Rasterizing::DrawCommand> drawCommands;
 
 	std::vector<uint8_t> postTransformationsActiveMasks;
@@ -63,56 +89,23 @@ private:
 	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
 	
+	std::unique_ptr<Rasterizing::ThreadMailbox[]> threadMailboxes;
+	size_t prevThreadCount = -1;
+	std::atomic<uint64_t> claimedTriangles = 0;
 
-	struct VertexStageInput
-	{
-		int32x16 triangleIndices;
-		std::array<int32x16, 3> vertexIndices;
-		Mask16 validInputs;
-		float nearPlaneZ;
-		//double threadCount;
-		//int threadIndex, stage;
-		int stage;
-		int firstCmd, lastCmd;
-	};
 
-	struct VertexStageOutputTriangle
+	struct TrianglePack16
 	{
 		std::array<Rasterizing::VertexPack16, 3> vertices;
 		float32x16 minX, minY, maxX, maxY, rcpSignedArea;
+		int32x16 diffuseMapIndices, drawCmdIndices, triangleIndices;
 		Mask16 activeTrianges = 0;
 	};
-	struct VertexStageOutput
-	{
-		std::array<VertexStageOutputTriangle, 2> outputTriangles;
-		int32x16 behindNearPlaneCount; //counts of vertices behind near plane for each triangle composed by input vertices
-		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
-	};
+	void performNearPlaneClipping(float clippingZ, std::array<Rasterizing::VertexPack16, 6>& toClip, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
 
-	struct PixelStageInput
-	{
-		int32x16 progenitorTriangleIndices;
-		const Rasterizing::DrawCommand* cmd;
-		const VertexStageOutput* vertexStageOutput;
-		float my_xMin, my_yMin, my_xMax, my_yMax;
-	};
+	//void drawTriangleBatch(const PixelStageInput& inp, const int threadIndex);
+	void drawTrianglePack(const TrianglePack16& pack, const uint32_t threadIndex, const uint32_t threadCount);
 
-	struct PixelStageOutput
-	{
-	};
-	void performNearPlaneClipping(float clippingZ, std::array<VertexStageOutputTriangle, 2>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
-	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
-	//For draw command i the output will be written to output[i]
-	//Stage 1 assumes sequential input triangle indices, gathers only vertices' world coords and processes all draw commands.
-	//Stage 2 processes ONLY the draw command at inputted index and gathers it's required attributes for vertices. Doesn't assume any order for input triangle indices.
-	void transformVertices(const VertexStageInput& input, VertexStageOutput* output) const;
-
-	void binTrianglesIntoZones(const int threadIndex);
-
-	void drawTriangleBatch(const PixelStageInput& inp, const int threadIndex);
-
-	//Performs transformations and rasterization of binned triangles
-	void rasterizerRoutine(const int threadIndex);
 	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
 
