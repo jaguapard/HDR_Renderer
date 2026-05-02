@@ -630,16 +630,17 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 						peerBatch.batchSize += _mm_popcnt_u32(trianglesForThreadI);
 						if (peerBatch.batchSize >= TriangleBatch::MAX_BATCH_SIZE)
 						{
-							ThreadMailbox& mailbox = this->threadMailboxes[i];
-							auto p = batchesForPeers[i];
-							batchesForPeers[i] = std::make_shared<TriangleBatch>();
-							std::lock_guard lck(mailbox.mtx);
-							mailbox.pendingBatches.push_back(p);
+							this->sendBatchToThreadAndSwapToNew(batchesForPeers[i], i);
 						}
 					}
 				}
 			}
 		}
+	}
+
+	for (int i = 0; i < this->threadCount; ++i)
+	{
+		this->sendBatchToThreadAndSwapToNew(batchesForPeers[i], i);
 	}
 }
 
@@ -985,6 +986,15 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
 		}
 	}
+}
+
+void RasterizingRenderer::sendBatchToThreadAndSwapToNew(std::shared_ptr<Rasterizing::TriangleBatch>& batch, int receiver)
+{
+	ThreadMailbox& mailbox = this->threadMailboxes[receiver];
+	std::shared_ptr<Rasterizing::TriangleBatch> p = batch;
+	batch = std::make_shared<TriangleBatch>();
+	std::lock_guard lck(mailbox.mtx);
+	mailbox.pendingBatches.push_back(p);
 }
 
 /*

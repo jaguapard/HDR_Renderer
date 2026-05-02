@@ -86,6 +86,8 @@ private:
 
 	void joinMainWithShadowMap(int threadIndex);
 
+	void sendBatchToThreadAndSwapToNew(std::shared_ptr<Rasterizing::TriangleBatch>& batch, int receiver);
+
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
