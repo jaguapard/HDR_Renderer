@@ -320,7 +320,7 @@ void RasterizingRenderer::clearScene()
 
 void RasterizingRenderer::processMailbox(uint32_t threadIndex)
 {
-	std::vector<std::shared_ptr<TriangleBatch>> poppedBatches;
+	std::vector<TriangleBatchHandle> poppedBatches;
 	{
 		auto& myMailbox = this->threadMailboxes[threadIndex];
 		std::lock_guard lck(myMailbox.mtx);
@@ -456,8 +456,8 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 {
 	float nearPlaneZ = this->currGs->cameraPlane_zDist;
 	uint32_t threadCount = this->currGs->threadpool->getWorkerCount();
-	std::vector<std::shared_ptr<TriangleBatch>> batchesForPeers(threadCount);
-	for (auto& it : batchesForPeers) it = std::make_shared<TriangleBatch>();
+	std::vector<TriangleBatchHandle> batchesForPeers;
+	for (int i = 0; i < threadCount; ++i) batchesForPeers.push_back(this->triangleBatchPool.allocate());
 	auto& myMailbox = this->threadMailboxes[threadIndex];
 
 	uint32_t triangleCount = this->triangleStore.size();
@@ -990,11 +990,11 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	}
 }
 
-void RasterizingRenderer::sendBatchToThreadAndSwapToNew(std::shared_ptr<Rasterizing::TriangleBatch>& batch, int receiver)
+void RasterizingRenderer::sendBatchToThreadAndSwapToNew(TriangleBatchHandle& batch, int receiver)
 {
 	ThreadMailbox& mailbox = this->threadMailboxes[receiver];
-	std::shared_ptr<Rasterizing::TriangleBatch> p = batch;
-	batch = std::make_shared<TriangleBatch>();
+	TriangleBatchHandle p = batch;
+	batch = this->triangleBatchPool.allocate();
 	std::lock_guard lck(mailbox.mtx);
 	mailbox.pendingBatches.push_back(p);
 }

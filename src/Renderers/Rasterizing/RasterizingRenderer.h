@@ -54,12 +54,6 @@ namespace Rasterizing
 			this->batchSize = 0;
 		}
 	};
-	struct ThreadMailbox
-	{
-		std::mutex mtx;
-		std::vector<std::shared_ptr<TriangleBatch>> pendingBatches;
-	};
-
 	struct TriangleBatchPool;
 	struct TriangleBatch;
 	class TriangleBatchHandle
@@ -97,6 +91,11 @@ namespace Rasterizing
 		int topIndex;
 		std::recursive_mutex mtx;
 	};
+	struct ThreadMailbox
+	{
+		std::mutex mtx;
+		std::vector<TriangleBatchHandle> pendingBatches;
+	};
 }
 class RasterizingRenderer : public RendererBase
 {
@@ -105,6 +104,7 @@ public:
 	virtual void renderFrame(const GameSettings& settings);
 	//virtual void handleInputEvent(const SDL_Event& ev, C_Input& input);
 private:
+	Rasterizing::TriangleBatchPool triangleBatchPool;
 	void loadScene(bool debugScene);
 	void clearScene();
 	void processMailbox(uint32_t threadIndex);
@@ -124,7 +124,7 @@ private:
 
 	void joinMainWithShadowMap(int threadIndex);
 
-	void sendBatchToThreadAndSwapToNew(std::shared_ptr<Rasterizing::TriangleBatch>& batch, int receiver);
+	void sendBatchToThreadAndSwapToNew(Rasterizing::TriangleBatchHandle& batch, int receiver);
 
 	std::vector<float> zBuffer, shadowMap_zBuffer;
 	std::vector<uint32_t> deferredTriangleIndices;
