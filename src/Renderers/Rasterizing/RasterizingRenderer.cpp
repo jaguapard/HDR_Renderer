@@ -571,12 +571,12 @@ void RasterizingRenderer::flushTriangleBatch(int senderThreadIndex, int receiver
 	{
 		PixelStageInput pxInp{};
 		pxInp.cmd = &this->drawCommands[cmdIndex];
-		for (int i = 0; i < batch->size; i += 16)
+		for (int i = 0; i < batch->size; ++i)
 		{
 			VertexStageOutput out{};
 			out.outputTriangles[0] = batch->triangles[i];
 			pxInp.vertexStageOutput = &out;
-			pxInp.progenitorTriangleIndices = _mm512_loadu_epi32(batch->progenitorTriangleIndices.data() + i);
+			pxInp.progenitorTriangleIndices = batch->progenitorTriangleIndices[i];
 			this->drawTriangleBatch(pxInp, senderThreadIndex);
 		}
 	}
@@ -604,12 +604,12 @@ void RasterizingRenderer::drainPendingTriangleBatches(int receiverThreadIndex)
 		{
 			PixelStageInput pxInp{};
 			pxInp.cmd = &this->drawCommands[cmdIndex];
-			for (int i = 0; i < b->size; i += 16)
+			for (int i = 0; i < b->size; ++i)
 			{
 				VertexStageOutput out{};
 				out.outputTriangles[0] = b->triangles[i];
 				pxInp.vertexStageOutput = &out;
-				pxInp.progenitorTriangleIndices = _mm512_loadu_epi32(b->progenitorTriangleIndices.data() + i);
+				pxInp.progenitorTriangleIndices = b->progenitorTriangleIndices[i];
 				this->drawTriangleBatch(pxInp, receiverThreadIndex);
 			}
 		}
@@ -658,19 +658,16 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 				if (!active) continue;
 				firstT = firstT.clamp(0, threadCount - 1);
 				lastT = lastT.clamp(0, threadCount - 1);
-				alignas(64) int activeLanes[16];
-				_mm512_storeu_epi32(activeLanes, _mm512_maskz_compress_epi32(active, int32x16::sequence()));
-				int activeCount = _mm_popcnt_u32(active.mask);
-				for (int laneIdx = 0; laneIdx < activeCount; ++laneIdx) {
-					int i = activeLanes[laneIdx];
-					for (int t = firstT[i]; t <= lastT[i]; ++t) {
-						auto& batch = outgoing[cmdIndex][t];
-						int ind = batch->size++;
-						batch->triangles[ind] = triPack;
-						batch->triangles[ind].activeTrianges = Mask16(1 << i);
-						batch->progenitorTriangleIndices[ind] = currTriangleIndex + i;
-						if (batch->size >= TriangleBatch::MAX_TRIANGLES) flushTriangleBatch(threadIndex, t, cmdIndex, batch);
-					}
+				for (int t = 0; t < threadCount; ++t)
+				{
+					Mask16 receiverMask = active & (firstT <= t) & (lastT >= t);
+					if (!receiverMask) continue;
+					auto& batch = outgoing[cmdIndex][t];
+					int ind = batch->size++;
+					batch->triangles[ind] = triPack;
+					batch->triangles[ind].activeTrianges = receiverMask;
+					batch->progenitorTriangleIndices[ind] = triangleIndices;
+					if (batch->size >= TriangleBatch::MAX_PACKS) flushTriangleBatch(threadIndex, t, cmdIndex, batch);
 				}
 			}
 		}

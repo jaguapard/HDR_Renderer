@@ -92,12 +92,12 @@ private:
 	};
 	struct TriangleBatch
 	{
-		static constexpr int MAX_TRIANGLES = 256;
-		static constexpr int STORAGE_TRIANGLES = MAX_TRIANGLES + 16;
+		static constexpr int MAX_PACKS = 256;
+		static constexpr int STORAGE_PACKS = MAX_PACKS + 1;
 		int size = 0;
-		std::vector<int> progenitorTriangleIndices;
+		std::vector<int32x16> progenitorTriangleIndices;
 		std::vector<VertexStageOutputTriangle> triangles;
-		TriangleBatch() : progenitorTriangleIndices(STORAGE_TRIANGLES), triangles(STORAGE_TRIANGLES) {}
+		TriangleBatch() : progenitorTriangleIndices(STORAGE_PACKS), triangles(STORAGE_PACKS) {}
 	};
 	struct TriangleBatchMailbox
 	{
