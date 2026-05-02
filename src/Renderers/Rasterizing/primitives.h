@@ -113,13 +113,13 @@ namespace Rasterizing
 			float r0[16], r1[16], r2[16], r3[16];
 			uint32_t* rawIndUnsigned = (uint32_t*)&ind;
 			const float* p = this->xyzp.data();
-			__mmask64 m = duplicate_mmask_bits_16_to_64(mask);
+			__mmask32 m = duplicate_mmask_bits_16_to_32(mask);
 			for (int i = 0; i < 16; i += 4)
 			{
-				__m128 v0 = _mm_maskz_loadu_ps(m >> i * 4, p + rawIndUnsigned[i]);
-				__m128 v1 = _mm_maskz_loadu_ps(m >> (i + 1) * 4, p + rawIndUnsigned[i + 1]);
-				__m128 v2 = _mm_maskz_loadu_ps(m >> (i + 2) * 4, p + rawIndUnsigned[i + 2]);
-				__m128 v3 = _mm_maskz_loadu_ps(m >> (i + 3) * 4, p + rawIndUnsigned[i + 3]);
+				__m128 v0 = _mm_maskz_loadu_pd(m >> (i * 2), p + rawIndUnsigned[i]);
+				__m128 v1 = _mm_maskz_loadu_pd(m >> (i * 2 + 2), p + rawIndUnsigned[i + 1]);
+				__m128 v2 = _mm_maskz_loadu_pd(m >> (i * 2 + 4), p + rawIndUnsigned[i + 2]);
+				__m128 v3 = _mm_maskz_loadu_pd(m >> (i * 2 + 6), p + rawIndUnsigned[i + 3]);
 
 				_mm_storeu_ps(&r0[i], v0); //r0 = xyzp0,xyzp4,xyzp8,xyzp12
 				_mm_storeu_ps(&r1[i], v1); //r1 = xyzp1,xyzp5,xyzp9,xyzp13
