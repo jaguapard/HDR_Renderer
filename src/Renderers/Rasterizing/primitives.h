@@ -134,10 +134,10 @@ namespace Rasterizing
 			__m512 xxyy23 = _mm512_unpacklo_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
 			__m512 zzpp01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
 			__m512 zzpp23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-			retXYZ.x = _mm512_shuffle_ps(xxyy01, xxyy23, _MM_SHUFFLE(1, 0, 1, 0));
-			retXYZ.y = _mm512_shuffle_ps(xxyy01, xxyy23, _MM_SHUFFLE(3, 2, 3, 2));
-			retXYZ.z = _mm512_shuffle_ps(zzpp01, zzpp23, _MM_SHUFFLE(1, 0, 1, 0));
-			__m512 pppp = _mm512_shuffle_ps(zzpp01, zzpp23, _MM_SHUFFLE(3, 2, 3, 2));
+			retXYZ.x = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
+			retXYZ.y = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
+			retXYZ.z = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
+			__m512 pppp = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
 			interleaved_ph_to_ps(_mm512_castps_si512(pppp), retU, retV);
 			/*
 			for (int i = 0; i < 4; ++i)
