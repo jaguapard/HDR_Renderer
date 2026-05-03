@@ -121,31 +121,26 @@ namespace Rasterizing
 		__forceinline void masked_16x4aos_to_4x16soa_gather_and_transpose(int32x16 ind, Mask16 mask, const void* base, A& ret1, B& ret2, C& ret3, D& ret4) const
 		{
 			ind *= 4;
-			float r0[16], r1[16], r2[16], r3[16];
 			uint32_t* uind = (uint32_t*)&ind;
 			const float* fp = (const float*)base;
+			double* r0 = reinterpret_cast<double*>(&ret1), * r1 = reinterpret_cast<double*>(&ret2), * r2 = reinterpret_cast<double*>(&ret3), * r3 = reinterpret_cast<double*>(&ret4);
 			__mmask32 m = duplicate_mmask_bits_16_to_32(mask);
 			for (int i = 0; i < 16; i += 4)
 			{
-				__m128 v0 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2), fp + uind[i]));
-				__m128 v1 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 2), fp + uind[i + 1]));
-				__m128 v2 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 4), fp + uind[i + 2]));
-				__m128 v3 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 6), fp + uind[i + 3]));
+				__m128 v0 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2), fp + uind[i])); //abcd0
+				__m128 v1 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 2), fp + uind[i + 1])); //abcd1
+				__m128 v2 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 4), fp + uind[i + 2])); //abcd2
+				__m128 v3 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 6), fp + uind[i + 3])); //abcd3
 
-				_mm_storeu_ps(&r0[i], v0); //r0 = abcd0,abcd4,abcd8,abcd12
-				_mm_storeu_ps(&r1[i], v1); //r1 = abcd1,abcd5,abcd9,abcd13
-				_mm_storeu_ps(&r2[i], v2); //r2 = abcd2,abcd6,abcd10,abcd14
-				_mm_storeu_ps(&r3[i], v3); //r3 = abcd3,abcd7,abcd11,abcd15
+				__m128 aabb01 = _mm_unpacklo_ps(v0, v1);
+				__m128 aabb23 = _mm_unpacklo_ps(v2, v3);
+				__m128 ccdd01 = _mm_unpackhi_ps(v0, v1);
+				__m128 ccdd23 = _mm_unpackhi_ps(v2, v3);
+				_mm_storeu_pd(r0+i/2, _mm_unpacklo_pd(_mm_castps_pd(aabb01), _mm_castps_pd(aabb23)));
+				_mm_storeu_pd(r1+i/2, _mm_unpackhi_pd(_mm_castps_pd(aabb01), _mm_castps_pd(aabb23)));
+				_mm_storeu_pd(r2+i/2, _mm_unpacklo_pd(_mm_castps_pd(ccdd01), _mm_castps_pd(ccdd23)));
+				_mm_storeu_pd(r3+i/2, _mm_unpackhi_pd(_mm_castps_pd(ccdd01), _mm_castps_pd(ccdd23)));
 			}
-
-			__m512 aabb01 = _mm512_unpacklo_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-			__m512 aabb23 = _mm512_unpacklo_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-			__m512 ccdd01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-			__m512 ccdd23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-			_mm512_storeu_pd(&ret1, _mm512_unpacklo_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
-			_mm512_storeu_pd(&ret2, _mm512_unpackhi_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
-			_mm512_storeu_pd(&ret3, _mm512_unpacklo_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
-			_mm512_storeu_pd(&ret4, _mm512_unpackhi_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
 		}
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
