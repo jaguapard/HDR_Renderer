@@ -92,6 +92,7 @@ private:
 	struct PixelStageInput
 	{
 		int32x16 progenitorTriangleIndices;
+		int32x16 diffuseMapIndices;
 		const Rasterizing::DrawCommand* cmd;
 		const VertexStageOutput* vertexStageOutput;
 		float my_xMin, my_yMin, my_xMax, my_yMax;
