@@ -178,12 +178,7 @@ namespace Rasterizing
 		//loads and returns vertex indices for 16 sequential triangles, starting from startInd. Masked off elements values are not defined
 		__forceinline void loadVertexAndDiffuseMapIndices16(uint32_t startInd, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
 		{
-			//TODO: the linear case can be optimized further
-			this->gatherVertexAndDiffuseMapIndices(int32x16::sequence() + startInd, mask, retVind0, retVind1, retVind2, retDiffMapInd);
-			/*
-			
 			const uint32_t* p = this->vind_diffuseInd.data() + startInd * 4;
-			startInd *= 4;
 
 			__mmask64 m = duplicate_mmask_bits_16_to_64(mask);
 			int32x16 r0 = _mm512_maskz_loadu_epi32(m, p); //v0v1v2di for triangles 0,1,2,3
@@ -191,9 +186,16 @@ namespace Rasterizing
 			int32x16 r2 = _mm512_maskz_loadu_epi32(m >> 32, p+32);  //v0v1v2di for triangles 8,9,10,11
 			int32x16 r3 = _mm512_maskz_loadu_epi32(m >> 48, p+48);  //v0v1v2di for triangles 12,13,14,15
 
-			int32x16 v0v1v0v1_01 = _mm512_unpacklo_epi32(r0, r1); //v0v1 for 8 triangles: 0,4,1,5,2,6,3,7
-			int32x16 v0v1v0v1_23 = _mm512_unpacklo_epi32(r2, r3); //v0v1 for 8 triangles: 8,12,9,13,10,14,11,15
-			retVind0 = _mm512_permutex2var_epi32(v0v1v0v1_01, int32x16(0,2,))*/
+			int32x16 v0v1_v0v1_x = _mm512_unpacklo_epi32(r0, r1); //v0_0, v0_4, v1_0, v1_4 | v0_1, v0_5, v1_1, v1_5 | v0_2, v0_6, v1_2, v1_6 | v0_3, v0_7, v1_3, v1_3 | 
+			int32x16 v0v1_v0v1_y = _mm512_unpacklo_epi32(r2, r3); //v0v1 for 8 triangles: 8,12,9,13,10,14,11,15
+			int32x16 v2di_v2di_x = _mm512_unpackhi_epi32(r0, r1); //v2di for 8 triangles: 0,4,1,5,2,6,3,7
+			int32x16 v2di_v2di_y = _mm512_unpackhi_epi32(r2, r3); //v2di for 8 triangles: 8,12,9,13,10,14,11,15
+			//int32x16 a = _mm512_unpacklo_epi32(v0v1v0v1_x, v0v1v0v1_y); //v0_0, v0_8, v1_0, v1_8 | v0_4, v0_12 v1_4, v1_12, etc
+			//WRONG a = _mm512_unpacklo_epi64(v0v1v0v1_x, v0v1v0v1_y); //v0_0, v0_8, v0_4, v0_12, v0_1, v0_9, etc
+			retVind0 = _mm512_permutex2var_epi32(v0v1_v0v1_x, int32x16(0, 4, 8, 12, 1, 5, 9, 13, 16, 20, 24, 28, 17, 21, 25, 29), v0v1_v0v1_y);
+			retVind1 = _mm512_permutex2var_epi32(v0v1_v0v1_x, int32x16(0, 4, 8, 12, 1, 5, 9, 13, 16, 20, 24, 28, 17, 21, 25, 29)+2, v0v1_v0v1_y);
+			retVind2 = _mm512_permutex2var_epi32(v2di_v2di_x, int32x16(0, 4, 8, 12, 1, 5, 9, 13, 16, 20, 24, 28, 17, 21, 25, 29), v2di_v2di_y);
+			retDiffMapInd = _mm512_permutex2var_epi32(v2di_v2di_x, int32x16(0, 4, 8, 12, 1, 5, 9, 13, 16, 20, 24, 28, 17, 21, 25, 29)+2, v2di_v2di_y);
 		}
 	private:
 		std::vector<uint32_t> vind_diffuseInd;
