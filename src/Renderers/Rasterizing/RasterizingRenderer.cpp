@@ -341,10 +341,6 @@ void RasterizingRenderer::processMailbox(uint32_t threadIndex)
 			pack.diffuseMapIndices = _mm512_loadu_epi32(b->diffuseMapIndices.data() + i);
 			pack.drawCmdIndices = _mm512_loadu_epi32(b->drawCmdIndices.data() + i);
 			pack.triangleIndices = _mm512_loadu_epi32(b->triangleIndices.data() + i);
-			pack.maxX = _mm512_loadu_ps(b->maxX.data() + i);
-			pack.maxY = _mm512_loadu_ps(b->maxY.data() + i);
-			pack.minX = _mm512_loadu_ps(b->minX.data() + i);
-			pack.minY = _mm512_loadu_ps(b->minY.data() + i);
 			pack.rcpSignedArea = _mm512_loadu_ps(b->rcpSignedArea.data() + i);
 			for (int j = 0; j < 3; ++j)
 			{
@@ -590,10 +586,6 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 						pack.diffuseMapIndices = diffuseMapIndices;
 						pack.drawCmdIndices = cmdIndex;
 						pack.triangleIndices = triangleIndices;
-						pack.maxX = maxX;
-						pack.maxY = maxY;
-						pack.minX = minX;
-						pack.minY = minY;
 						pack.rcpSignedArea = rcpSignedArea;
 						for (int j = 0; j < 3; ++j)
 						{
@@ -623,10 +615,6 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 							_mm512_storeu_ps(peerBatch.zDividedU[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].u));
 							_mm512_storeu_ps(peerBatch.zDividedV[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].v));
 						}
-						_mm512_storeu_ps(peerBatch.minX.data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, minX));
-						_mm512_storeu_ps(peerBatch.maxX.data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, maxX));
-						_mm512_storeu_ps(peerBatch.minY.data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, minY));
-						_mm512_storeu_ps(peerBatch.maxY.data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, maxY));
 						_mm512_storeu_ps(peerBatch.rcpSignedArea.data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, rcpSignedArea));
 						_mm512_storeu_epi32(peerBatch.diffuseMapIndices.data() + storeIndex, _mm512_maskz_compress_epi32(trianglesForThreadI, diffuseMapIndices));
 						_mm512_storeu_epi32(peerBatch.triangleIndices.data() + storeIndex, _mm512_maskz_compress_epi32(trianglesForThreadI, triangleIndices));
@@ -737,10 +725,18 @@ void RasterizingRenderer::drawTrianglePack(const TrianglePack16& pack, const uin
 	float32x16 my_yMax = _mm512_ceil_ps(fRenderH / threadCount * (threadIndex + 1));
 	my_yMax = _mm512_min_ps(my_yMax, fRenderH - 1);
 
-	float32x16 group_xBeg = _mm512_max_ps((my_xMin), pack.minX);
-	float32x16 group_yBeg = _mm512_max_ps((my_yMin), pack.minY);
-	float32x16 group_xEnd = _mm512_min_ps((my_xMax), pack.maxX);
-	float32x16 group_yEnd = _mm512_min_ps((my_yMax), pack.maxY);
+	float32x16 minX = INFINITY, minY = INFINITY, maxX = -INFINITY, maxY = -INFINITY;
+	for (int i = 0; i < 3; ++i)
+	{
+		minX = _mm512_min_ps(minX, pack.vertices[i].space.x);
+		minY = _mm512_min_ps(minY, pack.vertices[i].space.y);
+		maxY = _mm512_max_ps(maxY, pack.vertices[i].space.y);
+		maxX = _mm512_max_ps(maxX, pack.vertices[i].space.x);
+	}
+	float32x16 group_xBeg = _mm512_max_ps((my_xMin), _mm512_floor_ps(minX));
+	float32x16 group_yBeg = _mm512_max_ps((my_yMin), _mm512_floor_ps(minY));
+	float32x16 group_xEnd = _mm512_min_ps((my_xMax), _mm512_ceil_ps(maxX));
+	float32x16 group_yEnd = _mm512_min_ps((my_yMax), _mm512_ceil_ps(maxY));
 	const VertexPack16& v0 = pack.vertices[0];
 	const VertexPack16& v1 = pack.vertices[1];
 	const VertexPack16& v2 = pack.vertices[2];
