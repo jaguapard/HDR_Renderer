@@ -106,20 +106,27 @@ namespace Rasterizing
 		void clear();
 		void reserve(size_t newSize);
 
-		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
+		//Gathers 16 packed 4-tuples of attributes from p using mask, and transposes them into 4 SoA vectors.
+		//ret[i][j] = mask[j] ? (float*)(p)[ind[j]*4+i]
+		//Example: p stores 4x4 byte attributes x,y,z,w in 16-byte packs. Packs at index ind[i] are fetched and transposed into output vectors:
+		//retFirst[i] = x[i], retSecond[i] = y[i], retThird[i] = z[i], retFourth[i] = w[i]
+		//Requirements: each output element must be 64-bytes wide. All masked elements are in bounds of p (sizeof(*p) >= 16*max(ind))
+		//Values of unmasked lanes are undefined, but they are guaranteed to not be accessed in memory
+		template <typename A, typename B, typename C, typename D>
+		requires (sizeof(A) == 64 && sizeof(B) == 64 && sizeof(C) == 64 && sizeof(D) == 64)
+		__forceinline void masked_16x4aos_to_4x16soa_gather_and_transpose(int32x16 ind, Mask16 mask, const void* p, A& retFirst, B& retSecond, C& retThird, D& retFourth) const
 		{
 			ind *= 4;
-			float32x16 src = 0.f;
 			float r0[16], r1[16], r2[16], r3[16];
 			uint32_t* rawIndUnsigned = (uint32_t*)&ind;
-			const float* p = this->xyzp.data();
+			const float* fp = (const float*)p;
 			__mmask32 m = duplicate_mmask_bits_16_to_32(mask);
 			for (int i = 0; i < 16; i += 4)
 			{
-				__m128 v0 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2), p + rawIndUnsigned[i]));
-				__m128 v1 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 2), p + rawIndUnsigned[i + 1]));
-				__m128 v2 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 4), p + rawIndUnsigned[i + 2]));
-				__m128 v3 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 6), p + rawIndUnsigned[i + 3]));
+				__m128 v0 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2), fp + rawIndUnsigned[i]));
+				__m128 v1 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 2), fp + rawIndUnsigned[i + 1]));
+				__m128 v2 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 4), fp + rawIndUnsigned[i + 2]));
+				__m128 v3 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 6), fp + rawIndUnsigned[i + 3]));
 
 				//__m128 x0x1y0y1 = _mm_unpacklo_ps(v0, v1);
 				//__m128 x2x3y2y3 = _mm_unpacklo_ps(v2, v3);
@@ -134,10 +141,15 @@ namespace Rasterizing
 			__m512 xxyy23 = _mm512_unpacklo_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
 			__m512 zzpp01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
 			__m512 zzpp23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-			retXYZ.x = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
-			retXYZ.y = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
-			retXYZ.z = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
-			__m512 pppp = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
+			_mm512_storeu_pd(&retFirst, _mm512_unpacklo_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
+			_mm512_storeu_pd(&retSecond, _mm512_unpackhi_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
+			_mm512_storeu_pd(&retThird, _mm512_unpacklo_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
+			_mm512_storeu_pd(&retFourth, _mm512_unpackhi_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
+		}
+		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
+		{
+			__m512 pppp;
+			masked_16x4aos_to_4x16soa_gather_and_transpose(ind, mask, this->xyzp.data(), retXYZ.x, retXYZ.y, retXYZ.z, pppp);
 			interleaved_ph_to_ps(_mm512_castps_si512(pppp), retU, retV);
 			/*
 			for (int i = 0; i < 4; ++i)
