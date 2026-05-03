@@ -6,7 +6,7 @@
 #include "RenderJobStore.h"
 #include <map>
 #include "BufferZoneManager.h"
-
+#include "../../helpers.h"
 namespace Rasterizing
 {
 	enum class ShadingMode
@@ -108,36 +108,8 @@ namespace Rasterizing
 
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
-			ind *= 4;
-			float32x16 src = 0.f;
-			float r0[16], r1[16], r2[16], r3[16];
-			uint32_t* rawIndUnsigned = (uint32_t*)&ind;
-			const float* p = this->xyzp.data();
-			__mmask32 m = duplicate_mmask_bits_16_to_32(mask);
-			for (int i = 0; i < 16; i += 4)
-			{
-				__m128 v0 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2), p + rawIndUnsigned[i]));
-				__m128 v1 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 2), p + rawIndUnsigned[i + 1]));
-				__m128 v2 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 4), p + rawIndUnsigned[i + 2]));
-				__m128 v3 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 6), p + rawIndUnsigned[i + 3]));
-
-				//__m128 x0x1y0y1 = _mm_unpacklo_ps(v0, v1);
-				//__m128 x2x3y2y3 = _mm_unpacklo_ps(v2, v3);
-				//__m128 x0_4 = _mm_shuffle_ps(x0x1y0y1, x2x3y2y3, _MM_SHUFFLE(1, 0, 1, 0));
-				_mm_storeu_ps(&r0[i], v0); //r0 = xyzp0,xyzp4,xyzp8,xyzp12
-				_mm_storeu_ps(&r1[i], v1); //r1 = xyzp1,xyzp5,xyzp9,xyzp13
-				_mm_storeu_ps(&r2[i], v2); //r2 = xyzp2,xyzp6,xyzp10,xyzp14
-				_mm_storeu_ps(&r3[i], v3); //r3 = xyzp3,xyzp7,xyzp11,xyzp15
-			}
-
-			__m512 xxyy01 = _mm512_unpacklo_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-			__m512 xxyy23 = _mm512_unpacklo_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-			__m512 zzpp01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-			__m512 zzpp23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-			retXYZ.x = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
-			retXYZ.y = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
-			retXYZ.z = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
-			__m512 pppp = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
+			__m512 pppp;
+			masked_16x4aos_to_4x16soa_gather_and_transpose(ind, mask, this->xyzp.data(), retXYZ.x, retXYZ.y, retXYZ.z, pppp);
 			interleaved_ph_to_ps(_mm512_castps_si512(pppp), retU, retV);
 			/*
 			for (int i = 0; i < 4; ++i)
