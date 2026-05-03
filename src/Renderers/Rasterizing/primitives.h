@@ -161,11 +161,41 @@ namespace Rasterizing
 	};
 	struct TriangleStore
 	{
-		std::vector<uint32_t> vertInd[3];
-		std::vector<int> diffuseMapIndex, modelIndex;
+		void insert(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t diffuseMapIndex, uint32_t modelIndex, ModelFlags modelFlags);
+		void insert(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t diffuseMapIndex);
+		void setDiffuseMapIndex(uint32_t triangleIndex, uint32_t diffuseMapIndex);
+		uint32_t getDiffuseMapIndex(uint32_t triangleIndex);
+		std::vector<int> modelIndex;
 		std::vector<ModelFlags> modelFlags;
 		size_t size() const;
 		void clear();
 		//std::vector<uint32_t> modelInd;
+		
+		__forceinline void gatherVertexAndDiffuseMapIndices(int32x16 ind, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
+		{
+			masked_16x4aos_to_4x16soa_gather_and_transpose(ind, mask, this->vind_diffuseInd.data(), retVind0, retVind1, retVind2, retDiffMapInd);
+		}
+		//loads and returns vertex indices for 16 sequential triangles, starting from startInd. Masked off elements values are not defined
+		__forceinline void loadVertexAndDiffuseMapIndices16(uint32_t startInd, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
+		{
+			//TODO: the linear case can be optimized further
+			this->gatherVertexAndDiffuseMapIndices(int32x16::sequence() + startInd, mask, retVind0, retVind1, retVind2, retDiffMapInd);
+			/*
+			
+			const uint32_t* p = this->vind_diffuseInd.data() + startInd * 4;
+			startInd *= 4;
+
+			__mmask64 m = duplicate_mmask_bits_16_to_64(mask);
+			int32x16 r0 = _mm512_maskz_loadu_epi32(m, p); //v0v1v2di for triangles 0,1,2,3
+			int32x16 r1 = _mm512_maskz_loadu_epi32(m >> 16, p+16); //v0v1v2di for triangles 4,5,6,7
+			int32x16 r2 = _mm512_maskz_loadu_epi32(m >> 32, p+32);  //v0v1v2di for triangles 8,9,10,11
+			int32x16 r3 = _mm512_maskz_loadu_epi32(m >> 48, p+48);  //v0v1v2di for triangles 12,13,14,15
+
+			int32x16 v0v1v0v1_01 = _mm512_unpacklo_epi32(r0, r1); //v0v1 for 8 triangles: 0,4,1,5,2,6,3,7
+			int32x16 v0v1v0v1_23 = _mm512_unpacklo_epi32(r2, r3); //v0v1 for 8 triangles: 8,12,9,13,10,14,11,15
+			retVind0 = _mm512_permutex2var_epi32(v0v1v0v1_01, int32x16(0,2,))*/
+		}
+	private:
+		std::vector<uint32_t> vind_diffuseInd;
 	};
 }
