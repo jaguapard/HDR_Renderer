@@ -225,7 +225,7 @@ void Threadpool::workerRoutine(size_t myNumber)
 
 std::pair<double, double> Threadpool::getLimitsForThread(size_t threadIndex, double min, double max, size_t threadCount) const
 {
-	assert(min >= max);
+	assert(min <= max);
 	size_t nThreads = threadCount ? threadCount : this->getWorkerCount();
 	double minLimit = lerp(min, max, double(threadIndex) / nThreads);
 	double maxLimit = lerp(min, max, double(threadIndex + 1) / nThreads);
