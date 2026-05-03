@@ -90,7 +90,7 @@ __forceinline __mmask64 duplicate_mmask_bits_16_to_64(__mmask16 m)
 //Returns 32 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 001122...dd
 __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
 {
-	__m256i a = _mm256_movm_epi32(m);
+	__m256i a = _mm256_movm_epi16(m);
 	return _mm256_movepi8_mask(a);
 	//return _mm512_cmpeq_epi8_mask(a, _mm512_setzero_si512());
 }
