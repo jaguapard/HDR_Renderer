@@ -341,7 +341,6 @@ void RasterizingRenderer::processMailbox(uint32_t threadIndex)
 			pack.diffuseMapIndices = _mm512_loadu_epi32(b->diffuseMapIndices.data() + i);
 			pack.drawCmdIndices = _mm512_loadu_epi32(b->drawCmdIndices.data() + i);
 			pack.triangleIndices = _mm512_loadu_epi32(b->triangleIndices.data() + i);
-			pack.rcpSignedArea = _mm512_loadu_ps(b->rcpSignedArea.data() + i);
 			for (int j = 0; j < 3; ++j)
 			{
 				pack.vertices[j].space.x = _mm512_loadu_ps(b->scrX[j].data() + i);
@@ -586,7 +585,6 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 						pack.diffuseMapIndices = diffuseMapIndices;
 						pack.drawCmdIndices = cmdIndex;
 						pack.triangleIndices = triangleIndices;
-						pack.rcpSignedArea = rcpSignedArea;
 						for (int j = 0; j < 3; ++j)
 						{
 							pack.vertices[j] = transformedVertices[3 * outputTriangleIndex + j];
@@ -615,7 +613,6 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 							_mm512_storeu_ps(peerBatch.zDividedU[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].u));
 							_mm512_storeu_ps(peerBatch.zDividedV[j].data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, transformedVertices[vi].v));
 						}
-						_mm512_storeu_ps(peerBatch.rcpSignedArea.data() + storeIndex, _mm512_maskz_compress_ps(trianglesForThreadI, rcpSignedArea));
 						_mm512_storeu_epi32(peerBatch.diffuseMapIndices.data() + storeIndex, _mm512_maskz_compress_epi32(trianglesForThreadI, diffuseMapIndices));
 						_mm512_storeu_epi32(peerBatch.triangleIndices.data() + storeIndex, _mm512_maskz_compress_epi32(trianglesForThreadI, triangleIndices));
 						_mm512_storeu_epi32(peerBatch.drawCmdIndices.data() + storeIndex, _mm512_maskz_compress_epi32(trianglesForThreadI, int32x16(cmdIndex)));
@@ -741,12 +738,17 @@ void RasterizingRenderer::drawTrianglePack(const TrianglePack16& pack, const uin
 	const VertexPack16& v1 = pack.vertices[1];
 	const VertexPack16& v2 = pack.vertices[2];
 
+	const Vec4_f32x16& r1 = v0.space;
+	const Vec4_f32x16& r2 = v1.space;
+	const Vec4_f32x16& r3 = v2.space;
+	float32x16 rcpSignedArea = float32x16(1)/(r1 - r3).cross2d(r2 - r3);
+
 	float32x16 group_initialAlpha, group_initialBeta, group_initialGamma;
-	calculateBarycentricCoordinates2D({ group_xBeg, group_yBeg, 0.f, 0.f }, v0.space, v1.space, v2.space, pack.rcpSignedArea, group_initialAlpha, group_initialBeta, group_initialGamma);
-	float32x16 group_dAlpha_dx = (v1.space.y - v2.space.y) * pack.rcpSignedArea;
-	float32x16 group_dAlpha_dy = (v2.space.x - v1.space.x) * pack.rcpSignedArea;
-	float32x16 group_dBeta_dx = (v2.space.y - v0.space.y) * pack.rcpSignedArea;
-	float32x16 group_dBeta_dy = (v0.space.x - v2.space.x) * pack.rcpSignedArea;
+	calculateBarycentricCoordinates2D({ group_xBeg, group_yBeg, 0.f, 0.f }, v0.space, v1.space, v2.space, rcpSignedArea, group_initialAlpha, group_initialBeta, group_initialGamma);
+	float32x16 group_dAlpha_dx = (v1.space.y - v2.space.y) * rcpSignedArea;
+	float32x16 group_dAlpha_dy = (v2.space.x - v1.space.x) * rcpSignedArea;
+	float32x16 group_dBeta_dx = (v2.space.y - v0.space.y) * rcpSignedArea;
+	float32x16 group_dBeta_dy = (v0.space.x - v2.space.x) * rcpSignedArea;
 	float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues!
 	float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues!
 	const int32x16& diffuseMapIndices = pack.diffuseMapIndices;

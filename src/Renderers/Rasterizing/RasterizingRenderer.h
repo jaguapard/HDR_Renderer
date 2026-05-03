@@ -44,7 +44,7 @@ namespace Rasterizing
 		static inline constexpr int BATCH_ALLOCATE_SIZE = MAX_BATCH_SIZE + 32; //to not bother about OOB, overprovision slightly
 
 		uint32_t batchSize = 0;
-		std::array<float, BATCH_ALLOCATE_SIZE> rcpSignedArea;
+		//std::array<float, BATCH_ALLOCATE_SIZE> rcpSignedArea;
 		std::array<std::array<float, BATCH_ALLOCATE_SIZE>, 3> scrX, scrY, rcpZ, zDividedU, zDividedV;
 		std::array<uint32_t, BATCH_ALLOCATE_SIZE> diffuseMapIndices, drawCmdIndices, triangleIndices;
 		
@@ -139,7 +139,6 @@ private:
 	struct TrianglePack16
 	{
 		std::array<Rasterizing::VertexPack16, 3> vertices;
-		float32x16 rcpSignedArea;
 		int32x16 diffuseMapIndices, drawCmdIndices, triangleIndices;
 		Mask16 activeTrianges = 0;
 	};
