@@ -176,8 +176,8 @@ int main(int argc, char* argv[])
 
         constexpr int DOWNSCALE_MULT = 100;
 #ifdef NDEBUG
-        texDesc.Width = w/10;
-        texDesc.Height = h/10;
+        texDesc.Width = w/40;
+        texDesc.Height = h/40;
 #else
         texDesc.Width = w/DOWNSCALE_MULT;
         texDesc.Height = h/DOWNSCALE_MULT;
