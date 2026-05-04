@@ -384,13 +384,13 @@ std::pair<float, float> RayCasting::BoundingBox::getMinAndMaxIntestionsFor(Vec4f
 
 Mask16 RayCasting::BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigins, Vec4_f32x16 rcpRayDirs, float32x16& ret_tMin, float32x16& ret_tMax) const
 {
-	float32x16 tx1 = (float32x16(this->xmin) - rayOrigins.x);
-	float32x16 ty1 = (float32x16(this->ymin) - rayOrigins.y);
-	float32x16 tz1 = (float32x16(this->zmin) - rayOrigins.z);
+	float32x16 tx1 = (float32x16(this->xmin) - rayOrigins.x) * rcpRayDirs.x;
+	float32x16 ty1 = (float32x16(this->ymin) - rayOrigins.y) * rcpRayDirs.y;
+	float32x16 tz1 = (float32x16(this->zmin) - rayOrigins.z) * rcpRayDirs.z;
 
-	float32x16 tx2 = (float32x16(this->xmax) - rayOrigins.x);
-	float32x16 ty2 = (float32x16(this->ymax) - rayOrigins.y);
-	float32x16 tz2 = (float32x16(this->zmax) - rayOrigins.z);
+	float32x16 tx2 = (float32x16(this->xmax) - rayOrigins.x) * rcpRayDirs.x;
+	float32x16 ty2 = (float32x16(this->ymax) - rayOrigins.y) * rcpRayDirs.y;
+	float32x16 tz2 = (float32x16(this->zmax) - rayOrigins.z) * rcpRayDirs.z;
 	
 	float32x16 tmin_x = _mm512_min_ps(tx1, tx2);
 	float32x16 tmin_y = _mm512_min_ps(ty1, ty2);
