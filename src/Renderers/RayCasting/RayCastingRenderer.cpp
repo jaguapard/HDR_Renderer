@@ -138,8 +138,8 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	Threadpool::Task tsk;
 	for (int y = 0; y < bufH; ++y)
 	{
-		tsk.func = [&, y]() {
-			std::vector<OctreeNode*> stack(2048);
+		tsk.func = [&, this, y]() {
+			std::array<OctreeNode*, 2048> stack;
 			for (int x = 0; x < bufW; ++x)
 			{
 				float progressX = x / float(bufH);
