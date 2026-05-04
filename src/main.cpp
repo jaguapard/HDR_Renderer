@@ -174,10 +174,10 @@ int main(int argc, char* argv[])
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
 
-        constexpr int DOWNSCALE_MULT = 10;
+        constexpr int DOWNSCALE_MULT = 100;
 #ifdef NDEBUG
-        texDesc.Width = w;
-        texDesc.Height = h;
+        texDesc.Width = w/10;
+        texDesc.Height = h/10;
 #else
         texDesc.Width = w/DOWNSCALE_MULT;
         texDesc.Height = h/DOWNSCALE_MULT;
@@ -223,7 +223,7 @@ int main(int argc, char* argv[])
         uint64_t frameCounter = 0, oldFrameCounter = 0;
         uint64_t ticksOnStart = SDL_GetTicks();
 
-        std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RasterizingRenderer>();
+        std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RayCastingRenderer>();
         RendererLoadSceneData oldSponza, newSponza;
         oldSponza.files = { { "H:/Sponza goodies/old_sponza/old_sponza.obj", "obj" } };
         /*newSponza.files = {{"H:/Sponza goodies/main1_sponza/NewSponza_Main_Yup_003.fbx", ""},
@@ -277,7 +277,7 @@ int main(int argc, char* argv[])
             if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
             {
                 RendererLoadSceneData loadSceneData = inp.wasCharPressedOnThisFrame('0') ? newSponza : oldSponza;
-                currentRenderer = std::make_shared<RasterizingRenderer>();
+                currentRenderer = std::make_shared<RayCastingRenderer>();
                 currentRenderer->loadScene(loadSceneData);
             }
 
