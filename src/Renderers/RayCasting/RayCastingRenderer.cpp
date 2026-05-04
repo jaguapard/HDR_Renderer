@@ -226,7 +226,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				}
 				pixelColor.w = 1;
 				size_t xInt = x[0];
-				mask_store_vec4_f32x16_to_framebuffer(pixelColor, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, raysHit);
+				mask_store_vec4_f32x16_to_framebuffer(pixelColor, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, bounds);
 			}
 		};
 		tasks.emplace_back(settings.threadpool->addTask(tsk));
