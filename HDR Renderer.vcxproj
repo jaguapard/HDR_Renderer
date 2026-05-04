@@ -419,6 +419,7 @@
     <ClInclude Include="src\Renderers\Rasterizing\ColorPixelBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\CoordinateTransformer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\primitives.h" />
+    <ClInclude Include="src\Renderers\Rasterizing\RasterizingBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\RasterizingRenderer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\RenderJobStore.h" />
     <ClInclude Include="src\Renderers\Rasterizing\TextureManager.h" />

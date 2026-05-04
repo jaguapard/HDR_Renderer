@@ -7,6 +7,8 @@
 #include "../../helpers.h"
 #include "RenderJobStore.h"
 #include "primitives.h"
+#include "RasterizingBuffer.h"
+
 namespace Rasterizing
 {
 	
