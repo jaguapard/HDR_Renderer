@@ -54,13 +54,15 @@ private:
 
 	std::vector<Rasterizing::DrawCommand> drawCommands;
 
+	Rasterizing::Buffer<float> depthBufMain, depthBufShadowMap;
+	Rasterizing::Buffer<uint64_t> frameBuf;
+	Rasterizing::Buffer<uint32_t> triangleIndexBuf;
+
 	std::vector<uint8_t> postTransformationsActiveMasks;
 	const GameSettings* currGs;
 
 	void joinMainWithShadowMap(int threadIndex);
 
-	std::vector<float> zBuffer, shadowMap_zBuffer;
-	std::vector<uint32_t> deferredTriangleIndices;
 	std::array<std::vector<Rasterizing::TriangleIndexStore>, 2> trianglesByZones;
 	
 
