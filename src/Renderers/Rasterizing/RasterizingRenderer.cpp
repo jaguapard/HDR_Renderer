@@ -227,20 +227,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		transformTasks.emplace_back(threadpool->addTask(tsk));
 	}
 
-	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
-	this->depthBufMain.clear();
-	if (this->shadowMapEnabled)
-	{
-		this->depthBufShadowMap.clear();
-	}
-	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
-	this->frameBuf.clear();
-	uint64_t framebufCleanTicks = SDL_GetTicksNS();
-	this->triangleIndexBuf.clear();
-
-	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
-	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
-
 	tsk.dependencies = transformTasks;
 
 	size_t renderJobCount = 0;
@@ -550,6 +536,11 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 
 void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
+	this->frameBuf.clearThreadZone(threadIndex);
+	this->depthBufMain.clearThreadZone(threadIndex);
+	this->triangleIndexBuf.clearThreadZone(threadIndex);
+	if (this->shadowMapEnabled) this->depthBufShadowMap.clearThreadZone(threadIndex);
+
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
 	int threadCount = this->currGs->threadpool->getWorkerCount();
