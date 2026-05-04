@@ -48,6 +48,47 @@ float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f 
 	else // This means that there is a line intersection but not a ray intersection.
 		return INFINITY;
 }
+
+//Checks 16 rays for intersection with 1 triangle, returning mask of rays hitting the triangle.
+//Intersection T is written out retT. The values of T are undefined for non-intersecting rays
+//https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x16& retT)
+{
+	constexpr float epsilon = std::numeric_limits<float>::epsilon();
+	constexpr float eps = std::numeric_limits<float>::epsilon();
+
+	Vec4_f32x16 edge1 = triB - triA;
+	Vec4_f32x16 edge2 = triC - triA;
+
+	// Backface culling, assuming CCW-wound triangles.
+	//const Vec4f normal = edge1.cross3d(edge2); // No need to normalize
+	//if (normal.dot3d(rayDir) > 0) return INFINITY;
+
+	Vec4_f32x16 ray_cross_e2 = rayDirs.cross3d(edge2);
+	float32x16 det = edge1.dot3d(ray_cross_e2);
+
+	Mask16 intersectingTriangles = float32x16(_mm512_abs_ps(det)) >= eps;
+	if (!intersectingTriangles) return 0; // Ray is parallel to triangle
+
+	float32x16 inv_det = float32x16(1.f) / det;
+	Vec4_f32x16 s = rayOrigins - triA;
+	float32x16 u = inv_det * s.dot3d(ray_cross_e2);
+
+	intersectingTriangles &= u >= -eps & (u - 1) <= eps;
+	if (!intersectingTriangles) return 0; // Ray passes outside edge2's bounds
+
+	Vec4_f32x16 s_cross_e1 = s.cross3d(edge1);
+	float32x16 v = inv_det * rayDirs.dot3d(s_cross_e1);
+	intersectingTriangles &= (v >= -eps) & (u + v - 1) <= eps; 
+	if (!intersectingTriangles) return 0; // Ray passes outside edge1's bounds
+
+	// The ray line intersects with the triangle.
+	// We compute t to find where on the ray the intersection is.
+	// t < epsilon means that there is a line intersection but not a ray intersection.
+	float32x16 t = inv_det * edge2.dot3d(s_cross_e1);
+	retT = t;
+	return intersectingTriangles & t > epsilon; // Ray intersection
+}
 void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 {
 	AssetLoader ldr;
