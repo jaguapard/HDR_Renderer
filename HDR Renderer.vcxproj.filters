@@ -161,5 +161,8 @@
     <ClInclude Include="src\Renderers\Rasterizing\BufferZoneManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Renderers\Rasterizing\RasterizingBuffer.h">
+      <Filter>Header Files\Renderers</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

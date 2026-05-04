@@ -135,8 +135,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		const_cast<GameSettings*>(this->currGs)->camAng = { 0.000000, -2.604962, 0.182000, 0.000000 };
 		this->singleTriangleDebugMode = false;
 	}
-	int mainBufSize = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
-	this->zBuffer.resize(mainBufSize);
+
+	
 #ifdef NDEBUG
 	int shadowMapW = 512*3;
 	int shadowMapH = 288*3;
@@ -144,8 +144,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	int shadowMapW = 51;
 	int shadowMapH = 28;
 #endif
-	this->deferredTriangleIndices.resize(mainBufSize);
-	
 	C_Input& inp = C_Input::getInstance();
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
 	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
@@ -167,14 +165,18 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	int w = (int)settings.outputTextureParams.Width;
 	int h = (int)settings.outputTextureParams.Height;
+	uint64_t skyColorFP16 = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_NO_EXC), 0);
+	this->depthBufMain.resize(w, h);
+	this->triangleIndexBuf.resize(w, h);
+	this->frameBuf = Buffer<uint64_t>((uint64_t*)this->currGs->graphicsOutputBuffer, w, h, skyColorFP16);
 	this->drawCommands.clear();
+	this->depthBufMain.clearValue = this->depthBufShadowMap.clearValue = -INFINITY;
+	this->triangleIndexBuf.clearValue = -1;
+
 	DrawCommand& mainDrawCmd = this->drawCommands.emplace_back();
 	mainDrawCmd.ctr = { w,h }; 
 	mainDrawCmd.ctr.prepare(settings.camPos, settings.camAng);
 	mainDrawCmd.shadingMode = this->shadingMode;
-	mainDrawCmd.buffers.emplace_back(this->zBuffer.data(), w, h);
-	mainDrawCmd.buffers.emplace_back(this->currGs->graphicsOutputBuffer, w, h);
-	mainDrawCmd.buffers.emplace_back(this->deferredTriangleIndices.data(), w, h);
 	mainDrawCmd.needsUVs = true;
 	mainDrawCmd.needsNormals = false;
 	mainDrawCmd.faceCullingType = this->faceCullingType;
@@ -187,7 +189,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	if (this->shadowMapEnabled)
 	{
-		this->shadowMap_zBuffer.resize(shadowMapW * shadowMapH);
+		this->depthBufShadowMap.resize(shadowMapW, shadowMapH);
 		DrawCommand& shadowMapDrawCmd = this->drawCommands.emplace_back();
 		shadowMapDrawCmd.ctr = { (int)shadowMapW, (int)shadowMapH };
 		shadowMapDrawCmd.ctr.prepare(Vec4f(1281.845703, 2235.967773, 178.236572, 0.000000), Vec4f(0.000000, 4.523108, 0.797002, 0.000000));
@@ -198,7 +200,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		shadowMapDrawCmd.trianglesToZones = &this->trianglesByZones[1];
 		shadowMapDrawCmd.renderW = shadowMapW; //TODO: transformer has W and H already, infer it?
 		shadowMapDrawCmd.renderH = shadowMapH;
-		shadowMapDrawCmd.buffers.emplace_back(this->shadowMap_zBuffer.data(), shadowMapW, shadowMapH);
 		shadowMapDrawCmd.needsUVs = true;
 		shadowMapDrawCmd.needsNormals = false;
 		shadowMapDrawCmd.faceCullingType = this->useShadowMapFrontFaceCulling ? FaceCullingType::FRONTFACE : FaceCullingType::NONE; //FaceCullingType::FRONT
@@ -225,24 +226,6 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		};
 		transformTasks.emplace_back(threadpool->addTask(tsk));
 	}
-
-	uint64_t bufCleanTicksBegin = SDL_GetTicksNS();
-	for (auto& it : zBuffer) it = -INFINITY;
-	if (this->shadowMapEnabled)
-	{
-		for (auto& it : shadowMap_zBuffer) it = -INFINITY;
-	}
-	for (auto& it : this->deferredTriangleIndices) it = -1;
-	uint64_t zBufCleanTicks = SDL_GetTicksNS();	
-	
-	int sz = settings.outputTextureParams.Width * settings.outputTextureParams.Height;
-	uint64_t skyColor = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_NO_EXC), 0);
-	uint64_t* pp = (uint64_t*)(settings.graphicsOutputBuffer);
-	for (int i = 0; i < sz; ++i) pp[i] = skyColor;
-	uint64_t framebufCleanTicks = SDL_GetTicksNS();
-
-	Statsman::statsmenForThreads.back().time.zBufferCleanMs = (zBufCleanTicks - bufCleanTicksBegin) / 1e6;
-	Statsman::statsmenForThreads.back().time.frameBufferCleanMs = (framebufCleanTicks - zBufCleanTicks) / 1e6;
 
 	tsk.dependencies = transformTasks;
 
@@ -553,6 +536,11 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 
 void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
+	this->frameBuf.clearThreadZone(threadIndex);
+	this->depthBufMain.clearThreadZone(threadIndex);
+	this->triangleIndexBuf.clearThreadZone(threadIndex);
+	if (this->shadowMapEnabled) this->depthBufShadowMap.clearThreadZone(threadIndex);
+
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
 	int threadCount = this->currGs->threadpool->getWorkerCount();
@@ -692,8 +680,10 @@ Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int 
 void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const int threadIndex)
 {
 	const auto& drawCmd = *inp.cmd;
-	float* zBuffer = (float*)drawCmd.buffers[0].data;
-	uint64_t* frameBuffer = drawCmd.buffers.size() >= 2 ? (uint64_t*)drawCmd.buffers[1].data : nullptr;
+
+	float* zBuffer = (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS ? this->depthBufMain : this->depthBufShadowMap).get();
+	uint64_t* frameBuffer = this->frameBuf.get();
+	uint32_t* triangleIndBuf = this->triangleIndexBuf.get();
 	float my_xMin, my_xMax, my_yMin, my_yMax;
 	drawCmd.zoneManager.getLimitsForThread(threadIndex, my_xMin, my_yMin, my_xMax, my_yMax);
 	int w = drawCmd.renderW;
@@ -778,7 +768,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 
 					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 					{
-						_mm512_mask_storeu_epi32((uint32_t*)drawCmd.buffers[2].data + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]));
+						_mm512_mask_storeu_epi32(triangleIndBuf + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]));
 					}
 
 					if (Statsman::ENABLED)
@@ -849,10 +839,10 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	int w = this->drawCommands[0].renderW;
 	bool texturingEnabled = this->currGs->texturingEnabled;
 
-	float* shadowMap_zBuffer = this->shadowMapEnabled ? (float*)this->drawCommands[1].buffers[0].data : nullptr;
-	float* main_zBuffer = (float*)this->drawCommands[0].buffers[0].data;
-	float* main_frameBuffer = (float*)this->drawCommands[0].buffers[1].data;
-	uint32_t* renderJobPtrsBuffer = (uint32_t*)this->drawCommands[0].buffers[2].data;
+	float* shadowMap_zBuffer = this->shadowMapEnabled ? this->depthBufShadowMap.get() : nullptr;
+	float* main_zBuffer = this->depthBufMain.get();
+	uint64_t* main_frameBuffer = this->frameBuf.get();
+	uint32_t* renderJobPtrsBuffer = this->triangleIndexBuf.get();
 	ShadingMode shadingMode = this->drawCommands[0].shadingMode;
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{

@@ -7,6 +7,8 @@
 #include <map>
 #include "BufferZoneManager.h"
 #include "../../helpers.h"
+#include "../../Threadpool.h"
+
 namespace Rasterizing
 {
 	enum class ShadingMode
@@ -91,7 +93,6 @@ namespace Rasterizing
 		Rasterizing::ShadingMode shadingMode = Rasterizing::ShadingMode::SMOOTH;
 
 		std::vector<TriangleIndexStore>* trianglesToZones = nullptr;
-		std::vector<GenericBuffer> buffers;
 		uint32_t renderW, renderH;
 		uint32_t threadCount = -1;
 		DrawRecipe recipe;
