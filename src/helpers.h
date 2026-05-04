@@ -90,7 +90,49 @@ __forceinline __mmask64 duplicate_mmask_bits_16_to_64(__mmask16 m)
 //Returns 32 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 001122...dd
 __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
 {
-	__m256i a = _mm256_movm_epi32(m);
+	__m256i a = _mm256_movm_epi16(m);
 	return _mm256_movepi8_mask(a);
 	//return _mm512_cmpeq_epi8_mask(a, _mm512_setzero_si512());
+}
+
+//Loads 16 16-byte elements from base using mask and ind, then transposes and stores them into 4 SoA vectors.
+//If an element is masked off, it is not loaded and it's returned value is undefined.
+//A, B, C and D must be 64-byte types.
+//for i in [0,15]:
+//    if mask[i]:
+//        tmp = load contigious 16 bytes starting at byte size_t(base) + ind[i]*16
+//        ret1[i*4..i*4+3] = tmp[0..3]
+//        ret2[i*4..i*4+3] = tmp[4..7]
+//        ret3[i*4..i*4+3] = tmp[8..11]
+//        ret4[i*4..i*4+3] = tmp[12..15]
+template <typename A, typename B, typename C, typename D>
+	requires (sizeof(A) == 64 && sizeof(B) == 64 && sizeof(C) == 64 && sizeof(D) == 64)
+__forceinline void masked_16x4aos_to_4x16soa_gather_and_transpose(int32x16 ind, Mask16 mask, const void* base, A& ret1, B& ret2, C& ret3, D& ret4)
+{
+	ind *= 4;
+	float r0[16], r1[16], r2[16], r3[16];
+	uint32_t* uind = (uint32_t*)&ind;
+	const float* fp = (const float*)base;
+	__mmask32 m = duplicate_mmask_bits_16_to_32(mask);
+	for (int i = 0; i < 16; i += 4)
+	{
+		__m128 v0 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2), fp + uind[i]));
+		__m128 v1 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 2), fp + uind[i + 1]));
+		__m128 v2 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 4), fp + uind[i + 2]));
+		__m128 v3 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 6), fp + uind[i + 3]));
+
+		_mm_storeu_ps(&r0[i], v0); //r0 = abcd0,abcd4,abcd8,abcd12
+		_mm_storeu_ps(&r1[i], v1); //r1 = abcd1,abcd5,abcd9,abcd13
+		_mm_storeu_ps(&r2[i], v2); //r2 = abcd2,abcd6,abcd10,abcd14
+		_mm_storeu_ps(&r3[i], v3); //r3 = abcd3,abcd7,abcd11,abcd15
+	}
+
+	__m512 aabb01 = _mm512_unpacklo_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
+	__m512 aabb23 = _mm512_unpacklo_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
+	__m512 ccdd01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
+	__m512 ccdd23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
+	_mm512_storeu_pd(&ret1, _mm512_unpacklo_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
+	_mm512_storeu_pd(&ret2, _mm512_unpackhi_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
+	_mm512_storeu_pd(&ret3, _mm512_unpacklo_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
+	_mm512_storeu_pd(&ret4, _mm512_unpackhi_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
 }

@@ -76,7 +76,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		{
 			size_t discardedTriangles = 0;
 			Model& m = this->sceneModels.emplace_back();
-			m.globalTriangleRange.min = this->triangleStore.vertInd[0].size(); //since textures are not yet loaded, diffuseMapIndex is not filled, and triangle store size() will be wrong!
+			m.globalTriangleRange.min = this->triangleStore.size(); //since textures are not yet loaded, diffuseMapIndex is not filled, and triangle store size() will be wrong!
 			for (auto& it : loadedModels[i].triangles)
 			{
 				Vec4f v1 = { it.v[0].space.x, it.v[0].space.y, it.v[0].space.z, 0 };
@@ -88,17 +88,18 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 				{
 					++discardedTriangles; continue;
 				}
+				uint32_t vi[3];
 				for (int k = 0; k < 3; ++k)
 				{
-					uint32_t vertInd = this->vertexStore.insert(
+					vi[k] = this->vertexStore.insert(
 						it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, it.v[k].diffuseMapCoords.x, 1 - it.v[k].diffuseMapCoords.y, it.v[k].normal.x, it.v[k].normal.y, it.v[k].normal.z
 					);
 
-					this->triangleStore.vertInd[k].push_back(vertInd);
 					//TODO: clean from degenerate triangles (i.e 2 or 3 vertices same or all 3 collinear)?
 				}
+				this->triangleStore.insert(vi[0], vi[1], vi[2], -1);
 			}
-			m.globalTriangleRange.max = this->triangleStore.vertInd[0].size() - 1;
+			m.globalTriangleRange.max = this->triangleStore.size() - 1;
 			//std::cout << "Loaded " << m.triangleStore.size() << " triangles out of " << loadedModels[i].triangles.size() << " (" << discardedTriangles << " discarded) from " << path << "\n";
 		}
 
@@ -112,7 +113,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 			ModelFlags flags = noBackfaceCulling ? NO_BACKFACE_CULLING : NONE;
 			for (int j = currModel.globalTriangleRange.min; j <= currModel.globalTriangleRange.max; ++j)
 			{
-				this->triangleStore.diffuseMapIndex.push_back(diffuseMapIndices[i]);
+				this->triangleStore.setDiffuseMapIndex(j, diffuseMapIndices[i]);
 				this->triangleStore.modelFlags.push_back(flags);
 			}
 		}
@@ -300,13 +301,13 @@ void RasterizingRenderer::loadScene(bool debugScene)
 		{3,0},
 		{3,3},
 	};
+
+	uint32_t vi[3];
 	for (int k = 0; k < 3; ++k)
 	{
-		uint32_t vertInd = this->vertexStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, uvs[k].x, uvs[k].y, 1, 1, 1);
-		this->triangleStore.vertInd[k].push_back(vertInd);
+		vi[k] = this->vertexStore.insert(vertices[k].x, -vertices[k].y, vertices[k].z, uvs[k].x, uvs[k].y, 1, 1, 1);
 	}
-	this->triangleStore.diffuseMapIndex.push_back(0);
-	this->triangleStore.modelFlags.push_back(NONE);
+	this->triangleStore.insert(vi[0], vi[1], vi[2], 0, 0, ModelFlags::NONE);
 	//GS are not yet set, so this ptr is null at this time
 	this->singleTriangleDebugMode = true;
 }
@@ -467,16 +468,16 @@ void RasterizingRenderer::workerRoutine(const uint32_t threadIndex)
 			int32x16 triangleIndices = int32x16::sequence() + start;
 			Mask16 storeBounds = triangleIndices < triangleCount;
 			
-			int32x16 diffuseMapIndices = _mm512_maskz_loadu_epi32(storeBounds, this->triangleStore.diffuseMapIndex.data() + start);
+			int32x16 diffuseMapIndices, vInd[3];
+			this->triangleStore.loadVertexAndDiffuseMapIndices16(start, storeBounds, vInd[0], vInd[1], vInd[2], diffuseMapIndices);
 			if (this->skipTrianglesWithFallbackTexure) storeBounds &= diffuseMapIndices != 0;
 			if (!storeBounds) continue;
 
-			std::array<int32x16, 3> vertexIndices;
+			//std::array<int32x16, 3> vertexIndices;
 			std::array<VertexPack16, 3> originalVertices;
 			for (int i = 0; i < 3; ++i)
 			{
-				vertexIndices[i] = _mm512_maskz_loadu_epi32(storeBounds, this->triangleStore.vertInd[i].data() + start);
-				this->vertexStore.gatherXYZUV(vertexIndices[i], storeBounds, originalVertices[i].space, originalVertices[i].u, originalVertices[i].v);
+				this->vertexStore.gatherXYZUV(vInd[i], storeBounds, originalVertices[i].space, originalVertices[i].u, originalVertices[i].v);
 				originalVertices[i].space.w = 1;
 			}
 			bool UVs_loaded = true, normals_loaded = false;
@@ -886,13 +887,15 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			if (!filledPixels) continue;
 
 			VertexPack16 untransformedVerts[3];
+			int32x16 vInd[3];
+			int32x16 diffuseMapIndices;
+			this->triangleStore.gatherVertexAndDiffuseMapIndices(triangleIndices, filledPixels, vInd[0], vInd[1], vInd[2], diffuseMapIndices);
 			for (int i = 0; i < 3; ++i)
 			{
-				int32x16 vInd = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), filledPixels, triangleIndices, this->triangleStore.vertInd[i].data(), 4);
-				this->vertexStore.gatherXYZUV(vInd, filledPixels, untransformedVerts[i].space, untransformedVerts[i].u, untransformedVerts[i].v);
+				this->vertexStore.gatherXYZUV(vInd[i], filledPixels, untransformedVerts[i].space, untransformedVerts[i].u, untransformedVerts[i].v);
 				if (shadingMode == ShadingMode::SMOOTH)
 				{
-					this->vertexStore.gatherNormals(vInd, filledPixels, untransformedVerts[i].normal);
+					this->vertexStore.gatherNormals(vInd[i], filledPixels, untransformedVerts[i].normal);
 				}
 			}
 
@@ -918,7 +921,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				for (int j = 0; j < 16; ++j)
 				{
 					if (!(filledPixels.mask & (1 << j))) continue;
-					int diffuseMapIndex = this->triangleStore.diffuseMapIndex[triangleIndices[j]];
+					int diffuseMapIndex = diffuseMapIndices[j];
 					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
 					texturePixels.x[j] = pixel.x;
 					texturePixels.y[j] = pixel.y;

@@ -6,7 +6,7 @@
 #include "RenderJobStore.h"
 #include <map>
 #include "BufferZoneManager.h"
-
+#include "../../helpers.h"
 namespace Rasterizing
 {
 	enum class ShadingMode
@@ -108,36 +108,8 @@ namespace Rasterizing
 
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
-			ind *= 4;
-			float32x16 src = 0.f;
-			float r0[16], r1[16], r2[16], r3[16];
-			uint32_t* rawIndUnsigned = (uint32_t*)&ind;
-			const float* p = this->xyzp.data();
-			__mmask32 m = duplicate_mmask_bits_16_to_32(mask);
-			for (int i = 0; i < 16; i += 4)
-			{
-				__m128 v0 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2), p + rawIndUnsigned[i]));
-				__m128 v1 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 2), p + rawIndUnsigned[i + 1]));
-				__m128 v2 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 4), p + rawIndUnsigned[i + 2]));
-				__m128 v3 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 6), p + rawIndUnsigned[i + 3]));
-
-				//__m128 x0x1y0y1 = _mm_unpacklo_ps(v0, v1);
-				//__m128 x2x3y2y3 = _mm_unpacklo_ps(v2, v3);
-				//__m128 x0_4 = _mm_shuffle_ps(x0x1y0y1, x2x3y2y3, _MM_SHUFFLE(1, 0, 1, 0));
-				_mm_storeu_ps(&r0[i], v0); //r0 = xyzp0,xyzp4,xyzp8,xyzp12
-				_mm_storeu_ps(&r1[i], v1); //r1 = xyzp1,xyzp5,xyzp9,xyzp13
-				_mm_storeu_ps(&r2[i], v2); //r2 = xyzp2,xyzp6,xyzp10,xyzp14
-				_mm_storeu_ps(&r3[i], v3); //r3 = xyzp3,xyzp7,xyzp11,xyzp15
-			}
-
-			__m512 xxyy01 = _mm512_unpacklo_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-			__m512 xxyy23 = _mm512_unpacklo_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-			__m512 zzpp01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-			__m512 zzpp23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-			retXYZ.x = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
-			retXYZ.y = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(xxyy01), _mm512_castps_pd(xxyy23)));
-			retXYZ.z = _mm512_castpd_ps(_mm512_unpacklo_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
-			__m512 pppp = _mm512_castpd_ps(_mm512_unpackhi_pd(_mm512_castps_pd(zzpp01), _mm512_castps_pd(zzpp23)));
+			__m512 pppp;
+			masked_16x4aos_to_4x16soa_gather_and_transpose(ind, mask, this->xyzp.data(), retXYZ.x, retXYZ.y, retXYZ.z, pppp);
 			interleaved_ph_to_ps(_mm512_castps_si512(pppp), retU, retV);
 			/*
 			for (int i = 0; i < 4; ++i)
@@ -189,11 +161,45 @@ namespace Rasterizing
 	};
 	struct TriangleStore
 	{
-		std::vector<uint32_t> vertInd[3];
-		std::vector<int> diffuseMapIndex, modelIndex;
+		void insert(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t diffuseMapIndex, uint32_t modelIndex, ModelFlags modelFlags);
+		void insert(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t diffuseMapIndex);
+		void setDiffuseMapIndex(uint32_t triangleIndex, uint32_t diffuseMapIndex);
+		uint32_t getDiffuseMapIndex(uint32_t triangleIndex);
+		std::vector<int> modelIndex;
 		std::vector<ModelFlags> modelFlags;
 		size_t size() const;
 		void clear();
 		//std::vector<uint32_t> modelInd;
+		
+		__forceinline void gatherVertexAndDiffuseMapIndices(int32x16 ind, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
+		{
+			masked_16x4aos_to_4x16soa_gather_and_transpose(ind, mask, this->vind_diffuseInd.data(), retVind0, retVind1, retVind2, retDiffMapInd);
+		}
+		//loads and returns vertex indices for 16 sequential triangles, starting from startInd. Masked off elements values are not defined
+		__forceinline void loadVertexAndDiffuseMapIndices16(uint32_t startInd, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
+		{
+			const uint32_t* p = this->vind_diffuseInd.data() + startInd * 4;
+
+			__mmask64 m = duplicate_mmask_bits_16_to_64(mask);
+			int32x16 r0 = _mm512_maskz_loadu_epi32(m, p); //v0v1v2di for triangles 0,1,2,3
+			int32x16 r1 = _mm512_maskz_loadu_epi32(m >> 16, p+16); //v0v1v2di for triangles 4,5,6,7
+			int32x16 r2 = _mm512_maskz_loadu_epi32(m >> 32, p+32);  //v0v1v2di for triangles 8,9,10,11
+			int32x16 r3 = _mm512_maskz_loadu_epi32(m >> 48, p+48);  //v0v1v2di for triangles 12,13,14,15
+
+			int32x16 v0v1_v0v1_x = _mm512_unpacklo_epi32(r0, r1); //v0_0, v0_4, v1_0, v1_4 | v0_1, v0_5, v1_1, v1_5 | v0_2, v0_6, v1_2, v1_6 | v0_3, v0_7, v1_3, v1_3 | 
+			int32x16 v0v1_v0v1_y = _mm512_unpacklo_epi32(r2, r3); //same as above, but +8
+			int32x16 v2di_v2di_x = _mm512_unpackhi_epi32(r0, r1); //v2di for 8 triangles: 0,4,1,5,2,6,3,7
+			int32x16 v2di_v2di_y = _mm512_unpackhi_epi32(r2, r3); //same as above, but +8
+			int32x16 v0_a = _mm512_unpacklo_epi64(v0v1_v0v1_x, v0v1_v0v1_y); //v0: 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15
+			int32x16 v1_a = _mm512_unpackhi_epi64(v0v1_v0v1_x, v0v1_v0v1_y); //v1: 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15
+			int32x16 v2_a = _mm512_unpacklo_epi64(v2di_v2di_x, v2di_v2di_y);
+			int32x16 di_a = _mm512_unpackhi_epi64(v2di_v2di_x, v2di_v2di_y);
+			retVind0 = _mm512_permutexvar_epi32(int32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), v0_a);
+			retVind1 = _mm512_permutexvar_epi32(int32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), v1_a);
+			retVind2 = _mm512_permutexvar_epi32(int32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), v2_a);
+			retDiffMapInd = _mm512_permutexvar_epi32(int32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), di_a);
+		}
+	private:
+		std::vector<uint32_t> vind_diffuseInd;
 	};
 }

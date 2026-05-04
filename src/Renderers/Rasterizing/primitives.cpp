@@ -49,15 +49,39 @@ void Rasterizing::VertexStore::clear()
 	this->nz.clear();
 }
 
+void Rasterizing::TriangleStore::insert(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t diffuseMapIndex, uint32_t modelIndex, ModelFlags modelFlags)
+{
+	this->insert(v0, v1, v2, diffuseMapIndex);
+	this->modelFlags.push_back(modelFlags);
+	this->modelIndex.push_back(modelIndex);
+}
+
+void Rasterizing::TriangleStore::insert(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t diffuseMapIndex)
+{
+	this->vind_diffuseInd.push_back(v0);
+	this->vind_diffuseInd.push_back(v1);
+	this->vind_diffuseInd.push_back(v2);
+	this->vind_diffuseInd.push_back(diffuseMapIndex);
+}
+
+void Rasterizing::TriangleStore::setDiffuseMapIndex(uint32_t triangleIndex, uint32_t diffuseMapIndex)
+{
+	this->vind_diffuseInd[triangleIndex * 4 + 3] = diffuseMapIndex;
+}
+
+uint32_t Rasterizing::TriangleStore::getDiffuseMapIndex(uint32_t triangleIndex)
+{
+	return this->vind_diffuseInd[triangleIndex * 4 + 3];
+}
+
 size_t Rasterizing::TriangleStore::size() const
 {
-	return diffuseMapIndex.size();
+	return this->vind_diffuseInd.size() / 4;
 }
 
 void Rasterizing::TriangleStore::clear()
 {
-	for (auto& it : this->vertInd) it.clear();
-	this->diffuseMapIndex.clear();
+	this->vind_diffuseInd.clear();
 	this->modelFlags.clear();
 	this->modelIndex.clear();
 }
