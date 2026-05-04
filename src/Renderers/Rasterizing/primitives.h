@@ -144,11 +144,12 @@ namespace Rasterizing
 			T* p = this->get();
 			assert(p);
 			assert(!this->ownedData || !this->unownedData); //exactly one of this ptrs should be null at all times
+			size_t wc = w, hc = h;
 			for (size_t y = yStart; y < yEnd; ++y)
 			{
 				for (size_t x = xStart; x < xEnd; ++x)
 				{
-					p[y * w + x] = this->clearValue;
+					p[y * wc + x] = this->clearValue;
 				}
 			}
 		}
