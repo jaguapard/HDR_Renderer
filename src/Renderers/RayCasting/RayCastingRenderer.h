@@ -65,8 +65,8 @@ namespace RayCasting
 class RayCastingRenderer : public RendererBase
 {
 public:
-	virtual void loadScene(std::string path, std::string mode);
-	virtual void renderFrame(const GameSettings& settings);
+	virtual void loadScene(RendererLoadSceneData scd) override;
+	virtual void renderFrame(const GameSettings& settings) override;
 protected:
 	std::vector<RayCasting::Model> sceneModels;
 	RayCasting::Octree octree;

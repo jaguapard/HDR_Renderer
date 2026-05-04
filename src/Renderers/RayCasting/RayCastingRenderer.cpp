@@ -7,35 +7,6 @@
 
 using namespace RayCasting;
 
-void RayCastingRenderer::loadScene(std::string path, std::string mode)
-{
-	AssetLoader ldr;
-	std::vector<AssetLoader::ImportedModel> loadedModels;
-	if (mode == "obj") { loadedModels = ldr.loadObj(path, ""); }
-	else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
-	else throw std::runtime_error("Unsupported mode for RayCastingRenderer::loadScene: " + mode);
-
-	//TODO: load textures
-	for (int i = 0; i < loadedModels.size(); ++i)
-	{
-		std::vector<Triangle> tris;
-		for (auto& it : loadedModels[i].triangles)
-		{
-			auto& t = tris.emplace_back();
-			for (int k = 0; k < 3; ++k)
-			{
-				t.tv[k].space = { it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, 0.f };
-				t.tv[k].diffuse = { it.v[k].diffuseMapCoords.x, it.v[k].diffuseMapCoords.y, 0.f,0.f };
-			}
-		}
-		Model m;
-		m.triangles = tris;
-		this->sceneModels.emplace_back(m);
-	}
-
-	this->octree = RayCasting::Octree(*this);
-}
-
 //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f triB, Vec4f triC)
 {
@@ -76,6 +47,36 @@ float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f 
 	}
 	else // This means that there is a line intersection but not a ray intersection.
 		return INFINITY;
+}
+void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
+{
+	AssetLoader ldr;
+	std::vector<AssetLoader::ImportedModel> loadedModels;
+	for (auto [path, mode] : scd.files)
+	{
+		if (mode == "obj") { loadedModels = ldr.loadObj(path, ""); }
+		else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
+		else throw std::runtime_error("Unsupported mode for RayCastingRenderer::loadScene: " + mode);
+
+		//TODO: load textures
+		for (int i = 0; i < loadedModels.size(); ++i)
+		{
+			std::vector<Triangle> tris;
+			for (auto& it : loadedModels[i].triangles)
+			{
+				auto& t = tris.emplace_back();
+				for (int k = 0; k < 3; ++k)
+				{
+					t.tv[k].space = { it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, 0.f };
+					t.tv[k].diffuse = { it.v[k].diffuseMapCoords.x, it.v[k].diffuseMapCoords.y, 0.f,0.f };
+				}
+			}
+			Model m;
+			m.triangles = tris;
+			this->sceneModels.emplace_back(m);
+		}
+	}
+	this->octree = RayCasting::Octree(*this);
 }
 void RayCastingRenderer::renderFrame(const GameSettings& settings)
 {
@@ -131,7 +132,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	//camPos = { 0,0, -20 };
 	
 	float widthToHeightRatio = double(bufW) / bufH;
-	Vec4f* pixels = (Vec4f*)settings.graphicsOutputBuffer;
+	uint64_t* pixels = (uint64_t*)settings.graphicsOutputBuffer;
 
 	std::vector<Threadpool::TaskHandle> tasks;
 	Threadpool::Task tsk;
@@ -186,13 +187,17 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					}
 				}
 				*/
+
+				Vec4f pixelColor;
 				if (minT != INFINITY)
 				{
 					float distScalar = minT / 1000;
 					float intensity = std::max(0.1f, 1 - distScalar);
-					pixels[y * bufW + x] = { intensity,intensity,intensity,1 };
+					pixelColor = { intensity,intensity,intensity,1 };
 				}
-				else pixels[y * bufW + x] = { 0,0,0,1 };
+				else pixelColor = { 0,0,0,1 };
+
+				pixels[y*bufW+x] = _mm_extract_epi64(_mm_cvtps_ph(pixelColor, _MM_FROUND_NO_EXC), 0);
 				/*
 				for (int i = 0; i < 6; ++i)
 				{
