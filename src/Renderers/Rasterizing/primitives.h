@@ -7,6 +7,8 @@
 #include <map>
 #include "BufferZoneManager.h"
 #include "../../helpers.h"
+#include "../../Threadpool.h"
+
 namespace Rasterizing
 {
 	enum class ShadingMode
@@ -149,6 +151,12 @@ namespace Rasterizing
 					p[y * w + x] = this->clearValue;
 				}
 			}
+		}
+
+		void clearThreadZone(int threadIndex)
+		{
+			auto [lo, hi] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->h);
+			this->clear(0, w, lo, hi);
 		}
 
 		//Returns pointer to buffer data
