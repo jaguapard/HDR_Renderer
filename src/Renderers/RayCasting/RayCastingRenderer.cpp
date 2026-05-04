@@ -172,21 +172,6 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						if (currNode->children[i]) stack[stackTopIndex++] = currNode->children[i].get();
 					}
 				}
-				/*
-				size_t triangleCounter = 0;
-				for (auto& model : this->sceneModels)
-				{
-					for (auto& triangle : model.triangles)
-					{
-						//if (triangleCounter++ % 128 != 0) continue;
-						float t = rayTriangleIntersectionT(camPos, rayDir, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
-						if (t < minT)
-						{
-							minT = t;
-						}
-					}
-				}
-				*/
 
 				Vec4f pixelColor;
 				if (minT != INFINITY)
@@ -198,17 +183,6 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				else pixelColor = { 0,0,0,1 };
 
 				pixels[y*bufW+x] = _mm_extract_epi64(_mm_cvtps_ph(pixelColor, _MM_FROUND_NO_EXC), 0);
-				/*
-				for (int i = 0; i < 6; ++i)
-				{
-					float t = rayTriangleIntersectionT(camPos, rayDir, vertices[i*3], vertices[i*3+1], vertices[i*3+2]);
-					if (t < minT)
-					{
-						float intensity = std::min(1.f / t, 1.f);
-						pixels[y * bufW + x] = colors[i];
-						hit = true;
-					}
-				}*/
 			}
 		};
 		tasks.emplace_back(settings.threadpool->addTask(tsk));
