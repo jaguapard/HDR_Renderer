@@ -4,6 +4,7 @@
 #include "../../GameSettings.h"
 #include "../../AssetLoader.h"
 #include "../../Threadpool.h"
+#include <iostream>
 
 using namespace RayCasting;
 
@@ -179,6 +180,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	std::vector<Threadpool::TaskHandle> tasks;
 	Threadpool::Task tsk;
 	Vec4_f32x16 rayOrigins = camPos;
+	std::atomic<uint64_t> nodesInspectedTotal = 0, triangleIntersectionChecksTotal = 0;
 	for (int y = 0; y < bufH; ++y)
 	{
 		tsk.func = [&, this, y]() {
@@ -195,8 +197,10 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 
 				int stackTopIndex = 1;
 				stack[0] = this->octree.root.get();
+				uint64_t nodesInspected = 0, triangleIntersectionChecks = 0;
 				while (stackTopIndex > 0)
 				{
+					++nodesInspected;
 					OctreeNode* currNode = stack[--stackTopIndex];
 					float32x16 bboxTmin, bboxTmax; //not used
 					Mask16 raysIntersectingNodeBoundingBox = bounds & currNode->bbox.getMinAndMaxIntestionsFor(camPos, rcpRayDirs, bboxTmin, bboxTmax);
@@ -204,6 +208,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 
 					for (auto& content : currNode->contents)
 					{
+						++triangleIntersectionChecks;
 						const Triangle& triangle = this->sceneModels[content.modelIndex].triangles[content.triangleIndex];
 						float32x16 t;
 						Mask16 raysHittingThisTriangle = bounds & raysTriangleIntersectionTs(camPos, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
@@ -215,6 +220,8 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						if (currNode->children[i]) stack[stackTopIndex++] = currNode->children[i].get();
 					}
 				}
+				nodesInspectedTotal += nodesInspected;
+				triangleIntersectionChecksTotal += triangleIntersectionChecks;
 
 				Mask16 raysHit = minT < INFINITY;
 				Vec4_f32x16 pixelColor;
@@ -233,6 +240,9 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	}
 	
 	settings.threadpool->blockUntilComplete(tasks);
+	//TODO: make statsman for this renderer
+	std::cout << "Nodes inspected: " << nodesInspectedTotal << " (" << nodesInspectedTotal / double(bufW * bufH) << " per pixel)\n";
+	std::cout << "Triangles inspected: " << triangleIntersectionChecksTotal << " (" << triangleIntersectionChecksTotal / double(bufW * bufH) << " per pixel)\n";
 }
 
 BoundingBox RayCasting::OctreeNode::getBoundingBoxForChildIndex(int i) const
