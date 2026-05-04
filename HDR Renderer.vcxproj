@@ -393,6 +393,7 @@
     <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\TextureManager.cpp" />
     <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp" />
+    <ClCompile Include="src\Renderers\RendererBase.cpp" />
     <ClCompile Include="src\Statsman.cpp" />
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>

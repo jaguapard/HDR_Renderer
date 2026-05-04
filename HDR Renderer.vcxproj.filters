@@ -66,6 +66,9 @@
     <ClCompile Include="src\Renderers\Rasterizing\primitives.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Renderers\RendererBase.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\bob\SSE_Vec4.h">
