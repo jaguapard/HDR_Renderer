@@ -284,6 +284,7 @@ bool RayCasting::BoundingBox::containsFully(const BoundingBox& other) const
 		&& ymin <= other.ymin && ymax >= other.ymax
 		&& zmin <= other.zmin && zmax >= other.zmax;
 }
+
 BoundingBox RayCasting::BoundingBox::infinite()
 {
 	BoundingBox bb;
@@ -335,4 +336,29 @@ std::pair<float, float> RayCasting::BoundingBox::getMinAndMaxIntestionsFor(Vec4f
 	float tmax_total = std::min(tmax_z, std::min(tmax_x, tmax_y));
 	if (tmin_total > tmax_total) return { INFINITY, -INFINITY };
 	return { tmin_total, tmax_total };
+}
+
+Mask16 RayCasting::BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigins, Vec4_f32x16 rcpRayDirs, float32x16& ret_tMin, float32x16& ret_tMax) const
+{
+	float32x16 tx1 = (float32x16(this->xmin) - rayOrigins.x);
+	float32x16 ty1 = (float32x16(this->ymin) - rayOrigins.y);
+	float32x16 tz1 = (float32x16(this->zmin) - rayOrigins.z);
+
+	float32x16 tx2 = (float32x16(this->xmax) - rayOrigins.x);
+	float32x16 ty2 = (float32x16(this->ymax) - rayOrigins.y);
+	float32x16 tz2 = (float32x16(this->zmax) - rayOrigins.z);
+	
+	float32x16 tmin_x = _mm512_min_ps(tx1, tx2);
+	float32x16 tmin_y = _mm512_min_ps(ty1, ty2);
+	float32x16 tmin_z = _mm512_min_ps(tz1, tz2);
+
+	float32x16 tmax_x = _mm512_max_ps(tx1, tx2);
+	float32x16 tmax_y = _mm512_max_ps(ty1, ty2);
+	float32x16 tmax_z = _mm512_max_ps(tz1, tz2);
+
+	float32x16 tmin_total = _mm512_max_ps(_mm512_max_ps(_mm512_setzero_ps(), tmin_z), _mm512_max_ps(tmin_x, tmin_y));
+	float32x16 tmax_total = _mm512_min_ps(tmax_z, _mm512_min_ps(tmax_x, tmax_y));
+	ret_tMin = tmin_total;
+	ret_tMax = tmax_total;
+	return tmin_total <= tmax_total; //TODO: should this have equality?
 }
