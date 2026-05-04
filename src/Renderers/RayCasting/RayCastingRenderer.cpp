@@ -119,6 +119,35 @@ void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 	}
 	this->octree = RayCasting::Octree(*this);
 }
+
+//TODO: this is copied from RasterizingRenderer, factor it out!
+void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask)
+{
+	//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
+	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
+	//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
+	//Second - 4-7, third - 8-11, fourth - 12-15
+	constexpr int DC = 0; //garbage value
+	//duplicate each opaquePixelsMask bit 4 times, i.e: 0123 -> 0000111122223333, 16 bits -> 64
+	__m512i expanded = _mm512_maskz_mov_epi32(mask, _mm512_set1_epi32(-1));
+	__mmask64 duplicated = _mm512_cmpneq_epi8_mask(expanded, _mm512_set1_epi32(0));
+
+	__m256i ph_r = _mm512_cvtps_ph(pack.r, _MM_FROUND_NO_EXC);
+	__m256i ph_g = _mm512_cvtps_ph(pack.g, _MM_FROUND_NO_EXC);
+	__m256i ph_b = _mm512_cvtps_ph(pack.b, _MM_FROUND_NO_EXC);
+	__m256i ph_a = _mm512_cvtps_ph(pack.a, _MM_FROUND_NO_EXC);
+	for (int i = 0; i < 16; i += 4)
+	{
+		__m256i rg_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19, DC, DC));
+		__m256i ba_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(DC, DC, 0, 16, DC, DC, 1, 17, DC, DC, 2, 18, DC, DC, 3, 19));
+		__m256i rgxx = _mm256_permutex2var_epi16(ph_r, rg_ind, ph_g);
+		__m256i xxba = _mm256_permutex2var_epi16(ph_b, ba_ind, ph_a);
+		__m256i rgba = _mm256_mask_mov_epi16(rgxx, 0b1100110011001100, xxba);
+		int storeInd = (y * w + x + i) * 4;
+		_mm256_mask_storeu_epi16((int16_t*)frameBuffer + storeInd, duplicated >> (i * 4), rgba);
+	}
+}
+
 void RayCastingRenderer::renderFrame(const GameSettings& settings)
 {
 	int bufW = settings.outputTextureParams.Width, bufH = settings.outputTextureParams.Height;
@@ -177,35 +206,36 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 
 	std::vector<Threadpool::TaskHandle> tasks;
 	Threadpool::Task tsk;
+	Vec4_f32x16 rayOrigins = camPos;
 	for (int y = 0; y < bufH; ++y)
 	{
 		tsk.func = [&, this, y]() {
 			std::array<OctreeNode*, 2048> stack;
-			for (int x = 0; x < bufW; ++x)
+			for (float32x16 x = float32x16::sequence(); Mask16 bounds = x < bufW; x += 16)
 			{
-				float progressX = x / float(bufH);
+				float32x16 progressX = x / float(bufH);
 				float progressY = y / float(bufH);
-				Vec4f rayDir = forward * settings.cameraPlane_zDist + down * (progressY - 0.5) + right * (progressX - widthToHeightRatio * 0.5);
-				Vec4f rcpRayDir = Vec4f(1, 1, 1, 0) / rayDir;
+				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
+				rayDirs /= rayDirs.len3d();
+				Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
 
-				float minT = INFINITY;
-				bool hit = false;
+				float32x16 minT = INFINITY;
 
 				int stackTopIndex = 1;
 				stack[0] = this->octree.root.get();
 				while (stackTopIndex > 0)
 				{
 					OctreeNode* currNode = stack[--stackTopIndex];
-					if (currNode->bbox.getMinAndMaxIntestionsFor(camPos, rcpRayDir).first == INFINITY) continue;
+					float32x16 bboxTmin, bboxTmax; //not used
+					Mask16 raysIntersectingNodeBoundingBox = bounds & currNode->bbox.getMinAndMaxIntestionsFor(camPos, rcpRayDirs, bboxTmin, bboxTmax);
+					if (!raysIntersectingNodeBoundingBox) continue;
 
 					for (auto& content : currNode->contents)
 					{
-						Triangle triangle = this->sceneModels[content.modelIndex].triangles[content.triangleIndex];
-						float t = rayTriangleIntersectionT(camPos, rayDir, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
-						if (t < minT)
-						{
-							minT = t;
-						}
+						const Triangle& triangle = this->sceneModels[content.modelIndex].triangles[content.triangleIndex];
+						float32x16 t;
+						Mask16 raysHittingThisTriangle = bounds & raysTriangleIntersectionTs(camPos, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
+						minT = _mm512_mask_min_ps(minT, raysHittingThisTriangle, t, minT);
 					}
 
 					for (int i = 0; i < currNode->CHILD_COUNT; ++i)
@@ -214,16 +244,17 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					}
 				}
 
-				Vec4f pixelColor;
-				if (minT != INFINITY)
+				Mask16 raysHit = minT < INFINITY;
+				Vec4_f32x16 pixelColor;
+				for (int i = 0; i < 3; ++i)
 				{
-					float distScalar = minT / 1000;
-					float intensity = std::max(0.1f, 1 - distScalar);
-					pixelColor = { intensity,intensity,intensity,1 };
+					float32x16 distScalar = minT / 1000;
+					float32x16 intensity = _mm512_max_ps(float32x16(0.1f), float32x16(1) - distScalar);
+					pixelColor[i] = _mm512_maskz_mov_ps(raysHit, intensity);
 				}
-				else pixelColor = { 0,0,0,1 };
-
-				pixels[y*bufW+x] = _mm_extract_epi64(_mm_cvtps_ph(pixelColor, _MM_FROUND_NO_EXC), 0);
+				pixelColor.w = 1;
+				size_t xInt = x[0];
+				mask_store_vec4_f32x16_to_framebuffer(pixelColor, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, raysHit);
 			}
 		};
 		tasks.emplace_back(settings.threadpool->addTask(tsk));
