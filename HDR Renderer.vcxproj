@@ -386,14 +386,14 @@
     <ClCompile Include="src\C_Input.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\OSD.cpp" />
+    <ClCompile Include="src\Renderers\ColorPixelBuffer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\BufferZoneManager.cpp" />
-    <ClCompile Include="src\Renderers\Rasterizing\ColorPixelBuffer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\primitives.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp" />
-    <ClCompile Include="src\Renderers\Rasterizing\TextureManager.cpp" />
     <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp" />
     <ClCompile Include="src\Renderers\RendererBase.cpp" />
+    <ClCompile Include="src\Renderers\TextureManager.cpp" />
     <ClCompile Include="src\Statsman.cpp" />
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
@@ -416,16 +416,16 @@
     <ClInclude Include="src\GameSettings.h" />
     <ClInclude Include="src\helpers.h" />
     <ClInclude Include="src\OSD.h" />
+    <ClInclude Include="src\Renderers\ColorPixelBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\BufferZoneManager.h" />
-    <ClInclude Include="src\Renderers\Rasterizing\ColorPixelBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\CoordinateTransformer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\primitives.h" />
     <ClInclude Include="src\Renderers\Rasterizing\RasterizingBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\RasterizingRenderer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\RenderJobStore.h" />
-    <ClInclude Include="src\Renderers\Rasterizing\TextureManager.h" />
     <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h" />
     <ClInclude Include="src\Renderers\RendererBase.h" />
+    <ClInclude Include="src\Renderers\TextureManager.h" />
     <ClInclude Include="src\smart.h" />
     <ClInclude Include="src\Statsman.h" />
     <ClInclude Include="src\Threadpool.h" />

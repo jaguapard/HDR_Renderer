@@ -1,7 +1,7 @@
 #include "ColorPixelBuffer.h"
 #include <stdexcept>
-#include "../../Threadpool.h"
-#include "../../helpers.h"
+#include "../Threadpool.h"
+#include "../helpers.h"
 using namespace Rasterizing;
 
 Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
