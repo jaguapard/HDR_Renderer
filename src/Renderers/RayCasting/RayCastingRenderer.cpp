@@ -143,7 +143,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			for (int x = 0; x < bufW; ++x)
 			{
 				float progressX = x / float(bufH);
-				float progressY = 1 - y / float(bufH);
+				float progressY = y / float(bufH);
 				Vec4f rayDir = forward * settings.cameraPlane_zDist + down * (progressY - 0.5) + right * (progressX - widthToHeightRatio * 0.5);
 				Vec4f rcpRayDir = Vec4f(1, 1, 1, 0) / rayDir;
 
