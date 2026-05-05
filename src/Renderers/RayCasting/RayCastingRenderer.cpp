@@ -295,22 +295,19 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			Mask16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
 			ret.raysHit |= toOverride;
 			ret.t = _mm512_mask_mov_ps(ret.t, toOverride, t);
-			//TODO: all traces will need textures, since they can be fully or semi-transparent. For now, shadows skip all this
-			//if (!shadowRays)
+
+			ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
+			ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
+			Vec4f faceNormal = getFaceNormalForTriangle(triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
+
+			for (int k = 0; k < 3; ++k)
 			{
-				ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
-				ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
-				Vec4f faceNormal = getFaceNormalForTriangle(triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
-				
-				for (int k = 0; k < 3; ++k)
-				{
-					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
-					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, float32x16(faceNormal[k]));
-				}
-				for (int k = 0; k < 2; ++k)
-				{
-					ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
-				}
+				ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
+				ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, float32x16(faceNormal[k]));
+			}
+			for (int k = 0; k < 2; ++k)
+			{
+				ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
 			}
 		}
 
