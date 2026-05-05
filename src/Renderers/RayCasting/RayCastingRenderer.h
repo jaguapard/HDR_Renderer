@@ -3,7 +3,8 @@
 #include "../../Vec.h"
 #include <vector>
 #include <memory>
-
+#include "../../BoundingBox.h"
+#include "Octree.h"
 class RayCastingRenderer;
 
 namespace RayCasting
@@ -22,54 +23,25 @@ namespace RayCasting
 		int textureIndex = -1;
 	};
 
-	struct BoundingBox
+	struct TraceResults
 	{
-		float xmin, ymin, zmin, xmax, ymax, zmax;
-
-		BoundingBox()=default;
-		BoundingBox(const Triangle& t);
-
-		BoundingBox unionWith(const BoundingBox& other) const;
-		bool intersectsWith(const BoundingBox& other) const;
-		bool containsFully(const BoundingBox& other) const;
-		std::pair<float, float> getMinAndMaxIntestionsFor(Vec4f rayOrigin, Vec4f rcpRayDir) const;
-		static BoundingBox infinite();
-	};
-
-	struct OctreeContent
-	{
-		int modelIndex = -1, triangleIndex = -1;
-	};
-	struct OctreeNode
-	{
-		static constexpr int CHILD_COUNT = 8;
-		BoundingBox bbox;
-		std::unique_ptr<OctreeNode> children[CHILD_COUNT] = { nullptr };
-		std::vector<OctreeContent> contents;
-
-		BoundingBox getBoundingBoxForChildIndex(int i) const;
-		bool tryAddTriangle(int modelIndex, int triangleIndex, const RayCastingRenderer& rend);
-	};
-
-	class Octree
-	{
-	public:
-		Octree() = default;
-		Octree(RayCastingRenderer& rend);
-		std::unique_ptr<OctreeNode> root = nullptr;
-	private:
-		RayCastingRenderer* rend;		
+		float32x16 t = INFINITY, worldBarycentrics[3], textureCoords[2];
+		int32x16 modelIndices, triangleIndices;
+		Vec4_f32x16 normals;
+		Mask16 raysHit = 0;
 	};
 }
 
 class RayCastingRenderer : public RendererBase
 {
 public:
-	virtual void loadScene(std::string path, std::string mode);
-	virtual void renderFrame(const GameSettings& settings);
+	virtual void loadScene(RendererLoadSceneData scd) override;
+	virtual void renderFrame(const GameSettings& settings) override;
 protected:
 	std::vector<RayCasting::Model> sceneModels;
 	RayCasting::Octree octree;
 	friend class RayCasting::Octree;
 	friend class RayCasting::OctreeNode;
+
+	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays);
 };

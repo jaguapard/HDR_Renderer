@@ -4,37 +4,10 @@
 #include "../../GameSettings.h"
 #include "../../AssetLoader.h"
 #include "../../Threadpool.h"
+#include <iostream>
+#include "Octree.h"
 
 using namespace RayCasting;
-
-void RayCastingRenderer::loadScene(std::string path, std::string mode)
-{
-	AssetLoader ldr;
-	std::vector<AssetLoader::ImportedModel> loadedModels;
-	if (mode == "obj") { loadedModels = ldr.loadObj(path, ""); }
-	else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
-	else throw std::runtime_error("Unsupported mode for RayCastingRenderer::loadScene: " + mode);
-
-	//TODO: load textures
-	for (int i = 0; i < loadedModels.size(); ++i)
-	{
-		std::vector<Triangle> tris;
-		for (auto& it : loadedModels[i].triangles)
-		{
-			auto& t = tris.emplace_back();
-			for (int k = 0; k < 3; ++k)
-			{
-				t.tv[k].space = { it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, 0.f };
-				t.tv[k].diffuse = { it.v[k].diffuseMapCoords.x, it.v[k].diffuseMapCoords.y, 0.f,0.f };
-			}
-		}
-		Model m;
-		m.triangles = tris;
-		this->sceneModels.emplace_back(m);
-	}
-
-	this->octree = RayCasting::Octree(*this);
-}
 
 //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f triB, Vec4f triC)
@@ -77,6 +50,96 @@ float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f 
 	else // This means that there is a line intersection but not a ray intersection.
 		return INFINITY;
 }
+
+//Checks 16 rays for intersection with 1 triangle, returning mask of rays hitting the triangle.
+//Intersection T is written out retT. The values of T are undefined for non-intersecting rays
+//https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x16& retT)
+{
+	constexpr float epsilon = std::numeric_limits<float>::epsilon();
+	constexpr float eps = std::numeric_limits<float>::epsilon();
+
+	Vec4_f32x16 edge1 = triB - triA;
+	Vec4_f32x16 edge2 = triC - triA;
+
+	// Backface culling, assuming CCW-wound triangles.
+	//const Vec4f normal = edge1.cross3d(edge2); // No need to normalize
+	//if (normal.dot3d(rayDir) > 0) return INFINITY;
+
+	Vec4_f32x16 ray_cross_e2 = rayDirs.cross3d(edge2);
+	float32x16 det = edge1.dot3d(ray_cross_e2);
+
+	Mask16 intersectingTriangles = float32x16(_mm512_abs_ps(det)) >= eps;
+	if (!intersectingTriangles) return 0; // Ray is parallel to triangle
+
+	float32x16 inv_det = float32x16(1.f) / det;
+	Vec4_f32x16 s = rayOrigins - triA;
+	float32x16 u = inv_det * s.dot3d(ray_cross_e2);
+
+	intersectingTriangles &= u >= -eps & (u - 1) <= eps;
+	if (!intersectingTriangles) return 0; // Ray passes outside edge2's bounds
+
+	Vec4_f32x16 s_cross_e1 = s.cross3d(edge1);
+	float32x16 v = inv_det * rayDirs.dot3d(s_cross_e1);
+	intersectingTriangles &= (v >= -eps) & (u + v - 1) <= eps; 
+	if (!intersectingTriangles) return 0; // Ray passes outside edge1's bounds
+
+	// The ray line intersects with the triangle.
+	// We compute t to find where on the ray the intersection is.
+	// t < epsilon means that there is a line intersection but not a ray intersection.
+	float32x16 t = inv_det * edge2.dot3d(s_cross_e1);
+	retT = t;
+	return intersectingTriangles & t > epsilon; // Ray intersection
+}
+void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
+{
+	AssetLoader ldr;
+	std::vector<AssetLoader::ImportedModel> loadedModels;
+	for (auto [path, mode] : scd.files)
+	{
+		if (mode == "obj") { loadedModels = ldr.loadObj(path, ""); }
+		else if (mode == "bmdl") { loadedModels = ldr.loadBmdl(path); }
+		else throw std::runtime_error("Unsupported mode for RayCastingRenderer::loadScene: " + mode);
+
+		//TODO: load textures
+		size_t importModelCount = loadedModels.size();
+		std::vector<int> diffuseMapIndices(importModelCount, -1);
+		std::vector<Threadpool::TaskHandle> textureLoadingTasks(importModelCount);
+
+		Threadpool::Task tsk;
+		for (int i = 0; i < importModelCount; ++i)
+		{
+			tsk.func = [&, this, i]() {
+				if (loadedModels[i].diffuseMapPath) diffuseMapIndices[i] = this->textureManager.addTextureByPath(*loadedModels[i].diffuseMapPath);
+				else diffuseMapIndices[i] = 0;
+				};
+			textureLoadingTasks[i] = Threadpool::instance->addTask(tsk);
+		}
+
+		for (int i = 0; i < loadedModels.size(); ++i)
+		{
+			std::vector<Triangle> tris;
+			for (auto& it : loadedModels[i].triangles)
+			{
+				auto& t = tris.emplace_back();
+				for (int k = 0; k < 3; ++k)
+				{
+					t.tv[k].space = { it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, 0.f };
+					t.tv[k].diffuse = { it.v[k].diffuseMapCoords.x, -it.v[k].diffuseMapCoords.y, 0.f,0.f };
+				}
+			}
+			Model m;
+			m.triangles = tris;
+			this->sceneModels.emplace_back(m);
+		}
+
+		Threadpool::instance->blockUntilComplete(textureLoadingTasks);
+		for (int i = 0; i < loadedModels.size(); ++i)
+			this->sceneModels[i].textureIndex = diffuseMapIndices[i];
+	}
+	this->octree = RayCasting::Octree(*this);
+}
+
 void RayCastingRenderer::renderFrame(const GameSettings& settings)
 {
 	int bufW = settings.outputTextureParams.Width, bufH = settings.outputTextureParams.Height;
@@ -131,229 +194,130 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	//camPos = { 0,0, -20 };
 	
 	float widthToHeightRatio = double(bufW) / bufH;
-	Vec4f* pixels = (Vec4f*)settings.graphicsOutputBuffer;
+	uint64_t* pixels = (uint64_t*)settings.graphicsOutputBuffer;
 
 	std::vector<Threadpool::TaskHandle> tasks;
 	Threadpool::Task tsk;
+	Vec4_f32x16 rayOrigins = camPos;
+	std::atomic<uint64_t> nodesInspectedTotal = 0, triangleIntersectionChecksTotal = 0;
+	Vec4f lightDir = { 0.4, 0.5, 0.2, 0 };
+	lightDir /= lightDir.len();
 	for (int y = 0; y < bufH; ++y)
 	{
-		tsk.func = [&, y]() {
-			std::vector<OctreeNode*> stack(2048);
-			for (int x = 0; x < bufW; ++x)
+		tsk.func = [&, this, y]() 
+		#ifdef VS_CLANG 
+			__attribute__((noinline)) //Prevent inlining of lambda on Clang. Without it, profiling results are total garbage. MSVC doesn't work with this, but it has useful profiling without it.
+		#endif
 			{
-				float progressX = x / float(bufH);
-				float progressY = 1 - y / float(bufH);
-				Vec4f rayDir = forward * settings.cameraPlane_zDist + down * (progressY - 0.5) + right * (progressX - widthToHeightRatio * 0.5);
-				Vec4f rcpRayDir = Vec4f(1, 1, 1, 0) / rayDir;
+			for (float32x16 x = float32x16::sequence(); Mask16 bounds = x < bufW; x += 16)
+			{
+				float32x16 progressX = x / float(bufH);
+				float progressY = y / float(bufH);
+				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
+				rayDirs /= rayDirs.len3d();
 
-				float minT = INFINITY;
-				bool hit = false;
+				TraceResults hits = this->traceRays(rayOrigins, rayDirs, bounds, false);
+				
+				//nodesInspectedTotal += nodesInspected;
+				//triangleIntersectionChecksTotal += triangleIntersectionChecks;
 
-				int stackTopIndex = 1;
-				stack[0] = this->octree.root.get();
-				while (stackTopIndex > 0)
+				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
+				if (hits.raysHit)
 				{
-					OctreeNode* currNode = stack[--stackTopIndex];
-					if (currNode->bbox.getMinAndMaxIntestionsFor(camPos, rcpRayDir).first == INFINITY) continue;
-
-					for (auto& content : currNode->contents)
+					for (int i = 0; i < 16; ++i)
 					{
-						Triangle triangle = this->sceneModels[content.modelIndex].triangles[content.triangleIndex];
-						float t = rayTriangleIntersectionT(camPos, rayDir, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
-						if (t < minT)
-						{
-							minT = t;
-						}
+						if (!(hits.raysHit.mask & (1 << i))) continue;
+						int diffuseMapIndex = this->sceneModels[hits.modelIndices[i]].textureIndex;
+						Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hits.textureCoords[0][i], hits.textureCoords[1][i]);
+						textureColors.x[i] = texturePixel.x;
+						textureColors.y[i] = texturePixel.y;
+						textureColors.z[i] = texturePixel.z;
+						textureColors.w[i] = texturePixel.w;
 					}
 
-					for (int i = 0; i < currNode->CHILD_COUNT; ++i)
+					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
+					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true);
+					for (int i = 0; i < 3; ++i)
 					{
-						if (currNode->children[i]) stack[stackTopIndex++] = currNode->children[i].get();
-					}
-				}
-				/*
-				size_t triangleCounter = 0;
-				for (auto& model : this->sceneModels)
-				{
-					for (auto& triangle : model.triangles)
-					{
-						//if (triangleCounter++ % 128 != 0) continue;
-						float t = rayTriangleIntersectionT(camPos, rayDir, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
-						if (t < minT)
-						{
-							minT = t;
-						}
+						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], float32x16(0.1));
 					}
 				}
-				*/
-				if (minT != INFINITY)
-				{
-					float distScalar = minT / 1000;
-					float intensity = std::max(0.1f, 1 - distScalar);
-					pixels[y * bufW + x] = { intensity,intensity,intensity,1 };
-				}
-				else pixels[y * bufW + x] = { 0,0,0,1 };
-				/*
-				for (int i = 0; i < 6; ++i)
-				{
-					float t = rayTriangleIntersectionT(camPos, rayDir, vertices[i*3], vertices[i*3+1], vertices[i*3+2]);
-					if (t < minT)
-					{
-						float intensity = std::min(1.f / t, 1.f);
-						pixels[y * bufW + x] = colors[i];
-						hit = true;
-					}
-				}*/
+				size_t xInt = x[0];
+				mask_store_vec4_f32x16_to_framebuffer(textureColors, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, bounds);
 			}
 		};
 		tasks.emplace_back(settings.threadpool->addTask(tsk));
 	}
 	
 	settings.threadpool->blockUntilComplete(tasks);
+	//TODO: make statsman for this renderer
+	std::cout << "Nodes inspected: " << nodesInspectedTotal << " (" << nodesInspectedTotal / double(bufW * bufH) << " per pixel)\n";
+	std::cout << "Triangles inspected: " << triangleIntersectionChecksTotal << " (" << triangleIntersectionChecksTotal / double(bufW * bufH) << " per pixel)\n";
 }
 
-BoundingBox RayCasting::OctreeNode::getBoundingBoxForChildIndex(int i) const
+RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays)
 {
-	int takeStepX = i & 1;
-	int takeStepY = i & 2;
-	int takeStepZ = i & 4;
+	Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
+	std::array<OctreeNode*, 2048> stack;
+	TraceResults ret;
 
-	BoundingBox bb;
-	float xStep = (this->bbox.xmax - this->bbox.xmin) * 0.5;
-	float yStep = (this->bbox.ymax - this->bbox.ymin) * 0.5;
-	float zStep = (this->bbox.zmax - this->bbox.zmin) * 0.5;
-	bb.xmin = this->bbox.xmin + (takeStepX ? xStep : 0);
-	bb.ymin = this->bbox.ymin + (takeStepY ? yStep : 0);
-	bb.zmin = this->bbox.zmin + (takeStepZ ? zStep : 0);
-	bb.xmax = bb.xmin + xStep;
-	bb.ymax = bb.ymin + yStep;
-	bb.zmax = bb.zmin + zStep;
-	return bb;
-}
-
-bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, const RayCastingRenderer& rend)
-{
-	const Triangle& t = rend.sceneModels[modelIndex].triangles[triangleIndex];
-	BoundingBox tbb = t;
-	if (!this->bbox.containsFully(tbb)) return false;
-
-	//scan children for the ones that can be used to insert the triangle it. Only subdivide is big enough
-	float xSize = bbox.xmax - bbox.xmin;
-	float ySize = bbox.ymax - bbox.ymin;
-	float zSize = bbox.zmax - bbox.zmin;
-	if (xSize > 4 || ySize > 4 || zSize > 4)
+	int stackTopIndex = 1;
+	stack[0] = this->octree.root.get();
+	uint64_t nodesInspected = 0, triangleIntersectionChecks = 0;
+	while (stackTopIndex > 0)
 	{
-		for (int i = 0; i < CHILD_COUNT; ++i)
+		++nodesInspected;
+		OctreeNode* currNode = stack[--stackTopIndex];
+		float32x16 bboxTmin, bboxTmax; //not used
+		Mask16 raysIntersectingNodeBoundingBox = mask & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax);
+		if (!raysIntersectingNodeBoundingBox) continue;
+
+		for (auto& content : currNode->contents)
 		{
-			BoundingBox childBox = getBoundingBoxForChildIndex(i);
-			if (childBox.containsFully(tbb))
+			//++triangleIntersectionChecks;
+			uint32_t triangleIndex = content.triangleIndex;
+			uint32_t modelIndex = content.modelIndex;
+			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
+			float32x16 t;
+			Mask16 raysHittingThisTriangle = mask & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
+			if (!raysHittingThisTriangle) continue;
+
+			std::array<float32x16, 3> worldBarycentrics;
+			//can interpolate normals imported from model in the future, but not now
+			calculateBarycentricCoordinates3D(rayOrigins + rayDirs * t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, worldBarycentrics);
+			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
+			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
+
+			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[content.modelIndex].textureIndex);
+			auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle);
+			float32x16 textureAlpha = accessor.gatherA();
+
+			Mask16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
+			ret.raysHit |= toOverride;
+			ret.t = _mm512_mask_mov_ps(ret.t, toOverride, t);
+			//TODO: all traces will need textures, since they can be fully or semi-transparent. For now, shadows skip all this
+			//if (!shadowRays)
 			{
-				if (!children[i])
+				ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
+				ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
+				Vec4f faceNormal = getFaceNormalForTriangle(triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
+				
+				for (int k = 0; k < 3; ++k)
 				{
-					children[i] = std::make_unique<OctreeNode>();
-					children[i]->bbox = childBox;
+					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
+					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, float32x16(faceNormal[k]));
 				}
-				if (children[i]->tryAddTriangle(modelIndex, triangleIndex, rend)) return true;
+				for (int k = 0; k < 2; ++k)
+				{
+					ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
+				}
 			}
 		}
-	}
 
-	//no children containing fully, but this one does, so put here
-	OctreeContent c;
-	c.modelIndex = modelIndex;
-	c.triangleIndex = triangleIndex;
-	this->contents.push_back(c);
-	return true;
-}
-
-RayCasting::BoundingBox::BoundingBox(const Triangle& t)
-{
-	xmin = ymin = zmin = INFINITY;
-	xmax = ymax = zmax = -INFINITY;
-	for (const auto& v : t.tv)
-	{
-		xmin = std::min(xmin, v.space.x);
-		ymin = std::min(ymin, v.space.y);
-		zmin = std::min(zmin, v.space.z);
-		xmax = std::max(xmax, v.space.x);
-		ymax = std::max(ymax, v.space.y);
-		zmax = std::max(zmax, v.space.z);
-	}
-}
-
-BoundingBox RayCasting::BoundingBox::unionWith(const BoundingBox& other) const
-{
-	BoundingBox bb;
-	bb.xmin = std::min(xmin, other.xmin);
-	bb.ymin = std::min(ymin, other.ymin);
-	bb.zmin = std::min(zmin, other.zmin);
-	bb.xmax = std::max(xmax, other.xmax);
-	bb.ymax = std::max(ymax, other.ymax);
-	bb.zmax = std::max(zmax, other.zmax);
-	return bb;
-}
-
-bool RayCasting::BoundingBox::intersectsWith(const BoundingBox& other) const
-{
-	return xmin <= other.xmax && xmax >= other.xmin
-		&& ymin <= other.ymax && ymax >= other.ymin
-		&& zmin <= other.zmax && zmax >= other.zmin;
-}
-bool RayCasting::BoundingBox::containsFully(const BoundingBox& other) const
-{
-	return xmin <= other.xmin && xmax >= other.xmax
-		&& ymin <= other.ymin && ymax >= other.ymax
-		&& zmin <= other.zmin && zmax >= other.zmax;
-}
-BoundingBox RayCasting::BoundingBox::infinite()
-{
-	BoundingBox bb;
-	bb.xmin = bb.ymin = bb.zmin = -INFINITY;
-	bb.xmax = bb.ymax = bb.zmax = INFINITY;
-	return bb;
-}
-RayCasting::Octree::Octree(RayCastingRenderer& rend)
-{
-	this->rend = &rend;
-	BoundingBox globalAABB;
-	globalAABB.xmin = globalAABB.ymin = globalAABB.zmin = INFINITY;
-	globalAABB.xmax = globalAABB.ymax = globalAABB.zmax = -INFINITY;
-	for (const auto& model : rend.sceneModels)
-		for (const auto& triangle : model.triangles)
-			globalAABB = globalAABB.unionWith(triangle);
-
-	this->root = std::make_unique<OctreeNode>();
-	this->root->bbox = globalAABB;
-	
-	for (int modelIndex = 0; modelIndex < rend.sceneModels.size(); ++modelIndex)
-	{
-		for (int triangleIndex = 0; triangleIndex < rend.sceneModels[modelIndex].triangles.size(); ++triangleIndex)
+		for (int i = 0; i < currNode->CHILD_COUNT; ++i)
 		{
-			if (!this->root->tryAddTriangle(modelIndex, triangleIndex, rend)) throw std::runtime_error("Failed to add triangle into Octree! Model index: " + std::to_string(modelIndex) + ", triangle index " + std::to_string(triangleIndex));
+			if (currNode->children[i]) stack[stackTopIndex++] = currNode->children[i].get();
 		}
 	}
-}
-
-std::pair<float, float> RayCasting::BoundingBox::getMinAndMaxIntestionsFor(Vec4f rayOrigin, Vec4f rcpRayDir) const
-{
-	float tx1 = (xmin - rayOrigin.x) * rcpRayDir.x;
-	float ty1 = (ymin - rayOrigin.y) * rcpRayDir.y;
-	float tz1 = (zmin - rayOrigin.z) * rcpRayDir.z;
-
-	float tx2 = (xmax - rayOrigin.x) * rcpRayDir.x;
-	float ty2 = (ymax - rayOrigin.y) * rcpRayDir.y;
-	float tz2 = (zmax - rayOrigin.z) * rcpRayDir.z;
-
-	float tmin_x = std::min(tx1, tx2);
-	float tmin_y = std::min(ty1, ty2);
-	float tmin_z = std::min(tz1, tz2);
-
-	float tmax_x = std::max(tx1, tx2);
-	float tmax_y = std::max(ty1, ty2);
-	float tmax_z = std::max(tz1, tz2);
-
-	float tmin_total = std::max(std::max(0.f, tmin_z), std::max(tmin_x, tmin_y));
-	float tmax_total = std::min(tmax_z, std::min(tmax_x, tmax_y));
-	if (tmin_total > tmax_total) return { INFINITY, -INFINITY };
-	return { tmin_total, tmax_total };
+	return ret;
 }

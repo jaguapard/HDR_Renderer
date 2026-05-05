@@ -190,6 +190,8 @@ int main(int argc, char* argv[])
         texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
+        if (texDesc.Width % 4 != 0 || texDesc.Height % 4 != 0) throw std::runtime_error("Unsupported output texture size! Each side length must be multiple of 4."); //I think this is correct, because it goes haywire if sizes are weird even if renderers are doing everything properly.
+
         ID3D11Texture2D* cpuTexture = nullptr;
         if (FAILED(device->CreateTexture2D(&texDesc, nullptr, &cpuTexture)))
             RAISE_ERROR("CreateTexture2D (cpuTexture) failed");

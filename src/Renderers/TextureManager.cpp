@@ -1,11 +1,10 @@
 #include "TextureManager.h"
 #include <stdexcept>
 #include <SDL3\SDL_image.h>
-#include "../../smart.h"
+#include "../smart.h"
 #include <iostream>
 
-using namespace Rasterizing;
-Rasterizing::TextureManager::TextureManager()
+TextureManager::TextureManager()
 {
 	constexpr int fallbackSize = 64;
 	constexpr int expectedPitch = fallbackSize * 4;
@@ -28,7 +27,7 @@ Rasterizing::TextureManager::TextureManager()
 	int h = this->addTextureBySurface(sdl.get());
 	if (h != 0) throw std::runtime_error("Unexpected handle for fallback texture: " + std::to_string(h) + ", expected 0.");
 }
-int Rasterizing::TextureManager::addTextureBySurface(SDL_Surface* s)
+int TextureManager::addTextureBySurface(SDL_Surface* s)
 {
 	auto converted = Smart_Surface(SDL_ConvertSurface(s, SDL_PIXELFORMAT_RGBA32));
 	if (!converted) return 0;
@@ -46,7 +45,7 @@ int Rasterizing::TextureManager::addTextureBySurface(SDL_Surface* s)
 	}
 	return this->textures.size() - 1;
 }
-int Rasterizing::TextureManager::addTextureByPath(std::string path)
+int TextureManager::addTextureByPath(std::string path)
 {
 	auto initialSurf = Smart_Surface(IMG_Load(path.c_str()));
 	if (!initialSurf)
@@ -64,17 +63,17 @@ int Rasterizing::TextureManager::addTextureByPath(std::string path)
 	return h;
 }
 
-const Rasterizing::ColorPixelBuffer& Rasterizing::TextureManager::getTextureByHandle(int i) const
+const ColorPixelBuffer& TextureManager::getTextureByHandle(int i) const
 {
 	return this->textures[i];
 }
 
-bool Rasterizing::TextureManager::handleIsValid(int h) const
+bool TextureManager::handleIsValid(int h) const
 {
 	return h >= 0;
 }
 
-Vec4_f32x16 Rasterizing::TextureManager::gatherLinearIntensitiesFromMultipleTextures(int32x16 textureIndices, float32x16 u, float32x16 v, Mask16 mask) const
+Vec4_f32x16 TextureManager::gatherLinearIntensitiesFromMultipleTextures(int32x16 textureIndices, float32x16 u, float32x16 v, Mask16 mask) const
 {
 	__m512i ptrs0_7 = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), mask, _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(textureIndices, 0)), this->bufferForTexture.data(), 8);
 	__m512i ptrs8_15 = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), mask >> 8, _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(textureIndices, 1)), this->bufferForTexture.data(), 8);
@@ -83,7 +82,7 @@ Vec4_f32x16 Rasterizing::TextureManager::gatherLinearIntensitiesFromMultipleText
 	v -= _mm512_floor_ps(v);
 	float32x16 float_maxSafeX = _mm512_mask_i32gather_ps(float32x16(0.f), mask, textureIndices * sizeof(ColorPixelBuffer::Sizes) + offsetof(ColorPixelBuffer::Sizes, float_maxSafeX), this->sizesForTexture.data(), 1);
 	float32x16 float_maxSafeY = _mm512_mask_i32gather_ps(float32x16(0.f), mask, textureIndices * sizeof(ColorPixelBuffer::Sizes) + offsetof(ColorPixelBuffer::Sizes, float_maxSafeY), this->sizesForTexture.data(), 1);
-	int32x16 w =_mm512_mask_i32gather_epi32(int32x16(0), mask, textureIndices * sizeof(ColorPixelBuffer::Sizes) + offsetof(ColorPixelBuffer::Sizes, w), this->sizesForTexture.data(), 1);
+	int32x16 w = _mm512_mask_i32gather_epi32(int32x16(0), mask, textureIndices * sizeof(ColorPixelBuffer::Sizes) + offsetof(ColorPixelBuffer::Sizes, w), this->sizesForTexture.data(), 1);
 	float32x16 pixelsX = u * float_maxSafeX;
 	float32x16 pixelsY = v * float_maxSafeY;
 	int32x16 pixelOffset = (pixelsY.trunc() * w + int32x16(pixelsX.trunc())) << 2;
@@ -92,7 +91,7 @@ Vec4_f32x16 Rasterizing::TextureManager::gatherLinearIntensitiesFromMultipleText
 	__m512i finAddrs8_15 = _mm512_add_epi64(ptrs8_15, _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(pixelOffset, 1)));
 
 	__m256i gathered_low = _mm512_mask_i64gather_epi32(_mm256_setzero_si256(), mask, finAddrs0_7, nullptr, 1);
-	__m256i gathered_high = _mm512_mask_i64gather_epi32(_mm256_setzero_si256(), mask >> 8, finAddrs8_15, nullptr, 1); 
+	__m256i gathered_high = _mm512_mask_i64gather_epi32(_mm256_setzero_si256(), mask >> 8, finAddrs8_15, nullptr, 1);
 	int32x16 gathered = _mm512_inserti32x8(_mm512_castsi256_si512(gathered_low), gathered_high, 1);
 
 	int32x16 r = gathered & 1023;

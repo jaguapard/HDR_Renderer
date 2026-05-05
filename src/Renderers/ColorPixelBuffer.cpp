@@ -1,10 +1,9 @@
 #include "ColorPixelBuffer.h"
 #include <stdexcept>
-#include "../../Threadpool.h"
-#include "../../helpers.h"
-using namespace Rasterizing;
+#include "../Threadpool.h"
+#include "../helpers.h"
 
-Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
+ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
     packedColors(std::move(dying.packedColors)),
     opacityMap(std::move(dying.opacityMap)),
     sizes(dying.sizes),
@@ -12,7 +11,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
 {
 }
 
-Rasterizing::ColorPixelBuffer::ColorPixelBuffer(uint32_t w, uint32_t h)
+ColorPixelBuffer::ColorPixelBuffer(uint32_t w, uint32_t h)
 {
     this->init(w, h);
 }
@@ -33,7 +32,7 @@ int32x16 morton(int32x16 x, int32x16 y)
     return morton_half(x) | (morton_half(y) << 1);
 }
 
-Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
+ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
 {
     int w = s->w;
     int h = s->h;
@@ -42,7 +41,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
     {
         const uint32_t* srcPixels = std::bit_cast<uint32_t*>(s->pixels);
         this->init(w, h);
-        
+
         std::vector<Threadpool::TaskHandle> tasks;
         int tCount = Threadpool::instance->getWorkerCount();
         for (int tIndex = 0; tIndex < tCount; ++tIndex)
@@ -126,7 +125,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                 Vec4f gammaEncoded = _mm_pow_ps(linear, _mm_set1_ps(1/2.2));
                 gammaEncoded *= 255;
                 uint32_t dstR = gammaEncoded.x, dstG = gammaEncoded.y, dstB = gammaEncoded.z, dstA = linear.w*255;
-                
+
                 //TODO: gamma 2 and expansion to R/G/B 11/11/10 bits and 1 bit alpha. For now, just save back
                 //TODO: seems a bit bright?
                 this->packedColors[y * w + x] = dstR | (dstG << 8) | (dstB << 16) | (dstA << 24);
@@ -139,7 +138,7 @@ Rasterizing::ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
     }
 }
 
-Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
+Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(x, y, sizes.w, sizes.h);
     int32x16 intX = pixelsX.trunc();
@@ -158,7 +157,7 @@ Vec4_f32x16 Rasterizing::ColorPixelBuffer::gatherLinearIntensities(float32x16 x,
     return Decoder::R10G11B10A1_gamma2_to_linear(gathered);
 }
 
-Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
+ColorPixelBufferGatherAccessor ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
     int32x16 intX = pixelsX.trunc();
@@ -179,7 +178,7 @@ Rasterizing::ColorPixelBufferGatherAccessor Rasterizing::ColorPixelBuffer::getGa
     return accessor;
 }
 
-ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const
+ColorPixelBufferGatherAccessor256 ColorPixelBuffer::getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
     __m256i intX = _mm256_cvttps_epi32(pixelsX);
@@ -194,7 +193,7 @@ ColorPixelBufferGatherAccessor256 Rasterizing::ColorPixelBuffer::getGatherAccess
     return accessor;
 }
 
-Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
+Vec4f ColorPixelBuffer::getLinearIntensity(float u, float v) const
 {
     auto [fx, fy] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.fw, sizes.fh);
     BilinearInterpolationContext<float, int, Vec4f> ctx(fx, fy);
@@ -212,18 +211,18 @@ Vec4f Rasterizing::ColorPixelBuffer::getLinearIntensity(float u, float v) const
     return ctx.interpolate(linear);
 }
 
-bool Rasterizing::ColorPixelBuffer::areAllPixelsOpaque() const
+bool ColorPixelBuffer::areAllPixelsOpaque() const
 {
     return this->isFullyOpaque;
 }
 
 /*
-void Rasterizing::ColorPixelBuffer::setPixelLinearIntensityUnsafe(int x, int y, float r, float g, float b, float a)
+void ColorPixelBuffer::setPixelLinearIntensityUnsafe(int x, int y, float r, float g, float b, float a)
 {
-    //float 
+    //float
 }*/
 
-void Rasterizing::ColorPixelBuffer::init(uint32_t w, uint32_t h)
+void ColorPixelBuffer::init(uint32_t w, uint32_t h)
 {
     if (!this->toLinearLUT_fp16 || !this->toLinearLUT_fp32)
     {
@@ -243,7 +242,7 @@ void Rasterizing::ColorPixelBuffer::init(uint32_t w, uint32_t h)
     this->sizes = { w,h };
 }
 
-void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& output) const
+void ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& output) const
 {
     int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0).zmm, this->gatherMask, this->gatherInd.zmm, this->buf->packedColors.get(), 4);
 
@@ -260,13 +259,13 @@ void Rasterizing::ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& o
     fr *= 1.f / 1023;
     fg *= 1.f / 2047;
     fb *= 1.f / 1023;
-    
+
     output.r = fr * fr;
     output.g = fg * fg;
     output.b = fb * fb;
 }
 
-float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
+float32x16 ColorPixelBufferGatherAccessor::gatherA() const
 {
     int32x16 gathered = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), this->gatherMask, (this->gatherInd >> 5).zmm, this->buf->opacityMap.get(), 4);
     int32x16 shifts = this->gatherInd & 31;
@@ -274,7 +273,7 @@ float32x16 Rasterizing::ColorPixelBufferGatherAccessor::gatherA() const
     return _mm512_maskz_mov_ps(opacityMapValuesForPixels != 0, _mm512_set1_ps(1));
 }
 
-float32x8 Rasterizing::ColorPixelBufferGatherAccessor256::gatherA() const
+float32x8 ColorPixelBufferGatherAccessor256::gatherA() const
 {
     __m256i gathered = _mm256_mask_i32gather_epi32(_mm256_set1_epi32(0), (const int*)(this->buf->opacityMap.get()), _mm256_srli_epi32(this->gatherInd, 5), this->gatherMask, 4);
     __m256i shifts = _mm256_and_si256(this->gatherInd, _mm256_set1_epi32(31));
@@ -282,7 +281,7 @@ float32x8 Rasterizing::ColorPixelBufferGatherAccessor256::gatherA() const
     return _mm256_blendv_ps(_mm256_set1_ps(1), _mm256_set1_ps(0), _mm256_castsi256_ps(_mm256_cmpeq_epi32(opacityMapValuesForPixels, _mm256_set1_epi32(0))));
 }
 
-Vec4_f32x16 Rasterizing::Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
+Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 {
     int32x16 r = packed & 1023;
     int32x16 g = _mm512_srli_epi32(packed, 10);
@@ -300,7 +299,7 @@ Vec4_f32x16 Rasterizing::Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
     return { fr * fr, fg * fg, fb * fb, fa };
 }
 
-std::pair<float, float> Rasterizing::Mapper::wrapUV(float u, float v)
+std::pair<float, float> Mapper::wrapUV(float u, float v)
 {
     u -= std::floor(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
     u -= std::floor(u);
@@ -309,7 +308,7 @@ std::pair<float, float> Rasterizing::Mapper::wrapUV(float u, float v)
     return { u,v };
 }
 
-std::pair<float32x8, float32x8> Rasterizing::Mapper::wrapUV(float32x8 u, float32x8 v)
+std::pair<float32x8, float32x8> Mapper::wrapUV(float32x8 u, float32x8 v)
 {
     u -= _mm256_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
     u -= _mm256_floor_ps(u);
@@ -318,7 +317,7 @@ std::pair<float32x8, float32x8> Rasterizing::Mapper::wrapUV(float32x8 u, float32
     return { u,v };
 }
 
-std::pair<float32x16, float32x16> Rasterizing::Mapper::wrapUV(float32x16 u, float32x16 v)
+std::pair<float32x16, float32x16> Mapper::wrapUV(float32x16 u, float32x16 v)
 {
     u -= _mm512_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
     u -= _mm512_floor_ps(u);
@@ -327,17 +326,17 @@ std::pair<float32x16, float32x16> Rasterizing::Mapper::wrapUV(float32x16 u, floa
     return { u,v };
 }
 
-std::pair<uint32_t, uint32_t> Rasterizing::Mapper::wrapIntsWithRcp(int a, int b, uint32_t amax, uint64_t rcp_aMax, uint32_t bmax, uint64_t rcp_bMax)
+std::pair<uint32_t, uint32_t> Mapper::wrapIntsWithRcp(int a, int b, uint32_t amax, uint64_t rcp_aMax, uint32_t bmax, uint64_t rcp_bMax)
 {
     return { wrapIntWithRcp(a,amax,rcp_aMax), wrapIntWithRcp(b,bmax,rcp_bMax) };
 }
 
-std::pair<uint32_t, uint32_t> Rasterizing::Mapper::wrapInts(int a, int b, uint32_t amax, uint32_t bmax)
+std::pair<uint32_t, uint32_t> Mapper::wrapInts(int a, int b, uint32_t amax, uint32_t bmax)
 {
     return { wrapInt(a,amax), wrapInt(b,bmax) };
 }
 
-uint32_t Rasterizing::Mapper::wrapInt(int a, uint32_t amax)
+uint32_t Mapper::wrapInt(int a, uint32_t amax)
 {
     int rem = a % amax;
     rem += rem >= 0 ? 0 : amax;
@@ -347,7 +346,7 @@ uint32_t Rasterizing::Mapper::wrapInt(int a, uint32_t amax)
     return rem;
 }
 
-uint32_t Rasterizing::Mapper::wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_aMax)
+uint32_t Mapper::wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_aMax)
 {
     assert(rcp_aMax == (1ull << 32) / amax);
     //TODO: I believe this may return incorrect results for negative a, but it has ever thrown the sentry exception ever
@@ -361,7 +360,7 @@ uint32_t Rasterizing::Mapper::wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_
     return rem;
 }
 
-Rasterizing::ColorPixelBuffer::Sizes::Sizes(uint32_t w, uint32_t h)
+ColorPixelBuffer::Sizes::Sizes(uint32_t w, uint32_t h)
 {
     this->fw = this->w = w;
     this->fh = this->h = h;

@@ -3,7 +3,6 @@
 #include <map>
 #include "CoordinateTransformer.h"
 #include <array>
-#include "TextureManager.h"
 #include "../../helpers.h"
 #include "RenderJobStore.h"
 #include "primitives.h"
@@ -118,7 +117,6 @@ private:
 
 	//Performs transformations and rasterization of binned triangles
 	void rasterizerRoutine(const int threadIndex);
-	Rasterizing::TextureManager textureManager;
 	uint64_t lastTicks = SDL_GetTicksNS(), totalTicks = 0;
 
 	Vec4f lightPos, lightAng, lightColor, skyColor = Vec4f(0.3, 0.7, 1, 1);
