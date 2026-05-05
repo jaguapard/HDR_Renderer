@@ -101,6 +101,20 @@ void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 		else throw std::runtime_error("Unsupported mode for RayCastingRenderer::loadScene: " + mode);
 
 		//TODO: load textures
+		size_t importModelCount = loadedModels.size();
+		std::vector<int> diffuseMapIndices(importModelCount, -1);
+		std::vector<Threadpool::TaskHandle> textureLoadingTasks(importModelCount);
+
+		Threadpool::Task tsk;
+		for (int i = 0; i < importModelCount; ++i)
+		{
+			tsk.func = [&, this, i]() {
+				if (loadedModels[i].diffuseMapPath) diffuseMapIndices[i] = this->textureManager.addTextureByPath(*loadedModels[i].diffuseMapPath);
+				else diffuseMapIndices[i] = 0;
+				};
+			textureLoadingTasks[i] = Threadpool::instance->addTask(tsk);
+		}
+
 		for (int i = 0; i < loadedModels.size(); ++i)
 		{
 			std::vector<Triangle> tris;
@@ -117,6 +131,10 @@ void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 			m.triangles = tris;
 			this->sceneModels.emplace_back(m);
 		}
+
+		Threadpool::instance->blockUntilComplete(textureLoadingTasks);
+		for (int i = 0; i < loadedModels.size(); ++i)
+			this->sceneModels[i].textureIndex = diffuseMapIndices[i];
 	}
 	this->octree = RayCasting::Octree(*this);
 }
