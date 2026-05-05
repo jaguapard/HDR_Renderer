@@ -200,6 +200,8 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	Threadpool::Task tsk;
 	Vec4_f32x16 rayOrigins = camPos;
 	std::atomic<uint64_t> nodesInspectedTotal = 0, triangleIntersectionChecksTotal = 0;
+	Vec4f lightDir = { 0.4, 0.5, 0.2, 0 };
+	lightDir /= lightDir.len();
 	for (int y = 0; y < bufH; ++y)
 	{
 		tsk.func = [&, this, y]() 
@@ -220,15 +222,24 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				//triangleIntersectionChecksTotal += triangleIntersectionChecks;
 
 				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
-				for (int i = 0; i < 16; ++i)
+				if (results.raysHit)
 				{
-					if (!(results.raysHit.mask & (1<<i))) continue;
-					int diffuseMapIndex = this->sceneModels[results.hitModelIndices[i]].textureIndex;
-					Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(results.hitTextureCords[0][i], results.hitTextureCords[1][i]);
-					textureColors.x[i] = texturePixel.x;
-					textureColors.y[i] = texturePixel.y;
-					textureColors.z[i] = texturePixel.z;
-					textureColors.w[i] = texturePixel.w;
+					for (int i = 0; i < 16; ++i)
+					{
+						if (!(results.raysHit.mask & (1 << i))) continue;
+						int diffuseMapIndex = this->sceneModels[results.hitModelIndices[i]].textureIndex;
+						Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(results.hitTextureCords[0][i], results.hitTextureCords[1][i]);
+						textureColors.x[i] = texturePixel.x;
+						textureColors.y[i] = texturePixel.y;
+						textureColors.z[i] = texturePixel.z;
+						textureColors.w[i] = texturePixel.w;
+					}
+
+					TraceResults shadowTrace = this->traceRays(rayOrigins + rayDirs * results.minT, lightDir, results.raysHit, true);
+					for (int i = 0; i < 3; ++i)
+					{
+						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], float32x16(0.1));
+					}
 				}
 				size_t xInt = x[0];
 				mask_store_vec4_f32x16_to_framebuffer(textureColors, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, bounds);
@@ -273,20 +284,24 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			Mask16 toOverride = raysHittingThisTriangle & t < ret.minT;
 			ret.raysHit |= toOverride;
 			ret.minT = _mm512_mask_mov_ps(ret.minT, toOverride, t);
-			ret.hitModelIndices = _mm512_mask_mov_epi32(ret.hitModelIndices, toOverride, int32x16(modelIndex));
-			ret.hitTriangleIndices = _mm512_mask_mov_epi32(ret.hitTriangleIndices, toOverride, int32x16(triangleIndex));
+			//TODO: all traces will need textures, since they can be fully or semi-transparent. For now, shadows skip all this
+			if (!shadowRays)
+			{
+				ret.hitModelIndices = _mm512_mask_mov_epi32(ret.hitModelIndices, toOverride, int32x16(modelIndex));
+				ret.hitTriangleIndices = _mm512_mask_mov_epi32(ret.hitTriangleIndices, toOverride, int32x16(triangleIndex));
 
-			std::array<float32x16, 3> barycentrics;
-			calculateBarycentricCoordinates3D(rayOrigins + rayDirs * ret.minT, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
-			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
-			for (int k = 0; k < 3; ++k)
-			{
-				ret.hitBarycentrics[k] = _mm512_mask_mov_ps(ret.hitBarycentrics[k], toOverride, barycentrics[k]);
-				uv += Vec4_f32x16(triangle.tv[k].diffuse) * barycentrics[k];
-			}
-			for (int k = 0; k < 2; ++k)
-			{
-				ret.hitTextureCords[k] = _mm512_mask_mov_ps(ret.hitTextureCords[k], toOverride, uv[k]);
+				std::array<float32x16, 3> barycentrics;
+				calculateBarycentricCoordinates3D(rayOrigins + rayDirs * ret.minT, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
+				Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
+				for (int k = 0; k < 3; ++k)
+				{
+					ret.hitBarycentrics[k] = _mm512_mask_mov_ps(ret.hitBarycentrics[k], toOverride, barycentrics[k]);
+					uv += Vec4_f32x16(triangle.tv[k].diffuse) * barycentrics[k];
+				}
+				for (int k = 0; k < 2; ++k)
+				{
+					ret.hitTextureCords[k] = _mm512_mask_mov_ps(ret.hitTextureCords[k], toOverride, uv[k]);
+				}
 			}
 		}
 
