@@ -235,8 +235,8 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						textureColors.w[i] = texturePixel.w;
 					}
 
-					float32x16 shadowTraceT = results.minT * 0.99 - 1;
-					TraceResults shadowTrace = this->traceRays(rayOrigins + rayDirs * shadowTraceT, lightDir, results.raysHit, true);
+					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * results.minT + results.normals * 1;
+					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, results.raysHit, true);
 					for (int i = 0; i < 3; ++i)
 					{
 						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], float32x16(0.1));
@@ -293,10 +293,12 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 
 				std::array<float32x16, 3> barycentrics;
 				calculateBarycentricCoordinates3D(rayOrigins + rayDirs * ret.minT, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
+				Vec4f faceNormal = getFaceNormalForTriangle(triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
 				Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
 				for (int k = 0; k < 3; ++k)
 				{
 					ret.hitBarycentrics[k] = _mm512_mask_mov_ps(ret.hitBarycentrics[k], toOverride, barycentrics[k]);
+					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, float32x16(faceNormal[k]));
 					uv += Vec4_f32x16(triangle.tv[k].diffuse) * barycentrics[k];
 				}
 				for (int k = 0; k < 2; ++k)
