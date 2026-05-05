@@ -338,12 +338,12 @@ int main(int argc, char* argv[])
             };
             if (gs.osdEnabled) //VERY slow, impacts FPS a lot, disabled by default
             {
-                auto osdSurface = osd.draw(additionalInfo);
+                float scalingFactor = std::max(0.5f, float(texDesc.Height) / h); //very small OSD becomes unreadable
+                auto osdSurface = osd.draw(scalingFactor, additionalInfo);
                 int osdW = osdSurface->w;
                 int osdH = osdSurface->h;
                 const Vec4f* osdPixels = (Vec4f*)(osdSurface->pixels);
                 uint64_t* output = (uint64_t*)gs.graphicsOutputBuffer;
-                //just abruptly cuts off OSD if it's too big. TODO: scale this?
                 for (int y = 0; y < std::min<int>(osdH, texDesc.Height); ++y)
                 {
                     for (int x = 0; x < std::min<int>(osdW, texDesc.Width); ++x)
@@ -351,7 +351,7 @@ int main(int argc, char* argv[])
                         Vec4f osdPixel = osdPixels[y * osdW + x];
                         if (osdPixel.x > 0 || osdPixel.y > 0 || osdPixel.z > 0) //alpha is always 1 in returned surface for some reason, so work around by testing manually
                         {
-                            int outInd = (texDesc.Height - y - 1) * texDesc.Width + x;
+                            int outInd = (texDesc.Height - y - 1) * texDesc.Width + x; //currently, y is backwards (0 = bottom of the screen, h-1 = top). Renderers don't care, so just flip OSD instead.
                             output[outInd] = _mm_extract_epi64(_mm_cvtps_ph(osdPixel, _MM_FROUND_NO_EXC), 0);
                         }
                     }

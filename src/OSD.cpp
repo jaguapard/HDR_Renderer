@@ -38,7 +38,7 @@ void OSD::registerFrameDone(bool remember)
 	}
 }
 
-Smart_Surface OSD::draw(const std::vector<std::pair<std::string, std::string>>& additionalInfo)
+Smart_Surface OSD::draw(float scalingFactor, const std::vector<std::pair<std::string, std::string>>& additionalInfo)
 {
 	std::string str = composeString(additionalInfo);
 
@@ -47,9 +47,18 @@ Smart_Surface OSD::draw(const std::vector<std::pair<std::string, std::string>>& 
 	//auto s = Smart_Surface(TTF_RenderText_Blended_Wrapped(font.get(), str.c_str(), 0, { 255,255,255,255 }, 1000));
 	if (!s) throw std::runtime_error("Failed to draw OSD text");
 
+	int scaledW = scalingFactor * s->w;
+	int scaledH = scalingFactor * s->h;
+	auto s_scaled = Smart_Surface(SDL_CreateSurface(scaledW, scaledH, SDL_PIXELFORMAT_RGBA128_FLOAT));
+	if (!s_scaled) throw std::runtime_error("Failed to create scaled surface in OSD::draw.");
+
+	if (!SDL_BlitSurfaceScaled(s.get(), nullptr, s_scaled.get(), nullptr, SDL_SCALEMODE_LINEAR)) throw std::runtime_error("Failed to blit scaled OSD surface.");
+	return s_scaled;
+	/*
 	auto conv = Smart_Surface(SDL_ConvertSurface(s.get(), SDL_PIXELFORMAT_RGBA128_FLOAT));
 	if (!conv) throw std::runtime_error("Failed to convert OSD surface");
-	return conv;
+	return conv;*/
+
 	//auto bg = Smart_Surface(TTF_RenderText_LCD_Wrapped(fontOutline.get(), str.c_str(), 0, { 0,0,0,SDL_ALPHA_OPAQUE }, 1500));
 	//auto fg = Smart_Surface(TTF_RenderText_Blended_Wrapped(font.get(), str.c_str(), 0, { 255,255,255,SDL_ALPHA_OPAQUE }, 1500));
 	//TTF_RenderText_LCD_Wrapped
