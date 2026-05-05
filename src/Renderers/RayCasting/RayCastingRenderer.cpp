@@ -201,7 +201,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	std::atomic<uint64_t> nodesInspectedTotal = 0, triangleIntersectionChecksTotal = 0;
 	for (int y = 0; y < bufH; ++y)
 	{
-		tsk.func = [&, this, y]() {
+		tsk.func = [&, this, y]() __attribute__((noinline)) {
 			std::array<OctreeNode*, 2048> stack;
 			for (float32x16 x = float32x16::sequence(); Mask16 bounds = x < bufW; x += 16)
 			{
