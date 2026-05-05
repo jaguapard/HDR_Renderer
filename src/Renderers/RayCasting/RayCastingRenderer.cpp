@@ -213,6 +213,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 
 				float32x16 minT = INFINITY, hitBarycentrics[3], hitTextureCords[2];
 				int32x16 hitModelIndices, hitTriangleIndices;
+				Mask16 raysHit = 0;
 
 				int stackTopIndex = 1;
 				stack[0] = this->octree.root.get();
@@ -236,6 +237,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						if (!raysHittingThisTriangle) continue;
 
 						Mask16 toOverride = raysHittingThisTriangle & t < minT;
+						raysHit |= toOverride;
 						minT = _mm512_mask_mov_ps(minT, toOverride, t);
 						hitModelIndices = _mm512_mask_mov_epi32(hitModelIndices, toOverride, int32x16(modelIndex));
 						hitTriangleIndices = _mm512_mask_mov_epi32(hitTriangleIndices, toOverride, int32x16(triangleIndex));
@@ -262,9 +264,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				nodesInspectedTotal += nodesInspected;
 				triangleIntersectionChecksTotal += triangleIntersectionChecks;
 
-				Mask16 raysHit = minT < INFINITY;
 				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
-
 				for (int i = 0; i < 16; ++i)
 				{
 					if (!(raysHit.mask & (1<<i))) continue;
@@ -275,14 +275,6 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					textureColors.z[i] = texturePixel.z;
 					textureColors.w[i] = texturePixel.w;
 				}
-				/*
-				for (int i = 0; i < 3; ++i)
-				{
-					float32x16 distScalar = minT / 1000;
-					float32x16 intensity = _mm512_max_ps(float32x16(0.1f), float32x16(1) - distScalar);
-					pixelColor[i] = _mm512_maskz_mov_ps(raysHit, intensity);
-				}
-				pixelColor.w = 1;*/
 				size_t xInt = x[0];
 				mask_store_vec4_f32x16_to_framebuffer(textureColors, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, bounds);
 			}
