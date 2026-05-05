@@ -216,27 +216,27 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
 				rayDirs /= rayDirs.len3d();
 
-				TraceResults results = this->traceRays(rayOrigins, rayDirs, bounds, false);
+				TraceResults hits = this->traceRays(rayOrigins, rayDirs, bounds, false);
 				
 				//nodesInspectedTotal += nodesInspected;
 				//triangleIntersectionChecksTotal += triangleIntersectionChecks;
 
 				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
-				if (results.raysHit)
+				if (hits.raysHit)
 				{
 					for (int i = 0; i < 16; ++i)
 					{
-						if (!(results.raysHit.mask & (1 << i))) continue;
-						int diffuseMapIndex = this->sceneModels[results.modelIndices[i]].textureIndex;
-						Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(results.textureCoords[0][i], results.textureCoords[1][i]);
+						if (!(hits.raysHit.mask & (1 << i))) continue;
+						int diffuseMapIndex = this->sceneModels[hits.modelIndices[i]].textureIndex;
+						Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hits.textureCoords[0][i], hits.textureCoords[1][i]);
 						textureColors.x[i] = texturePixel.x;
 						textureColors.y[i] = texturePixel.y;
 						textureColors.z[i] = texturePixel.z;
 						textureColors.w[i] = texturePixel.w;
 					}
 
-					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * results.t + results.normals * 1;
-					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, results.raysHit, true);
+					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
+					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true);
 					for (int i = 0; i < 3; ++i)
 					{
 						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], float32x16(0.1));
