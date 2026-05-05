@@ -51,15 +51,10 @@ bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, c
 	}
 
 	//Can't subdivide (last level), store here
-	for (int i = 0; i < this->content.size(); ++i)
-	{
-		if (!this->content[i].isEmpty()) continue;
-		this->content[i].modelIndex = modelIndex;
-		this->content[i].triangleIndex = triangleIndex;
-		return true;
-	}
-	throw std::runtime_error("Octree node overflow!");
-	return false;
+	auto& c = this->appendContent();
+	c.modelIndex = modelIndex;
+	c.triangleIndex = triangleIndex;
+	return true;
 }
 
 RayCasting::Octree::Octree(RayCastingRenderer& rend)

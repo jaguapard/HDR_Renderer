@@ -272,13 +272,11 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 		Mask16 raysIntersectingNodeBoundingBox = mask & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax);
 		if (!raysIntersectingNodeBoundingBox) continue;
 
-		for (int contentInd = 0; contentInd < currNode->content.size(); ++contentInd)
+		for (int contentInd = 0; const OctreeContent* content = currNode->getContentOrNull(contentInd); ++contentInd)
 		{
-			const auto& content = currNode->content[contentInd];
-			if (content.isEmpty()) break;
 			//++triangleIntersectionChecks;
-			uint32_t triangleIndex = content.triangleIndex;
-			uint32_t modelIndex = content.modelIndex;
+			uint32_t triangleIndex = content->triangleIndex;
+			uint32_t modelIndex = content->modelIndex;
 			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
 			float32x16 t;
 			Mask16 raysHittingThisTriangle = mask & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
@@ -290,7 +288,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
 			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
 
-			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[content.modelIndex].textureIndex);
+			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex].textureIndex);
 			auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle);
 			float32x16 textureAlpha = accessor.gatherA();
 
