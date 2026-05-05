@@ -174,13 +174,13 @@ int main(int argc, char* argv[])
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
 
-        constexpr int DOWNSCALE_MULT = 100;
+        constexpr int DOWNSCALE_MULT = 64;
 #ifdef NDEBUG
         texDesc.Width = w/10;
         texDesc.Height = h/10;
 #else
-        texDesc.Width = w/DOWNSCALE_MULT;
-        texDesc.Height = h/DOWNSCALE_MULT;
+        texDesc.Width = 16 * 4;//w/DOWNSCALE_MULT;
+        texDesc.Height = 9 * 4;//h/DOWNSCALE_MULT;
 #endif
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
@@ -189,6 +189,8 @@ int main(int argc, char* argv[])
         texDesc.Usage = D3D11_USAGE_DYNAMIC;
         texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+        if (texDesc.Width % 4 != 0 || texDesc.Height % 4 != 0) throw std::runtime_error("Unsupported output texture size! Each side length must be multiple of 4."); //I think this is correct, because it goes haywire if sizes are weird even if renderers are doing everything properly.
 
         ID3D11Texture2D* cpuTexture = nullptr;
         if (FAILED(device->CreateTexture2D(&texDesc, nullptr, &cpuTexture)))
