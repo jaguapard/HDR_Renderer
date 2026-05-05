@@ -351,7 +351,7 @@ int main(int argc, char* argv[])
                         Vec4f osdPixel = osdPixels[y * osdW + x];
                         if (osdPixel.x > 0 || osdPixel.y > 0 || osdPixel.z > 0) //alpha is always 1 in returned surface for some reason, so work around by testing manually
                         {
-                            int outInd = y * texDesc.Width + x;
+                            int outInd = (texDesc.Height - y - 1) * texDesc.Width + x;
                             output[outInd] = _mm_extract_epi64(_mm_cvtps_ph(osdPixel, _MM_FROUND_NO_EXC), 0);
                         }
                     }
