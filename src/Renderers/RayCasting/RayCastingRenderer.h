@@ -27,6 +27,7 @@ namespace RayCasting
 	{
 		float32x16 minT = INFINITY, hitBarycentrics[3], hitTextureCords[2];
 		int32x16 hitModelIndices, hitTriangleIndices;
+		Vec4_f32x16 normals;
 		Mask16 raysHit = 0;
 	};
 }
