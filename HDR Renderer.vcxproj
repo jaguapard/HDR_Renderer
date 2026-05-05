@@ -383,6 +383,7 @@
   <ItemGroup>
     <ClCompile Include="lib\bob\Matrix4.cpp" />
     <ClCompile Include="src\AssetLoader.cpp" />
+    <ClCompile Include="src\BoundingBox.cpp" />
     <ClCompile Include="src\C_Input.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\OSD.cpp" />
@@ -411,6 +412,7 @@
     <ClInclude Include="lib\bob\VectorPack.h" />
     <ClInclude Include="src\AssetLoader.h" />
     <ClInclude Include="src\BlockStore.h" />
+    <ClInclude Include="src\BoundingBox.h" />
     <ClInclude Include="src\C_Input.h" />
     <ClInclude Include="src\EnumCycler.h" />
     <ClInclude Include="src\GameSettings.h" />
