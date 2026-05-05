@@ -253,7 +253,7 @@ int main(int argc, char* argv[])
         gs.camAng = { 0.000000, -1.588021, -0.288000 };
         gs.outputTextureParams = texDesc;
         gs.threadpool = &threadpool;
-        uint32_t OSD_fontSize = std::max<uint32_t>(9, float(texDesc.Height) / 116); //TODO: small sizes are bitmap fonts and crash with RenderText LCD
+        uint32_t OSD_fontSize = std::max<uint32_t>(6, float(texDesc.Height) / 72);
         OSD osd(OSD_fontSize);
         uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
         double lastOsdDrawMs = NAN;

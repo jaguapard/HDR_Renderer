@@ -43,20 +43,23 @@ Smart_Surface OSD::draw(float scalingFactor, const std::vector<std::pair<std::st
 {
 	std::string str = composeString(additionalInfo);
 
-	auto s = Smart_Surface(TTF_RenderText_LCD_Wrapped(font.get(), str.c_str(), str.length(), { 255,255,255,255 }, { 0,0,0,255 }, 1500)); //alpha channel is always 1!
+	Smart_Surface s = Smart_Surface(TTF_RenderText_LCD_Wrapped(this->font.get(), str.c_str(), str.length(), { 255,255,255,255 }, { 0,0,0,255 }, 1500)); //alpha channel is always 1!
+	//Small fonts can be bitmap fonts, that will return null on RenderText_LCD. It's a workaround, since it doesn't look like there's a way to check before rendering. TTF_IsFontScalable returns true even for small font (Lucida Console 6pt for instance)
+	if (!s) s = Smart_Surface(TTF_RenderText_Blended_Wrapped(this->font.get(), str.c_str(), str.length(), { 255,255,255,255 }, 1500));
 	//auto s = Smart_Surface(TTF_RenderText(font.get(), str.c_str(), str.length(), { 255,255,255,255 }, { 0,0,0,255 }, 1500)); //alpha channel is always 1!
 	//auto s = Smart_Surface(TTF_RenderText_Blended_Wrapped(font.get(), str.c_str(), 0, { 255,255,255,255 }, 1000));
 	if (!s) throw std::runtime_error("Failed to draw OSD text");
 
+	SDL_PixelFormat outputFormat = SDL_PIXELFORMAT_RGBA128_FLOAT;
 	int scaledW = scalingFactor * s->w;
 	int scaledH = scalingFactor * s->h;
-	auto s_scaled = Smart_Surface(SDL_CreateSurface(scaledW, scaledH, SDL_PIXELFORMAT_RGBA128_FLOAT));
+	auto s_scaled = Smart_Surface(SDL_CreateSurface(scaledW, scaledH, outputFormat));
 	if (!s_scaled) throw std::runtime_error("Failed to create scaled surface in OSD::draw.");
 
 	if (!SDL_BlitSurfaceScaled(s.get(), nullptr, s_scaled.get(), nullptr, SDL_SCALEMODE_LINEAR)) throw std::runtime_error("Failed to blit scaled OSD surface.");
 	return s_scaled;
 	/*
-	auto conv = Smart_Surface(SDL_ConvertSurface(s.get(), SDL_PIXELFORMAT_RGBA128_FLOAT));
+	auto conv = Smart_Surface(SDL_ConvertSurface(s.get(), outputFormat));
 	if (!conv) throw std::runtime_error("Failed to convert OSD surface");
 	return conv;*/
 
