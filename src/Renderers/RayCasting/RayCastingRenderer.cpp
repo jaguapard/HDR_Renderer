@@ -124,7 +124,7 @@ void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 				for (int k = 0; k < 3; ++k)
 				{
 					t.tv[k].space = { it.v[k].space.x, it.v[k].space.y, it.v[k].space.z, 0.f };
-					t.tv[k].diffuse = { it.v[k].diffuseMapCoords.x, it.v[k].diffuseMapCoords.y, 0.f,0.f };
+					t.tv[k].diffuse = { it.v[k].diffuseMapCoords.x, -it.v[k].diffuseMapCoords.y, 0.f,0.f };
 				}
 			}
 			Model m;
