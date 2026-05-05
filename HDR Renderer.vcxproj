@@ -392,6 +392,7 @@
     <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\primitives.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp" />
+    <ClCompile Include="src\Renderers\RayCasting\Octree.cpp" />
     <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp" />
     <ClCompile Include="src\Renderers\RendererBase.cpp" />
     <ClCompile Include="src\Renderers\TextureManager.cpp" />
@@ -425,6 +426,7 @@
     <ClInclude Include="src\Renderers\Rasterizing\RasterizingBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\RasterizingRenderer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\RenderJobStore.h" />
+    <ClInclude Include="src\Renderers\RayCasting\Octree.h" />
     <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h" />
     <ClInclude Include="src\Renderers\RendererBase.h" />
     <ClInclude Include="src\Renderers\TextureManager.h" />
