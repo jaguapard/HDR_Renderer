@@ -22,7 +22,53 @@ namespace RayCasting
 		BoundingBox getBoundingBoxForChildIndex(int i) const;
 		bool tryAddTriangle(int modelIndex, int triangleIndex, const RayCastingRenderer& rend);
 
+		//Returns a pointer to non-empty content of this node at index i, or nullptr if that element is empty or doesn't exist
+		const OctreeContent* getContentOrNull(size_t i) const
+		{
+			if (i >= content.size())
+			{
+				if (!extendedContent) return nullptr;
+				size_t vi = i - content.size();
+				if (vi >= this->extendedContent->size()) return nullptr;
+				return std::addressof((*extendedContent)[vi]);
+			}
+			const OctreeContent* c = &content[i];
+			if (c->isEmpty()) return nullptr;
+			return c;
+		}
 
+		//Appends an empty content element to this node and returns a reference to it. 
+		OctreeContent& appendContent()
+		{
+			for (int i = 0; i < content.size(); ++i)
+			{
+				if (content[i].isEmpty()) return content[i];
+			}
+			if (!extendedContent) extendedContent = new std::vector<OctreeContent>;
+			return extendedContent->emplace_back();
+		}
+		OctreeContent* getContentElement(size_t i, bool returnNullForEmpty = true)
+		{
+			if (i >= content.size())
+			{
+				if (!extendedContent)
+				{
+					if (returnNullForEmpty) return nullptr;
+					extendedContent = new std::vector<OctreeContent>;
+				}
+				size_t vi = i - content.size();
+				if (extendedContent->size() <= vi)
+				{
+					if (returnNullForEmpty) return nullptr;
+					this->extendedContent->resize(vi + 1);
+				}
+				return std::addressof((*extendedContent)[vi]);
+			}
+			
+			OctreeContent* c = &content[i];
+			if (c->isEmpty()) return nullptr;
+			return c;
+		}
 		struct ContentIterator
 		{
 			friend struct OctreeNode;
