@@ -1,6 +1,6 @@
 #include "Octree.h"
 #include "RayCastingRenderer.h"
-
+using namespace RayCasting;
 BoundingBox RayCasting::OctreeNode::getBoundingBoxForChildIndex(int i) const
 {
 	int takeStepX = i & 1;
@@ -24,35 +24,75 @@ bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, c
 {
 	const Triangle& t = rend.sceneModels[modelIndex].triangles[triangleIndex];
 	BoundingBox tbb = { t.tv[0].space,t.tv[1].space,t.tv[2].space };
-	if (!this->bbox.containsFully(tbb)) return false;
+	if (!this->bbox.intersectsWith(tbb)) return false;
 
 	//scan children for the ones that can be used to insert the triangle it. Only subdivide is big enough
 	float xSize = bbox.xmax - bbox.xmin;
 	float ySize = bbox.ymax - bbox.ymin;
 	float zSize = bbox.zmax - bbox.zmin;
-	if (xSize > 4 || ySize > 4 || zSize > 4)
+	if (xSize > 32 && ySize > 32 && zSize > 32)
 	{
+		bool added = false;
 		for (int i = 0; i < CHILD_COUNT; ++i)
 		{
 			BoundingBox childBox = getBoundingBoxForChildIndex(i);
-			if (childBox.containsFully(tbb))
+			if (childBox.intersectsWith(tbb))
 			{
-				if (!children[i])
+				auto [child, created] = this->getOrCreateChild(i);
+				if (created)
 				{
-					children[i] = std::make_unique<OctreeNode>();
-					children[i]->bbox = childBox;
+					child.bbox = childBox;
 				}
-				if (children[i]->tryAddTriangle(modelIndex, triangleIndex, rend)) return true;
+				added |= child.tryAddTriangle(modelIndex, triangleIndex, rend);
 			}
 		}
+		if (!added) throw std::runtime_error("Failed to add triangle to Octree - all children rejected!");
+		return true;
 	}
 
-	//no children containing fully, but this one does, so put here
-	OctreeContent c;
+	//Can't subdivide (last level), store here
+	auto& c = this->appendContent();
 	c.modelIndex = modelIndex;
 	c.triangleIndex = triangleIndex;
-	this->contents.push_back(c);
 	return true;
+}
+
+const RayCasting::OctreeContent* RayCasting::OctreeNode::getContentOrNull(size_t i) const
+{
+	if (i >= content.size())
+	{
+		if (!extendedContent) return nullptr;
+		size_t vi = i - content.size();
+		if (vi >= this->extendedContent->size()) return nullptr;
+		return std::addressof((*extendedContent)[vi]);
+	}
+	const OctreeContent* c = &content[i];
+	if (c->isEmpty()) return nullptr;
+	return c;
+}
+OctreeContent& RayCasting::OctreeNode::appendContent()
+{
+	for (int i = 0; i < content.size(); ++i)
+	{
+		if (content[i].isEmpty()) return content[i];
+	}
+	if (!extendedContent) extendedContent = new std::vector<OctreeContent>;
+	return extendedContent->emplace_back();
+}
+
+OctreeNode* RayCasting::OctreeNode::getChild(size_t index)
+{
+	assert(index < CHILD_COUNT);
+	return this->children[index].get();
+}
+
+std::pair<OctreeNode&, bool> RayCasting::OctreeNode::getOrCreateChild(size_t index)
+{
+	assert(index < CHILD_COUNT);
+	OctreeNode* child = this->getChild(index);
+	if (child) return { *child, false };
+	this->children[index] = std::make_unique<OctreeNode>();
+	return { *this->children[index], true };
 }
 
 RayCasting::Octree::Octree(RayCastingRenderer& rend)
@@ -75,4 +115,9 @@ RayCasting::Octree::Octree(RayCastingRenderer& rend)
 			if (!this->root->tryAddTriangle(modelIndex, triangleIndex, rend)) throw std::runtime_error("Failed to add triangle into Octree! Model index: " + std::to_string(modelIndex) + ", triangle index " + std::to_string(triangleIndex));
 		}
 	}
+}
+
+bool RayCasting::OctreeContent::isEmpty() const
+{
+	return modelIndex == -1 && triangleIndex == -1;
 }
