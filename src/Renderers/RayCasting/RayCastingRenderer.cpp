@@ -272,8 +272,10 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 		Mask16 raysIntersectingNodeBoundingBox = mask & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax);
 		if (!raysIntersectingNodeBoundingBox) continue;
 
-		for (auto& content : currNode->contents)
+		for (int contentInd = 0; contentInd < currNode->content.size(); ++contentInd)
 		{
+			const auto& content = currNode->content[contentInd];
+			if (content.isEmpty()) break;
 			//++triangleIntersectionChecks;
 			uint32_t triangleIndex = content.triangleIndex;
 			uint32_t modelIndex = content.modelIndex;

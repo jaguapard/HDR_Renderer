@@ -51,11 +51,15 @@ bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, c
 	}
 
 	//Can't subdivide (last level), store here
-	OctreeContent c;
-	c.modelIndex = modelIndex;
-	c.triangleIndex = triangleIndex;
-	this->contents.push_back(c);
-	return true;
+	for (int i = 0; i < this->content.size(); ++i)
+	{
+		if (!this->content[i].isEmpty()) continue;
+		this->content[i].modelIndex = modelIndex;
+		this->content[i].triangleIndex = triangleIndex;
+		return true;
+	}
+	throw std::runtime_error("Octree node overflow!");
+	return false;
 }
 
 RayCasting::Octree::Octree(RayCastingRenderer& rend)
@@ -78,4 +82,9 @@ RayCasting::Octree::Octree(RayCastingRenderer& rend)
 			if (!this->root->tryAddTriangle(modelIndex, triangleIndex, rend)) throw std::runtime_error("Failed to add triangle into Octree! Model index: " + std::to_string(modelIndex) + ", triangle index " + std::to_string(triangleIndex));
 		}
 	}
+}
+
+bool RayCasting::OctreeContent::isEmpty() const
+{
+	return modelIndex == -1 && triangleIndex == -1;
 }
