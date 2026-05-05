@@ -47,53 +47,6 @@ namespace RayCasting
 			if (!extendedContent) extendedContent = new std::vector<OctreeContent>;
 			return extendedContent->emplace_back();
 		}
-		OctreeContent* getContentElement(size_t i, bool returnNullForEmpty = true)
-		{
-			if (i >= content.size())
-			{
-				if (!extendedContent)
-				{
-					if (returnNullForEmpty) return nullptr;
-					extendedContent = new std::vector<OctreeContent>;
-				}
-				size_t vi = i - content.size();
-				if (extendedContent->size() <= vi)
-				{
-					if (returnNullForEmpty) return nullptr;
-					this->extendedContent->resize(vi + 1);
-				}
-				return std::addressof((*extendedContent)[vi]);
-			}
-			
-			OctreeContent* c = &content[i];
-			if (c->isEmpty()) return nullptr;
-			return c;
-		}
-		struct ContentIterator
-		{
-			friend struct OctreeNode;
-			ContentIterator(OctreeNode* p, bool readOnly = true) 
-			{ 
-				parent = p;
-				this->readOnly = readOnly; 
-			}
-			OctreeContent* getAndIncrement()
-			{
-				if (ind >= parent->content.size())
-				{
-					size_t vi = ind - parent->content.size();
-					if (!parent->extendedContent || vi >= parent->extendedContent->size()) return nullptr;
-					++ind;
-					return std::addressof((*parent->extendedContent)[vi]);
-				}
-				if (parent->content[ind].isEmpty()) return nullptr;
-				return &parent->content[ind++];
-			}
-		private:
-			size_t ind = 0;
-			OctreeNode* parent;
-			bool readOnly;
-		};
 	private:
 		std::array<OctreeContent, 7> content;
 		std::vector<OctreeContent>* extendedContent = nullptr;
