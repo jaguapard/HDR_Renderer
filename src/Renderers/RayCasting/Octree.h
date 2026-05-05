@@ -14,7 +14,6 @@ namespace RayCasting
 	{
 		static constexpr int CHILD_COUNT = 8;
 		BoundingBox bbox;
-		std::unique_ptr<OctreeNode> children[CHILD_COUNT] = { nullptr };
 
 		bool isLeafNode() const;
 		//std::vector<OctreeContent> contents;
@@ -27,9 +26,15 @@ namespace RayCasting
 
 		//Appends an empty content element to this node and returns a reference to it. 
 		OctreeContent& appendContent();
+
+		//Gets index'th child of this node. Does not perform bounds checks, index >= CHILD_COUNT is undefined behavior.
+		OctreeNode* getChild(size_t index);
+
+		std::pair<OctreeNode&, bool> getOrCreateChild(size_t index);
 	private:
 		std::array<OctreeContent, 7> content;
 		std::vector<OctreeContent>* extendedContent = nullptr;
+		std::unique_ptr<OctreeNode> children[CHILD_COUNT] = { nullptr };
 	};
 
 	class Octree

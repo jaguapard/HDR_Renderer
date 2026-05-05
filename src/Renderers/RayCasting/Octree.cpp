@@ -38,12 +38,12 @@ bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, c
 			BoundingBox childBox = getBoundingBoxForChildIndex(i);
 			if (childBox.intersectsWith(tbb))
 			{
-				if (!children[i])
+				auto [child, created] = this->getOrCreateChild(i);
+				if (created)
 				{
-					children[i] = std::make_unique<OctreeNode>();
-					children[i]->bbox = childBox;
+					child.bbox = childBox;
 				}
-				added |= children[i]->tryAddTriangle(modelIndex, triangleIndex, rend);
+				added |= child.tryAddTriangle(modelIndex, triangleIndex, rend);
 			}
 		}
 		if (!added) throw std::runtime_error("Failed to add triangle to Octree - all children rejected!");
@@ -79,6 +79,22 @@ OctreeContent& RayCasting::OctreeNode::appendContent()
 	if (!extendedContent) extendedContent = new std::vector<OctreeContent>;
 	return extendedContent->emplace_back();
 }
+
+OctreeNode* RayCasting::OctreeNode::getChild(size_t index)
+{
+	assert(index < CHILD_COUNT);
+	return this->children[index].get();
+}
+
+std::pair<OctreeNode&, bool> RayCasting::OctreeNode::getOrCreateChild(size_t index)
+{
+	assert(index < CHILD_COUNT);
+	OctreeNode* child = this->getChild(index);
+	if (child) return { *child, false };
+	this->children[index] = std::make_unique<OctreeNode>();
+	return { *this->children[index], true };
+}
+
 RayCasting::Octree::Octree(RayCastingRenderer& rend)
 {
 	this->rend = &rend;

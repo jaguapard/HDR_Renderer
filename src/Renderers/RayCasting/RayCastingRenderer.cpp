@@ -313,7 +313,8 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 
 		for (int i = 0; i < currNode->CHILD_COUNT; ++i)
 		{
-			if (currNode->children[i]) stack[stackTopIndex++] = currNode->children[i].get();
+			OctreeNode* child = currNode->getChild(i);
+			if (child) stack[stackTopIndex++] = child;
 		}
 	}
 	return ret;
