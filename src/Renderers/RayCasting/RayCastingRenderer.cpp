@@ -235,7 +235,8 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						textureColors.w[i] = texturePixel.w;
 					}
 
-					TraceResults shadowTrace = this->traceRays(rayOrigins + rayDirs * results.minT, lightDir, results.raysHit, true);
+					float32x16 shadowTraceT = results.minT * 0.99 - 1;
+					TraceResults shadowTrace = this->traceRays(rayOrigins + rayDirs * shadowTraceT, lightDir, results.raysHit, true);
 					for (int i = 0; i < 3; ++i)
 					{
 						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], float32x16(0.1));
