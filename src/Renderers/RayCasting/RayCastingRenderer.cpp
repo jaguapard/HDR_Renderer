@@ -282,25 +282,30 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			Mask16 raysHittingThisTriangle = mask & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
 			if (!raysHittingThisTriangle) continue;
 
-			Mask16 toOverride = raysHittingThisTriangle & t < ret.t;
+			std::array<float32x16, 3> worldBarycentrics;
+			//can interpolate normals imported from model in the future, but not now
+			calculateBarycentricCoordinates3D(rayOrigins + rayDirs * t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, worldBarycentrics);
+			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
+			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
+
+			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[content.modelIndex].textureIndex);
+			auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle);
+			float32x16 textureAlpha = accessor.gatherA();
+
+			Mask16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
 			ret.raysHit |= toOverride;
 			ret.t = _mm512_mask_mov_ps(ret.t, toOverride, t);
 			//TODO: all traces will need textures, since they can be fully or semi-transparent. For now, shadows skip all this
-			if (!shadowRays)
+			//if (!shadowRays)
 			{
 				ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
 				ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
-
-				std::array<float32x16, 3> barycentrics;
-				//can interpolate normals imported from model in the future, but not now
-				calculateBarycentricCoordinates3D(rayOrigins + rayDirs * ret.t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
 				Vec4f faceNormal = getFaceNormalForTriangle(triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
-				Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
+				
 				for (int k = 0; k < 3; ++k)
 				{
-					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, barycentrics[k]);
+					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
 					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, float32x16(faceNormal[k]));
-					uv += Vec4_f32x16(triangle.tv[k].diffuse) * barycentrics[k];
 				}
 				for (int k = 0; k < 2; ++k)
 				{
