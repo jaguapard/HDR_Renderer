@@ -12,7 +12,7 @@
 class OSD
 {
 public:
-	OSD();
+	OSD(uint32_t fontSize = 0);
 	void reset();
 	void registerFrameBegin(); //must be called before any drawing and processing is attempted
 	void registerFrameDone(bool remember = true);

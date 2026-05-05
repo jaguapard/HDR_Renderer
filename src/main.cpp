@@ -253,7 +253,8 @@ int main(int argc, char* argv[])
         gs.camAng = { 0.000000, -1.588021, -0.288000 };
         gs.outputTextureParams = texDesc;
         gs.threadpool = &threadpool;
-        OSD osd;
+        uint32_t OSD_fontSize = std::max<uint32_t>(9, float(texDesc.Height) / 116); //TODO: small sizes are bitmap fonts and crash with RenderText LCD
+        OSD osd(OSD_fontSize);
         uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
         double lastOsdDrawMs = NAN;
         while (running) {
@@ -338,7 +339,7 @@ int main(int argc, char* argv[])
             };
             if (gs.osdEnabled) //VERY slow, impacts FPS a lot, disabled by default
             {
-                float scalingFactor = std::max(0.5f, float(texDesc.Height) / h); //very small OSD becomes unreadable
+                float scalingFactor = 1;// std::max(0.5f, float(texDesc.Height) / h); //very small OSD becomes unreadable
                 auto osdSurface = osd.draw(scalingFactor, additionalInfo);
                 int osdW = osdSurface->w;
                 int osdH = osdSurface->h;

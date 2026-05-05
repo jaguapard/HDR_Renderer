@@ -6,12 +6,13 @@
 //#include "Statsman.h"
 #include <sstream>
 
-OSD::OSD()
+OSD::OSD(uint32_t fontSize)
 {
+	if (!fontSize) fontSize = 22;
 	std::string path = "C:/Windows/Fonts/lucon.ttf";
-	font = Smart_Font(TTF_OpenFont(path.c_str(), 22));
+	font = Smart_Font(TTF_OpenFont(path.c_str(), fontSize));
 	if (!font) throw std::runtime_error("Failed to open main font: " + path);
-	fontOutline = Smart_Font(TTF_OpenFont(path.c_str(), 22));
+	fontOutline = Smart_Font(TTF_OpenFont(path.c_str(), fontSize));
 	TTF_SetFontOutline(fontOutline.get(), 1);
 	if (!fontOutline) throw std::runtime_error("Failed to open font outline: " + path);
 }
