@@ -24,27 +24,30 @@ bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, c
 {
 	const Triangle& t = rend.sceneModels[modelIndex].triangles[triangleIndex];
 	BoundingBox tbb = { t.tv[0].space,t.tv[1].space,t.tv[2].space };
-	if (!this->bbox.containsFully(tbb)) return false;
+	if (!this->bbox.intersectsWith(tbb)) return false;
 
 	//scan children for the ones that can be used to insert the triangle it. Only subdivide is big enough
 	float xSize = bbox.xmax - bbox.xmin;
 	float ySize = bbox.ymax - bbox.ymin;
 	float zSize = bbox.zmax - bbox.zmin;
-	if (xSize > 4 || ySize > 4 || zSize > 4)
+	if (xSize > 64 || ySize > 64 || zSize > 64)
 	{
+		bool added = false;
 		for (int i = 0; i < CHILD_COUNT; ++i)
 		{
 			BoundingBox childBox = getBoundingBoxForChildIndex(i);
-			if (childBox.containsFully(tbb))
+			if (childBox.intersectsWith(tbb))
 			{
 				if (!children[i])
 				{
 					children[i] = std::make_unique<OctreeNode>();
 					children[i]->bbox = childBox;
 				}
-				if (children[i]->tryAddTriangle(modelIndex, triangleIndex, rend)) return true;
+				added |= children[i]->tryAddTriangle(modelIndex, triangleIndex, rend);
 			}
 		}
+		if (!added) throw std::runtime_error("Failed to add triangle to Octree - all children rejected!");
+		return true;
 	}
 
 	//no children containing fully, but this one does, so put here
