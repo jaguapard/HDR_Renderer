@@ -23,30 +23,10 @@ namespace RayCasting
 		bool tryAddTriangle(int modelIndex, int triangleIndex, const RayCastingRenderer& rend);
 
 		//Returns a pointer to non-empty content of this node at index i, or nullptr if that element is empty or doesn't exist
-		const OctreeContent* getContentOrNull(size_t i) const
-		{
-			if (i >= content.size())
-			{
-				if (!extendedContent) return nullptr;
-				size_t vi = i - content.size();
-				if (vi >= this->extendedContent->size()) return nullptr;
-				return std::addressof((*extendedContent)[vi]);
-			}
-			const OctreeContent* c = &content[i];
-			if (c->isEmpty()) return nullptr;
-			return c;
-		}
+		const OctreeContent* getContentOrNull(size_t i) const;
 
 		//Appends an empty content element to this node and returns a reference to it. 
-		OctreeContent& appendContent()
-		{
-			for (int i = 0; i < content.size(); ++i)
-			{
-				if (content[i].isEmpty()) return content[i];
-			}
-			if (!extendedContent) extendedContent = new std::vector<OctreeContent>;
-			return extendedContent->emplace_back();
-		}
+		OctreeContent& appendContent();
 	private:
 		std::array<OctreeContent, 7> content;
 		std::vector<OctreeContent>* extendedContent = nullptr;

@@ -1,6 +1,6 @@
 #include "Octree.h"
 #include "RayCastingRenderer.h"
-
+using namespace RayCasting;
 BoundingBox RayCasting::OctreeNode::getBoundingBoxForChildIndex(int i) const
 {
 	int takeStepX = i & 1;
@@ -57,6 +57,28 @@ bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, c
 	return true;
 }
 
+const RayCasting::OctreeContent* RayCasting::OctreeNode::getContentOrNull(size_t i) const
+{
+	if (i >= content.size())
+	{
+		if (!extendedContent) return nullptr;
+		size_t vi = i - content.size();
+		if (vi >= this->extendedContent->size()) return nullptr;
+		return std::addressof((*extendedContent)[vi]);
+	}
+	const OctreeContent* c = &content[i];
+	if (c->isEmpty()) return nullptr;
+	return c;
+}
+OctreeContent& RayCasting::OctreeNode::appendContent()
+{
+	for (int i = 0; i < content.size(); ++i)
+	{
+		if (content[i].isEmpty()) return content[i];
+	}
+	if (!extendedContent) extendedContent = new std::vector<OctreeContent>;
+	return extendedContent->emplace_back();
+}
 RayCasting::Octree::Octree(RayCastingRenderer& rend)
 {
 	this->rend = &rend;
