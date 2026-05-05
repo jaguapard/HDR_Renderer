@@ -22,6 +22,13 @@ namespace RayCasting
 		std::vector<Triangle> triangles;
 		int textureIndex = -1;
 	};
+
+	struct TraceResults
+	{
+		float32x16 minT = INFINITY, hitBarycentrics[3], hitTextureCords[2];
+		int32x16 hitModelIndices, hitTriangleIndices;
+		Mask16 raysHit = 0;
+	};
 }
 
 class RayCastingRenderer : public RendererBase
@@ -34,4 +41,6 @@ protected:
 	RayCasting::Octree octree;
 	friend class RayCasting::Octree;
 	friend class RayCasting::OctreeNode;
+
+	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays);
 };

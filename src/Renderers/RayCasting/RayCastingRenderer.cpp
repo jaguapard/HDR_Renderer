@@ -207,74 +207,24 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			__attribute__((noinline)) //Prevent inlining of lambda on Clang. Without it, profiling results are total garbage. MSVC doesn't work with this, but it has useful profiling without it.
 		#endif
 			{
-			std::array<OctreeNode*, 2048> stack;
 			for (float32x16 x = float32x16::sequence(); Mask16 bounds = x < bufW; x += 16)
 			{
 				float32x16 progressX = x / float(bufH);
 				float progressY = y / float(bufH);
 				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
 				rayDirs /= rayDirs.len3d();
-				Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
 
-				float32x16 minT = INFINITY, hitBarycentrics[3], hitTextureCords[2];
-				int32x16 hitModelIndices, hitTriangleIndices;
-				Mask16 raysHit = 0;
-
-				int stackTopIndex = 1;
-				stack[0] = this->octree.root.get();
-				uint64_t nodesInspected = 0, triangleIntersectionChecks = 0;
-				while (stackTopIndex > 0)
-				{
-					++nodesInspected;
-					OctreeNode* currNode = stack[--stackTopIndex];
-					float32x16 bboxTmin, bboxTmax; //not used
-					Mask16 raysIntersectingNodeBoundingBox = bounds & currNode->bbox.getMinAndMaxIntestionsFor(camPos, rcpRayDirs, bboxTmin, bboxTmax);
-					if (!raysIntersectingNodeBoundingBox) continue;
-
-					for (auto& content : currNode->contents)
-					{
-						++triangleIntersectionChecks;
-						uint32_t triangleIndex = content.triangleIndex;
-						uint32_t modelIndex = content.modelIndex;
-						const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
-						float32x16 t;
-						Mask16 raysHittingThisTriangle = bounds & raysTriangleIntersectionTs(camPos, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
-						if (!raysHittingThisTriangle) continue;
-
-						Mask16 toOverride = raysHittingThisTriangle & t < minT;
-						raysHit |= toOverride;
-						minT = _mm512_mask_mov_ps(minT, toOverride, t);
-						hitModelIndices = _mm512_mask_mov_epi32(hitModelIndices, toOverride, int32x16(modelIndex));
-						hitTriangleIndices = _mm512_mask_mov_epi32(hitTriangleIndices, toOverride, int32x16(triangleIndex));
-
-						std::array<float32x16, 3> barycentrics;
-						calculateBarycentricCoordinates3D(rayOrigins + rayDirs * minT, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
-						Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
-						for (int k = 0; k < 3; ++k)
-						{
-							hitBarycentrics[k] = _mm512_mask_mov_ps(hitBarycentrics[k], toOverride, barycentrics[k]);
-							uv += Vec4_f32x16(triangle.tv[k].diffuse) * barycentrics[k];
-						}
-						for (int k = 0; k < 2; ++k)
-						{
-							hitTextureCords[k] = _mm512_mask_mov_ps(hitTextureCords[k], toOverride, uv[k]);
-						}
-					}
-
-					for (int i = 0; i < currNode->CHILD_COUNT; ++i)
-					{
-						if (currNode->children[i]) stack[stackTopIndex++] = currNode->children[i].get();
-					}
-				}
-				nodesInspectedTotal += nodesInspected;
-				triangleIntersectionChecksTotal += triangleIntersectionChecks;
+				TraceResults results = this->traceRays(rayOrigins, rayDirs, bounds, false);
+				
+				//nodesInspectedTotal += nodesInspected;
+				//triangleIntersectionChecksTotal += triangleIntersectionChecks;
 
 				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
 				for (int i = 0; i < 16; ++i)
 				{
-					if (!(raysHit.mask & (1<<i))) continue;
-					int diffuseMapIndex = this->sceneModels[hitModelIndices[i]].textureIndex;
-					Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hitTextureCords[0][i], hitTextureCords[1][i]);
+					if (!(results.raysHit.mask & (1<<i))) continue;
+					int diffuseMapIndex = this->sceneModels[results.hitModelIndices[i]].textureIndex;
+					Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(results.hitTextureCords[0][i], results.hitTextureCords[1][i]);
 					textureColors.x[i] = texturePixel.x;
 					textureColors.y[i] = texturePixel.y;
 					textureColors.z[i] = texturePixel.z;
@@ -291,4 +241,59 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	//TODO: make statsman for this renderer
 	std::cout << "Nodes inspected: " << nodesInspectedTotal << " (" << nodesInspectedTotal / double(bufW * bufH) << " per pixel)\n";
 	std::cout << "Triangles inspected: " << triangleIntersectionChecksTotal << " (" << triangleIntersectionChecksTotal / double(bufW * bufH) << " per pixel)\n";
+}
+
+RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays)
+{
+	Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
+	std::array<OctreeNode*, 2048> stack;
+	TraceResults ret;
+
+	int stackTopIndex = 1;
+	stack[0] = this->octree.root.get();
+	uint64_t nodesInspected = 0, triangleIntersectionChecks = 0;
+	while (stackTopIndex > 0)
+	{
+		++nodesInspected;
+		OctreeNode* currNode = stack[--stackTopIndex];
+		float32x16 bboxTmin, bboxTmax; //not used
+		Mask16 raysIntersectingNodeBoundingBox = mask & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax);
+		if (!raysIntersectingNodeBoundingBox) continue;
+
+		for (auto& content : currNode->contents)
+		{
+			//++triangleIntersectionChecks;
+			uint32_t triangleIndex = content.triangleIndex;
+			uint32_t modelIndex = content.modelIndex;
+			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
+			float32x16 t;
+			Mask16 raysHittingThisTriangle = mask & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
+			if (!raysHittingThisTriangle) continue;
+
+			Mask16 toOverride = raysHittingThisTriangle & t < ret.minT;
+			ret.raysHit |= toOverride;
+			ret.minT = _mm512_mask_mov_ps(ret.minT, toOverride, t);
+			ret.hitModelIndices = _mm512_mask_mov_epi32(ret.hitModelIndices, toOverride, int32x16(modelIndex));
+			ret.hitTriangleIndices = _mm512_mask_mov_epi32(ret.hitTriangleIndices, toOverride, int32x16(triangleIndex));
+
+			std::array<float32x16, 3> barycentrics;
+			calculateBarycentricCoordinates3D(rayOrigins + rayDirs * ret.minT, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
+			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
+			for (int k = 0; k < 3; ++k)
+			{
+				ret.hitBarycentrics[k] = _mm512_mask_mov_ps(ret.hitBarycentrics[k], toOverride, barycentrics[k]);
+				uv += Vec4_f32x16(triangle.tv[k].diffuse) * barycentrics[k];
+			}
+			for (int k = 0; k < 2; ++k)
+			{
+				ret.hitTextureCords[k] = _mm512_mask_mov_ps(ret.hitTextureCords[k], toOverride, uv[k]);
+			}
+		}
+
+		for (int i = 0; i < currNode->CHILD_COUNT; ++i)
+		{
+			if (currNode->children[i]) stack[stackTopIndex++] = currNode->children[i].get();
+		}
+	}
+	return ret;
 }
