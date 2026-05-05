@@ -30,7 +30,7 @@ bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, c
 	float xSize = bbox.xmax - bbox.xmin;
 	float ySize = bbox.ymax - bbox.ymin;
 	float zSize = bbox.zmax - bbox.zmin;
-	if (xSize > 64 || ySize > 64 || zSize > 64)
+	if (xSize > 32 && ySize > 32 && zSize > 32)
 	{
 		bool added = false;
 		for (int i = 0; i < CHILD_COUNT; ++i)
@@ -50,7 +50,7 @@ bool RayCasting::OctreeNode::tryAddTriangle(int modelIndex, int triangleIndex, c
 		return true;
 	}
 
-	//no children containing fully, but this one does, so put here
+	//Can't subdivide (last level), store here
 	OctreeContent c;
 	c.modelIndex = modelIndex;
 	c.triangleIndex = triangleIndex;
