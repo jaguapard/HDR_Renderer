@@ -201,7 +201,11 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	std::atomic<uint64_t> nodesInspectedTotal = 0, triangleIntersectionChecksTotal = 0;
 	for (int y = 0; y < bufH; ++y)
 	{
-		tsk.func = [&, this, y]() __attribute__((noinline)) {
+		tsk.func = [&, this, y]() 
+		#ifdef VS_CLANG 
+			__attribute__((noinline)) //Prevent inlining of lambda on Clang. Without it, profiling results are total garbage. MSVC doesn't work with this, but it has useful profiling without it.
+		#endif
+			{
 			std::array<OctreeNode*, 2048> stack;
 			for (float32x16 x = float32x16::sequence(); Mask16 bounds = x < bufW; x += 16)
 			{
