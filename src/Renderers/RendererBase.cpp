@@ -57,6 +57,11 @@ void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const
 	gamma = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
 }
 
+void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, std::array<float32x16, 3>& outBarycentrics)
+{
+	calculateBarycentricCoordinates3D(P, A, B, C, outBarycentrics[0], outBarycentrics[1], outBarycentrics[2]);
+}
+
 Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask)
 {
 	int loadInd = y * w + x;

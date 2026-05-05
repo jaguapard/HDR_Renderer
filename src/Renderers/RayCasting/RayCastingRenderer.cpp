@@ -211,7 +211,8 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				rayDirs /= rayDirs.len3d();
 				Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
 
-				float32x16 minT = INFINITY;
+				float32x16 minT = INFINITY, hitBarycentrics[3], hitTextureCords[2];
+				int32x16 hitModelIndices, hitTriangleIndices;
 
 				int stackTopIndex = 1;
 				stack[0] = this->octree.root.get();
@@ -227,10 +228,30 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					for (auto& content : currNode->contents)
 					{
 						++triangleIntersectionChecks;
-						const Triangle& triangle = this->sceneModels[content.modelIndex].triangles[content.triangleIndex];
+						uint32_t triangleIndex = content.triangleIndex;
+						uint32_t modelIndex = content.modelIndex;
+						const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
 						float32x16 t;
 						Mask16 raysHittingThisTriangle = bounds & raysTriangleIntersectionTs(camPos, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
-						minT = _mm512_mask_min_ps(minT, raysHittingThisTriangle, t, minT);
+						if (!raysHittingThisTriangle) continue;
+
+						Mask16 toOverride = raysHittingThisTriangle & t < minT;
+						minT = _mm512_mask_mov_ps(minT, toOverride, t);
+						hitModelIndices = _mm512_mask_mov_epi32(hitModelIndices, toOverride, int32x16(modelIndex));
+						hitTriangleIndices = _mm512_mask_mov_epi32(hitTriangleIndices, toOverride, int32x16(triangleIndex));
+
+						std::array<float32x16, 3> barycentrics;
+						calculateBarycentricCoordinates3D(rayOrigins + rayDirs * minT, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
+						Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
+						for (int k = 0; k < 3; ++k)
+						{
+							hitBarycentrics[k] = _mm512_mask_mov_ps(hitBarycentrics[k], toOverride, barycentrics[k]);
+							uv += Vec4_f32x16(triangle.tv[k].diffuse) * barycentrics[k];
+						}
+						for (int k = 0; k < 2; ++k)
+						{
+							hitTextureCords[k] = _mm512_mask_mov_ps(hitTextureCords[k], toOverride, uv[k]);
+						}
 					}
 
 					for (int i = 0; i < currNode->CHILD_COUNT; ++i)
@@ -242,16 +263,28 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				triangleIntersectionChecksTotal += triangleIntersectionChecks;
 
 				Mask16 raysHit = minT < INFINITY;
-				Vec4_f32x16 pixelColor;
+				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
+
+				for (int i = 0; i < 16; ++i)
+				{
+					if (!(raysHit.mask & (1<<i))) continue;
+					int diffuseMapIndex = this->sceneModels[hitModelIndices[i]].textureIndex;
+					Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hitTextureCords[0][i], hitTextureCords[1][i]);
+					textureColors.x[i] = texturePixel.x;
+					textureColors.y[i] = texturePixel.y;
+					textureColors.z[i] = texturePixel.z;
+					textureColors.w[i] = texturePixel.w;
+				}
+				/*
 				for (int i = 0; i < 3; ++i)
 				{
 					float32x16 distScalar = minT / 1000;
 					float32x16 intensity = _mm512_max_ps(float32x16(0.1f), float32x16(1) - distScalar);
 					pixelColor[i] = _mm512_maskz_mov_ps(raysHit, intensity);
 				}
-				pixelColor.w = 1;
+				pixelColor.w = 1;*/
 				size_t xInt = x[0];
-				mask_store_vec4_f32x16_to_framebuffer(pixelColor, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, bounds);
+				mask_store_vec4_f32x16_to_framebuffer(textureColors, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, bounds);
 			}
 		};
 		tasks.emplace_back(settings.threadpool->addTask(tsk));
