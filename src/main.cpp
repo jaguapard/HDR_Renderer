@@ -112,6 +112,7 @@ Threadpool threadpool;
 
 int main(int argc, char* argv[]) 
 {
+    SDL_Window* window;
     try
     {
         Statsman::statsmenForThreads.resize(threadpool.getWorkerCount() + 1); //last one for main thread
@@ -120,7 +121,7 @@ int main(int argc, char* argv[])
      
         int w = 2560;
         int h = 1440;
-        SDL_Window* window = SDL_CreateWindow("SDL3 + D3D11 Pixel Display", w, h, 0);
+        window = SDL_CreateWindow("SDL3 + D3D11 Pixel Display", w, h, 0);
         if (!window) RAISE_ERROR("SDL_CreateWindow failed");
 
         SDL_PropertiesID props = SDL_GetWindowProperties(window);
@@ -275,6 +276,7 @@ int main(int argc, char* argv[])
                     running = false; break;
                 }
             }
+            if (!running) break;
 
             if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
             {
@@ -408,10 +410,6 @@ int main(int argc, char* argv[])
         vs->Release(); ps->Release(); sampler->Release(); srv->Release();
         cpuTexture->Release(); rtv->Release(); swapChain->Release();
         context->Release(); device->Release();
-
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 0;
     }
     catch (const std::exception& e)
     {
@@ -419,4 +417,8 @@ int main(int argc, char* argv[])
         ss << e.what() << "\nSDL error reports: " << SDL_GetError() << "\n" << "strerror: " << strerror(errno) << "\n";
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", ss.str().c_str(), nullptr);
     }
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    std::_Exit(0); //TODO: stop tokens in threadpool jthreads
+    return 0;
 }
