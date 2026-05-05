@@ -25,8 +25,8 @@ namespace RayCasting
 
 	struct TraceResults
 	{
-		float32x16 minT = INFINITY, hitBarycentrics[3], hitTextureCords[2];
-		int32x16 hitModelIndices, hitTriangleIndices;
+		float32x16 t = INFINITY, worldBarycentrics[3], textureCoords[2];
+		int32x16 modelIndices, triangleIndices;
 		Vec4_f32x16 normals;
 		Mask16 raysHit = 0;
 	};

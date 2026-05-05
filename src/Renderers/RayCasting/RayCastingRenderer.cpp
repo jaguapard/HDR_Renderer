@@ -227,15 +227,15 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					for (int i = 0; i < 16; ++i)
 					{
 						if (!(results.raysHit.mask & (1 << i))) continue;
-						int diffuseMapIndex = this->sceneModels[results.hitModelIndices[i]].textureIndex;
-						Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(results.hitTextureCords[0][i], results.hitTextureCords[1][i]);
+						int diffuseMapIndex = this->sceneModels[results.modelIndices[i]].textureIndex;
+						Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(results.textureCoords[0][i], results.textureCoords[1][i]);
 						textureColors.x[i] = texturePixel.x;
 						textureColors.y[i] = texturePixel.y;
 						textureColors.z[i] = texturePixel.z;
 						textureColors.w[i] = texturePixel.w;
 					}
 
-					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * results.minT + results.normals * 1;
+					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * results.t + results.normals * 1;
 					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, results.raysHit, true);
 					for (int i = 0; i < 3; ++i)
 					{
@@ -282,29 +282,29 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			Mask16 raysHittingThisTriangle = mask & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
 			if (!raysHittingThisTriangle) continue;
 
-			Mask16 toOverride = raysHittingThisTriangle & t < ret.minT;
+			Mask16 toOverride = raysHittingThisTriangle & t < ret.t;
 			ret.raysHit |= toOverride;
-			ret.minT = _mm512_mask_mov_ps(ret.minT, toOverride, t);
+			ret.t = _mm512_mask_mov_ps(ret.t, toOverride, t);
 			//TODO: all traces will need textures, since they can be fully or semi-transparent. For now, shadows skip all this
 			if (!shadowRays)
 			{
-				ret.hitModelIndices = _mm512_mask_mov_epi32(ret.hitModelIndices, toOverride, int32x16(modelIndex));
-				ret.hitTriangleIndices = _mm512_mask_mov_epi32(ret.hitTriangleIndices, toOverride, int32x16(triangleIndex));
+				ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
+				ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
 
 				std::array<float32x16, 3> barycentrics;
 				//can interpolate normals imported from model in the future, but not now
-				calculateBarycentricCoordinates3D(rayOrigins + rayDirs * ret.minT, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
+				calculateBarycentricCoordinates3D(rayOrigins + rayDirs * ret.t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, barycentrics);
 				Vec4f faceNormal = getFaceNormalForTriangle(triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
 				Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
 				for (int k = 0; k < 3; ++k)
 				{
-					ret.hitBarycentrics[k] = _mm512_mask_mov_ps(ret.hitBarycentrics[k], toOverride, barycentrics[k]);
+					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, barycentrics[k]);
 					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, float32x16(faceNormal[k]));
 					uv += Vec4_f32x16(triangle.tv[k].diffuse) * barycentrics[k];
 				}
 				for (int k = 0; k < 2; ++k)
 				{
-					ret.hitTextureCords[k] = _mm512_mask_mov_ps(ret.hitTextureCords[k], toOverride, uv[k]);
+					ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
 				}
 			}
 		}
