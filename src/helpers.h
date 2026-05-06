@@ -38,7 +38,7 @@ __forceinline Vec4_f32x16 getFaceNormalsForTriangles16(const Vec4_f32x16& v0, co
 inline std::string toThousandsSeparatedString(int64_t value, std::string sep = ",")
 {
 	if (value == 0) return "0";
-	int64_t positive = abs(value);
+	uint64_t positive = abs(value);
 	std::string ret;
 	while (positive > 0)
 	{
