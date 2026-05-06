@@ -279,6 +279,7 @@ int main(int argc, char* argv[])
             }
             if (!running) break;
 
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_1)) Statsman::ENABLED ^= 1;
             if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
             {
                 RendererLoadSceneData loadSceneData = inp.wasCharPressedOnThisFrame('0') ? newSponza : oldSponza;
