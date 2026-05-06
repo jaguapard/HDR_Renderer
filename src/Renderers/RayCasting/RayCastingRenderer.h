@@ -11,7 +11,7 @@ namespace RayCasting
 {
 	struct TexVertex
 	{
-		Vec4f space, diffuse;
+		Vec4f space, diffuse, normal;
 	};
 	struct Triangle
 	{
