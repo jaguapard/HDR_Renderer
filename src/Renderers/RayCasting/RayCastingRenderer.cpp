@@ -62,37 +62,37 @@ Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, V
 	Vec4_f32x16 edge1 = triB - triA;
 	Vec4_f32x16 edge2 = triC - triA;
 
-	Mask16 intersectingTriangles = 0xFFFF;
+	Mask16 activeRays = 0xFFFF;
 	// Backface culling, assuming CW-wound triangles.
 	/*
 	const Vec4_f32x16 normal = edge1.cross3d(edge2); // No need to normalize
-	intersectingTriangles &= normal.dot3d(rayDirs) > 0.f;
-	if (!intersectingTriangles) return 0;*/
+	activeRays &= normal.dot3d(rayDirs) > 0.f;
+	if (!activeRays) return 0;*/
 
 	Vec4_f32x16 ray_cross_e2 = rayDirs.cross3d(edge2);
 	float32x16 det = edge1.dot3d(ray_cross_e2);
 
-	intersectingTriangles &= float32x16(_mm512_abs_ps(det)) >= eps;
-	if (!intersectingTriangles) return 0; // Ray is parallel to triangle
+	activeRays &= float32x16(_mm512_abs_ps(det)) >= eps;
+	if (!activeRays) return 0; // Ray is parallel to triangle
 
 	float32x16 inv_det = float32x16(1.f) / det;
 	Vec4_f32x16 s = rayOrigins - triA;
 	float32x16 u = inv_det * s.dot3d(ray_cross_e2);
 
-	intersectingTriangles &= u >= -eps & (u - 1) <= eps;
-	if (!intersectingTriangles) return 0; // Ray passes outside edge2's bounds
+	activeRays &= u >= -eps & (u - 1) <= eps;
+	if (!activeRays) return 0; // Ray passes outside edge2's bounds
 
 	Vec4_f32x16 s_cross_e1 = s.cross3d(edge1);
 	float32x16 v = inv_det * rayDirs.dot3d(s_cross_e1);
-	intersectingTriangles &= (v >= -eps) & (u + v - 1) <= eps; 
-	if (!intersectingTriangles) return 0; // Ray passes outside edge1's bounds
+	activeRays &= (v >= -eps) & (u + v - 1) <= eps; 
+	if (!activeRays) return 0; // Ray passes outside edge1's bounds
 
 	// The ray line intersects with the triangle.
 	// We compute t to find where on the ray the intersection is.
 	// t < epsilon means that there is a line intersection but not a ray intersection.
 	float32x16 t = inv_det * edge2.dot3d(s_cross_e1);
 	retT = t;
-	return intersectingTriangles & t > epsilon; // Ray intersection
+	return activeRays & t > epsilon; // Ray intersection
 }
 void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 {
