@@ -250,12 +250,14 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						textureColors.w[i] = texturePixel.w;
 					}
 					
-
+					float32x16 normalShadingMult = _mm512_max_ps(_mm512_setzero_ps(), hits.normals.dot3d(lightDir));
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
 					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true, threadIndexFake);
+					//float32x16 shadowMult = _mm512_maskz_mov_ps(~shadowTrace.raysHit, float32x16(1));
+					float32x16 totalMult = _mm512_add_ps(ambientLightIntensity, _mm512_maskz_mov_ps(~shadowTrace.raysHit, normalShadingMult));
 					for (int i = 0; i < 3; ++i)
 					{
-						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], ambientLightIntensity);
+						textureColors[i] *= totalMult;
 					}
 				}
 				size_t xInt = x[0];
