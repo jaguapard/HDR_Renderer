@@ -56,6 +56,10 @@ struct alignas(64) Statsman
 		StatsmanLine transformMs, drawMs, zBufferCleanMs, frameBufferCleanMs, triangleIndexBufferCleanMs, shadowMapDepthBufferCleanMs;
 	};
 	
+	struct RayCasting
+	{
+		StatsmanLine nodesInspected, trianglesInspected, triangleIntersectionTests, triangleIntersectionTestsLive, rayNodeIntersections, rayNodeIntersectionTests;
+	};
 
 	/*
 	//these parametes are auto-calculated in aggregateAll() from multiple Statsman insances
@@ -68,6 +72,7 @@ struct alignas(64) Statsman
 	Statsman() { reset(); }
 	Statsman(const Statsman& s) { memcpy(this, &s, sizeof(*this)); }
 	Rasterizing rasterizing;
+	RayCasting rayCasting;
 
 	std::atomic<uint64_t> allocsByNew, freesByDelete;
 

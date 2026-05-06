@@ -46,6 +46,13 @@ Statsman Statsman::aggregateAll()
 
 		ret.rasterizing.drawMs.aggregateWith(other.rasterizing.drawMs);
 		ret.rasterizing.transformMs.aggregateWith(other.rasterizing.transformMs);
+
+		ret.rayCasting.triangleIntersectionTests += other.rayCasting.triangleIntersectionTests;
+		ret.rayCasting.triangleIntersectionTestsLive += other.rayCasting.triangleIntersectionTestsLive;
+		ret.rayCasting.nodesInspected += other.rayCasting.nodesInspected;
+		ret.rayCasting.trianglesInspected += other.rayCasting.trianglesInspected;
+		ret.rayCasting.rayNodeIntersections += other.rayCasting.rayNodeIntersections;
+		ret.rayCasting.rayNodeIntersectionTests += other.rayCasting.rayNodeIntersectionTests;
 	}
 	return ret;
 }

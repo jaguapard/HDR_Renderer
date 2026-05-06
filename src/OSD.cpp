@@ -128,11 +128,19 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 
 	if (Statsman::ENABLED)
 	{
-		if (dynamic_cast<const RasterizingRenderer*>(this->currRenderer) != nullptr)
-		{
-			ss << "\n";
-			auto s = Statsman::aggregateAll();
+		auto s = Statsman::aggregateAll();
+		ss << "\n";
+		ss << "Memory allocations by new: "
+			<< toThousandsSeparatedString(s.allocsByNew)
+			<< ", frees by delete: "
+			<< toThousandsSeparatedString(s.freesByDelete)
+			<< ", new - delete: "
+			<< toThousandsSeparatedString(s.allocsByNew - s.freesByDelete)
+			<< "\n";
+		double count = Statsman::statsmenForThreads.size();
 
+		if (dynamic_cast<const RasterizingRenderer*>(this->currRenderer))
+		{
 			//if (s.rasterizing.trianglesRendered) 
 			ss << toThousandsSeparatedString(s.rasterizing.trianglesRendered) << " triangles rendered\n";
 			//if (s.rasterizing.trianglesTotal) 
@@ -157,16 +165,6 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 				<< " max, "
 				<< s.rasterizing.vertIndexDelta.min.value_or(NAN)
 				<< " min\n";
-
-			ss << "Memory allocations by new: "
-				<< toThousandsSeparatedString(s.allocsByNew)
-				<< ", frees by delete: "
-				<< toThousandsSeparatedString(s.freesByDelete)
-				<< ", new - delete: "
-				<< toThousandsSeparatedString(s.allocsByNew - s.freesByDelete)
-				<< "\n";
-
-			double count = Statsman::statsmenForThreads.size();
 
 			ss << "\n";
 			ss << "Barycentircs calculated: "
@@ -201,6 +199,13 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 				<< s.rasterizing.triangleIndexBufferCleanMs.max.value_or(NAN) << " ms max\n"
 				<< "Frame buffer clean times: "
 				<< s.rasterizing.frameBufferCleanMs.max.value_or(NAN) << " ms max\n";
+		}
+		else if (dynamic_cast<const RayCastingRenderer*>(this->currRenderer))
+		{
+			ss << toThousandsSeparatedString(s.rayCasting.nodesInspected) << " nodes inspected\n" <<
+				toThousandsSeparatedString(s.rayCasting.trianglesInspected) << " triangles inspected\n" <<
+				"Triangle intersection tests: " << laneSurvivalRateString(s.rayCasting.triangleIntersectionTests, s.rayCasting.triangleIntersectionTestsLive) << "\n" <<
+				"Node intersection tests: " << laneSurvivalRateString(s.rayCasting.rayNodeIntersectionTests, s.rayCasting.rayNodeIntersections) << "\n";
 		}
 	}
 	return ss.str();

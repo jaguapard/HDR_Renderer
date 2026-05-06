@@ -199,9 +199,9 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	std::vector<Threadpool::TaskHandle> tasks;
 	Threadpool::Task tsk;
 	Vec4_f32x16 rayOrigins = camPos;
-	std::atomic<uint64_t> nodesInspectedTotal = 0, triangleIntersectionChecksTotal = 0;
 	Vec4f lightDir = { 0.4, 0.5, 0.2, 0 };
 	lightDir /= lightDir.len();
+	int threadCount = Threadpool::instance->getWorkerCount();
 	for (int y = 0; y < bufH; ++y)
 	{
 		tsk.func = [&, this, y]() 
@@ -209,6 +209,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			__attribute__((noinline)) //Prevent inlining of lambda on Clang. Without it, profiling results are total garbage. MSVC doesn't work with this, but it has useful profiling without it.
 		#endif
 			{
+			int threadIndexFake = y % threadCount;
 			for (float32x16 x = float32x16::sequence(); Mask16 bounds = x < bufW; x += 16)
 			{
 				float32x16 progressX = x / float(bufH);
@@ -216,10 +217,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
 				rayDirs /= rayDirs.len3d();
 
-				TraceResults hits = this->traceRays(rayOrigins, rayDirs, bounds, false);
-				
-				//nodesInspectedTotal += nodesInspected;
-				//triangleIntersectionChecksTotal += triangleIntersectionChecks;
+				TraceResults hits = this->traceRays(rayOrigins, rayDirs, bounds, false, threadIndexFake);
 
 				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
 				if (hits.raysHit)
@@ -236,7 +234,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					}
 
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
-					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true);
+					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true, threadIndexFake);
 					for (int i = 0; i < 3; ++i)
 					{
 						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], float32x16(0.1));
@@ -250,12 +248,9 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	}
 	
 	settings.threadpool->blockUntilComplete(tasks);
-	//TODO: make statsman for this renderer
-	std::cout << "Nodes inspected: " << nodesInspectedTotal << " (" << nodesInspectedTotal / double(bufW * bufH) << " per pixel)\n";
-	std::cout << "Triangles inspected: " << triangleIntersectionChecksTotal << " (" << triangleIntersectionChecksTotal / double(bufW * bufH) << " per pixel)\n";
 }
 
-RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays)
+RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays, uint32_t threadIndex)
 {
 	Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
 	std::array<OctreeNode*, 2048> stack;
@@ -263,23 +258,27 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 
 	int stackTopIndex = 1;
 	stack[0] = this->octree.root.get();
-	uint64_t nodesInspected = 0, triangleIntersectionChecks = 0;
+	uint64_t nodesInspected = 0, trianglesInspected = 0, triangleIntersectionTests = 0, triangleIntersectionTestsLive = 0, rayNodeIntersections = 0, rayNodeTests = 0;
 	while (stackTopIndex > 0)
 	{
 		++nodesInspected;
 		OctreeNode* currNode = stack[--stackTopIndex];
 		float32x16 bboxTmin, bboxTmax; //not used
 		Mask16 raysIntersectingNodeBoundingBox = mask & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax);
+		rayNodeIntersections += _mm_popcnt_u32(raysIntersectingNodeBoundingBox);
+		rayNodeTests += 16;
 		if (!raysIntersectingNodeBoundingBox) continue;
 
 		for (int contentInd = 0; const OctreeContent* content = currNode->getContentOrNull(contentInd); ++contentInd)
 		{
-			//++triangleIntersectionChecks;
+			++trianglesInspected;
 			uint32_t triangleIndex = content->triangleIndex;
 			uint32_t modelIndex = content->modelIndex;
 			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
 			float32x16 t;
 			Mask16 raysHittingThisTriangle = mask & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
+			triangleIntersectionTestsLive += _mm_popcnt_u32(raysHittingThisTriangle);
+			triangleIntersectionTests += 16;
 			if (!raysHittingThisTriangle) continue;
 
 			std::array<float32x16, 3> worldBarycentrics;
@@ -316,6 +315,18 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			OctreeNode* child = currNode->getChild(i);
 			if (child) stack[stackTopIndex++] = child;
 		}
+	}
+
+	if (Statsman::ENABLED)
+	{
+		MyStatsman.rayCasting.nodesInspected += nodesInspected;
+		MyStatsman.rayCasting.trianglesInspected += trianglesInspected;
+		//MyStatsman.rayCasting.rayCount += 16;
+		MyStatsman.rayCasting.triangleIntersectionTests += triangleIntersectionTests;
+		MyStatsman.rayCasting.triangleIntersectionTestsLive += triangleIntersectionTestsLive;
+		MyStatsman.rayCasting.rayNodeIntersectionTests += rayNodeTests;
+		MyStatsman.rayCasting.rayNodeIntersections += rayNodeIntersections;
+
 	}
 	return ret;
 }

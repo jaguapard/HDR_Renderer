@@ -43,5 +43,5 @@ protected:
 	friend class RayCasting::Octree;
 	friend class RayCasting::OctreeNode;
 
-	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays);
+	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays, uint32_t threadIndex);
 };
