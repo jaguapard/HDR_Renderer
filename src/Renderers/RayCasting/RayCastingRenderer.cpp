@@ -264,7 +264,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 		++nodesInspected;
 		OctreeNode* currNode = stack[--stackTopIndex];
 		float32x16 bboxTmin, bboxTmax; //not used
-		Mask16 raysIntersectingNodeBoundingBox = mask & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax);
+		Mask16 raysIntersectingNodeBoundingBox = mask & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax) & ret.t > bboxTmin;
 		rayNodeIntersections += _mm_popcnt_u32(raysIntersectingNodeBoundingBox);
 		rayNodeTests += 16;
 		if (!raysIntersectingNodeBoundingBox) continue;
