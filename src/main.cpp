@@ -328,7 +328,7 @@ int main(int argc, char* argv[])
             //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
             gs.graphicsOutputBuffer = mapped.pData;
             currentRenderer->renderFrame(gs);
-            osd.registerFrameDone();
+            osd.registerFrameDone(currentRenderer.get());
 
             uint64_t ticksBeforeOSD = SDL_GetTicksNS();
             std::vector<std::pair<std::string, std::string>> additionalInfo = {
@@ -362,7 +362,7 @@ int main(int argc, char* argv[])
             else
             {
                 uint64_t currTicks = SDL_GetTicksNS();
-                if (currTicks - lastOsdInfoTicks > 1000000000)
+                if (currTicks - lastOsdInfoTicks > 1e9)
                 {
                     std::string text = osd.composeString(additionalInfo);
                     std::cout << text << "\n";
