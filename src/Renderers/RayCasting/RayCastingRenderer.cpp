@@ -139,6 +139,17 @@ void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 		Threadpool::instance->blockUntilComplete(textureLoadingTasks);
 		for (int i = 0; i < loadedModels.size(); ++i)
 			this->sceneModels[i].textureIndex = diffuseMapIndices[i];
+
+		if (this->discardUntexturedTriangles)
+		{
+			for (int i = 0; i < sceneModels.size(); ++i)
+			{
+				if (this->sceneModels[i].textureIndex == 0) {
+					this->sceneModels[i--] = std::move(this->sceneModels.back());
+					this->sceneModels.pop_back();
+				}
+			}
+		}
 	}
 	this->octree = RayCasting::Octree(*this);
 }

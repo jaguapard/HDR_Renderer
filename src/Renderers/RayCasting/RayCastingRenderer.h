@@ -38,10 +38,12 @@ public:
 	virtual void loadScene(RendererLoadSceneData scd) override;
 	virtual void renderFrame(const GameSettings& settings) override;
 protected:
+	friend class RayCasting::Octree;
+	friend struct RayCasting::OctreeNode;
+
 	std::vector<RayCasting::Model> sceneModels;
 	RayCasting::Octree octree;
-	friend class RayCasting::Octree;
-	friend class RayCasting::OctreeNode;
+	static inline constexpr bool discardUntexturedTriangles = true;
 
 	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 activeRays, bool shadowRays, uint32_t threadIndex);
 };
