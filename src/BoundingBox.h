@@ -13,7 +13,7 @@ struct BoundingBox
 	bool containsFully(const BoundingBox& other) const;
 
 	//Checks intersection of a single ray against this bounding box and returns {tmin, tmax} of the intersection
-	//If the ray doesn't intersect the bounding box, {INFINITY, -INFINITY} is returned
+	//If the ray doesn't intersect the bounding box, {FLT_MAX, -FLT_MAX} is returned
 	std::pair<float, float> getMinAndMaxIntestionsFor(Vec4f rayOrigin, Vec4f rcpRayDir) const;
 
 	//Checks intersection of 16 rays against this bounding box, and writes out {minT, maxT} of the intersections.

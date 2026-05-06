@@ -25,7 +25,7 @@ namespace RayCasting
 
 	struct TraceResults
 	{
-		float32x16 t = INFINITY, worldBarycentrics[3], textureCoords[2];
+		float32x16 t = FLT_MAX, worldBarycentrics[3], textureCoords[2];
 		int32x16 modelIndices, triangleIndices;
 		Vec4_f32x16 normals;
 		Mask16 raysHit = 0;
@@ -33,7 +33,7 @@ namespace RayCasting
 
 	struct TraceResult
 	{
-		float t = INFINITY, worldBarycentrics[3], textureCoords[2];
+		float t = FLT_MAX, worldBarycentrics[3], textureCoords[2];
 		uint32_t modelIndex, triangleIndex;
 		Vec4f normal;
 	};

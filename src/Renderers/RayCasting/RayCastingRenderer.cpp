@@ -21,23 +21,23 @@ float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f 
 
 	// Backface culling, assuming CCW-wound triangles.
 	//const Vec4f normal = edge1.cross3d(edge2); // No need to normalize
-	//if (normal.dot(rayDir) > 0) return INFINITY;
+	//if (normal.dot(rayDir) > 0) return FLT_MAX;
 
 	Vec4f ray_cross_e2 = rayDir.cross3d(edge2);
 	float det = edge1.dot(ray_cross_e2);
 
-	if (abs(det) < epsilon) return INFINITY; // Ray is parallel to triangle
+	if (abs(det) < epsilon) return FLT_MAX; // Ray is parallel to triangle
 
 	float inv_det = 1.0 / det;
 	Vec4f s = rayOrigin - triA;
 	float u = inv_det * s.dot(ray_cross_e2);
 
-	if (u < -eps || u - 1 > eps) return INFINITY; // Ray passes outside edge2's bounds
+	if (u < -eps || u - 1 > eps) return FLT_MAX; // Ray passes outside edge2's bounds
 
 	Vec4f s_cross_e1 = s.cross3d(edge1);
 	float v = inv_det * rayDir.dot(s_cross_e1);
 
-	if (v < -eps || u + v - 1 > eps) return INFINITY; // Ray passes outside edge1's bounds
+	if (v < -eps || u + v - 1 > eps) return FLT_MAX; // Ray passes outside edge1's bounds
 
 	// The ray line intersects with the triangle.
 	// We compute t to find where on the ray the intersection is.
@@ -48,7 +48,7 @@ float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f 
 		return t;
 	}
 	else // This means that there is a line intersection but not a ray intersection.
-		return INFINITY;
+		return FLT_MAX;
 }
 
 //Checks 16 rays for intersection with 1 triangle, returning mask of rays hitting the triangle.
@@ -238,16 +238,16 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				rayDir /= rayDir.len();
 
 				TraceResult hit = this->traceRay(camPos, rayDir, false, threadIndexFake);
-				//if (hitInfo.t >= INFINITY) continue;
+				//if (hitInfo.t >= FLT_MAX) continue;
 				Vec4f textureColor = { 0,0,0,1 };
-				if (hit.t < INFINITY)
+				if (hit.t < FLT_MAX)
 				{
 					int diffuseMapIndex = this->sceneModels[hit.modelIndex].textureIndex;
 					textureColor = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hit.textureCoords[0], hit.textureCoords[1]);
 
 					Vec4f shadowTraceOrigin = camPos + rayDir * hit.t + hit.normal * 1;
 					TraceResult shadowHit = this->traceRay(shadowTraceOrigin, lightDir, true, threadIndexFake);
-					if (shadowHit.t < INFINITY) textureColor *= 0.1f; //Clang screws this up again! It's always considered true for some reason, not on MSVC
+					if (shadowHit.t < FLT_MAX) textureColor *= 0.1f; //Clang screws this up again! It's always considered true for some reason, not on MSVC
 					//textureColor.w = 1;
 				}
 				framebuf[size_t(y) * bufW + size_t(x)] = _mm_extract_epi64(_mm_cvtps_ph(textureColor, _MM_FROUND_NO_EXC), 0);

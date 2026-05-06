@@ -170,7 +170,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	this->triangleIndexBuf.resize(w, h);
 	this->frameBuf = Buffer<uint64_t>((uint64_t*)this->currGs->graphicsOutputBuffer, w, h, skyColorFP16);
 	this->drawCommands.clear();
-	this->depthBufMain.clearValue = this->depthBufShadowMap.clearValue = -INFINITY;
+	this->depthBufMain.clearValue = this->depthBufShadowMap.clearValue = -FLT_MAX;
 	this->triangleIndexBuf.clearValue = -1;
 
 	DrawCommand& mainDrawCmd = this->drawCommands.emplace_back();
@@ -494,7 +494,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			currOutputTriangle = &currOutput.outputTriangles[outputTriangleIndex];
 			
 			float32x16 fovMult = 1; //TODO: adjustable game setting?
-			float32x16 minX = INFINITY, maxX = -INFINITY, minY = INFINITY, maxY = -INFINITY;
+			float32x16 minX = FLT_MAX, maxX = -FLT_MAX, minY = FLT_MAX, maxY = -FLT_MAX;
 			for (int i = 0; i < 3; ++i)
 			{
 				auto& currVertex = currOutputTriangle->vertices[i];
@@ -890,7 +890,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 
 				Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
 				int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
-				float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(INFINITY), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+				float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(FLT_MAX), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
 
 				pointsInShadow = ~inShadowMapBounds;
 				if (this->useShadowMapBias)
