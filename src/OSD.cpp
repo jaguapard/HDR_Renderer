@@ -183,8 +183,12 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 			<< s.rasterizing.drawMs.max.value_or(NAN) << " ms max, "
 			<< s.rasterizing.drawMs.sum.value_or(NAN) / count << " ms avg, "
 			<< s.rasterizing.drawMs.min.value_or(NAN) << " ms min\n"
-			<< "Depth buffer clean times: "
+			<< "Main depth buffer clean times: "
 			<< s.rasterizing.zBufferCleanMs.max.value_or(NAN) << " ms max\n"
+			<< "Shadow map depth buffer clean times: "
+			<< s.rasterizing.shadowMapDepthBufferCleanMs.max.value_or(NAN) << " ms max\n"
+			<< "Triangle index buffer clean times: "
+			<< s.rasterizing.triangleIndexBufferCleanMs.max.value_or(NAN) << " ms max\n"
 			<< "Frame buffer clean times: "
 			<< s.rasterizing.frameBufferCleanMs.max.value_or(NAN) << " ms max\n";
 	}
