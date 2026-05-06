@@ -216,6 +216,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	Vec4_f32x16 rayOrigins = camPos;
 	Vec4f lightDir = { 0.4, 0.5, 0.2, 0 };
 	lightDir /= lightDir.len();
+	float32x16 ambientLightIntensity = 0.1;
 	int threadCount = Threadpool::instance->getWorkerCount();
 	for (int yStart = 0; yStart < bufH; yStart += 4)
 	{
@@ -248,12 +249,13 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						textureColors.z[i] = texturePixel.z;
 						textureColors.w[i] = texturePixel.w;
 					}
+					
 
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
 					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true, threadIndexFake);
 					for (int i = 0; i < 3; ++i)
 					{
-						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], float32x16(0.1));
+						textureColors[i] = _mm512_mask_mul_ps(textureColors[i], shadowTrace.raysHit, textureColors[i], ambientLightIntensity);
 					}
 				}
 				size_t xInt = x[0];
@@ -309,7 +311,6 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			if (!raysHittingThisTriangle) continue;
 
 			std::array<float32x16, 3> worldBarycentrics;
-			//can interpolate normals imported from model in the future, but not now
 			calculateBarycentricCoordinates3D(rayOrigins + rayDirs * t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, worldBarycentrics);
 			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
 			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
@@ -326,12 +327,14 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 
 				ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
 				ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
-				Vec4f faceNormal = getFaceNormalForTriangle(triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
+				Vec4_f32x16 normals(0.f, 0.f, 0.f, 0.f);
+				for (int i = 0; i < 3; ++i) normals += Vec4_f32x16(triangle.tv[i].normal) * worldBarycentrics[i];
+				normals /= normals.len3d();
 
 				for (int k = 0; k < 3; ++k)
 				{
 					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
-					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, float32x16(faceNormal[k]));
+					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, normals[k]);
 				}
 				for (int k = 0; k < 2; ++k)
 				{
