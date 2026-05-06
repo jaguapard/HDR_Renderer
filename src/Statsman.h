@@ -44,7 +44,7 @@ struct alignas(64) Statsman
 #endif
 */
 
-	static constexpr bool ENABLED = true;
+	static inline bool ENABLED = true;
 	void reset();
 
 	struct Rasterizing
