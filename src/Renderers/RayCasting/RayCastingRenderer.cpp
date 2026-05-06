@@ -218,6 +218,27 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	lightDir /= lightDir.len();
 	float32x16 ambientLightIntensity = 0.1;
 	int threadCount = Threadpool::instance->getWorkerCount();
+	for (int yStart = 0; yStart < bufH; yStart++)
+	{
+		tsk.func = [&, this, yStart]()
+#ifdef VS_CLANG 
+			__attribute__((noinline)) //Prevent inlining of lambda on Clang. Without it, profiling results are total garbage. MSVC doesn't work with this, but it has useful profiling without it.
+#endif
+		{
+			int threadIndexFake = (yStart) % threadCount;
+			float y = yStart;
+			for (float x = 0; x < bufW; ++x)
+			{
+				float progressX = x / float(bufH);
+				float progressY = y / float(bufH);
+				Vec4f rayDir = (forward) * settings.cameraPlane_zDist + (down) * (progressY - 0.5) + (right) * (progressX - widthToHeightRatio * 0.5);
+				rayDir.w = 0;
+				rayDir /= rayDir.len();
+
+				TraceResult hitInfo = this->traceRay(camPos, rayDir, false, threadIndexFake);
+			}
+		}
+	}
 	for (int yStart = 0; yStart < bufH; yStart += 4)
 	{
 		tsk.func = [&, this, yStart]() 
@@ -225,7 +246,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			__attribute__((noinline)) //Prevent inlining of lambda on Clang. Without it, profiling results are total garbage. MSVC doesn't work with this, but it has useful profiling without it.
 		#endif
 			{
-			int threadIndexFake = (yStart/4) % threadCount;
+			
 			float32x16 y = float32x16(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3) + yStart;
 			for (float32x16 x = float32x16(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3); Mask16 bounds = x < bufW & y < bufH; x += 4)
 			{
@@ -363,6 +384,65 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 		MyStatsman.rayCasting.rayNodeIntersectionTests += rayNodeTests;
 		MyStatsman.rayCasting.rayNodeIntersections += rayNodeIntersections;
 
+	}
+	return ret;
+}
+
+RayCasting::TraceResult RayCastingRenderer::traceRay(Vec4f rayOrigin, Vec4f rayDir, bool shadow, uint32_t threadIndex)
+{
+	Vec4f rcpRayDir = Vec4f(1, 1, 1, 0) / rayDir;
+	std::array<OctreeNode*, 2048> stack;
+	TraceResult ret;
+
+	int stackTopIndex = 1;
+	stack[0] = this->octree.root.get();
+	uint64_t nodesInspected = 0, trianglesInspected = 0, triangleIntersectionTests = 0, triangleIntersectionTestsLive = 0, rayNodeIntersections = 0, rayNodeTests = 0;
+	while (stackTopIndex > 0)
+	{
+		++nodesInspected;
+		OctreeNode* currNode = stack[--stackTopIndex];
+		auto [bboxTmin, bboxTmax] = currNode->bbox.getMinAndMaxIntestionsFor(rayOrigin, rcpRayDir);
+		if (bboxTmin >= ret.t) continue;
+		for (int contentInd = 0; const OctreeContent * content = currNode->getContentOrNull(contentInd); ++contentInd)
+		{
+			++trianglesInspected;
+			uint32_t triangleIndex = content->triangleIndex;
+			uint32_t modelIndex = content->modelIndex;
+			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
+			float t = rayTriangleIntersectionT(rayOrigin, rayDir, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
+			if (t >= ret.t) continue;
+
+			std::array<float32x16, 3> worldBarycentrics;
+			calculateBarycentricCoordinates3D(rayOrigin + rayDir * t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, worldBarycentrics);
+			Vec4f uv(0, 0, 0, 0);
+			for (int i = 0; i < 3; ++i) uv += triangle.tv[i].diffuse * worldBarycentrics[i][0];
+
+			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex].textureIndex);
+			auto accessor = texture.getGatherAccessor(uv.x, uv.y, Mask16(1));
+			float32x16 textureAlpha = accessor.gatherA();
+			if (textureAlpha[0] < 1.f) continue;
+			ret.t = t;
+			if (!shadow)
+			{
+				ret.modelIndex = modelIndex;
+				ret.triangleIndex = triangleIndex;
+				ret.normal = { 0,0,0,0 };
+				//Vec4f normal(0, 0, 0, 0);
+				for (int i = 0; i < 3; ++i)
+				{
+					ret.worldBarycentrics[i] = worldBarycentrics[i][0];
+					ret.normal += triangle.tv[i].normal * worldBarycentrics[i][0];
+					if (i < 2) ret.textureCoords[i] = uv[i];
+				}
+			}
+			else return ret; //TODO: replace this by goto since statsman will be skipped now
+		}
+
+		for (int i = 0; i < currNode->CHILD_COUNT; ++i)
+		{
+			OctreeNode* child = currNode->getChild(i);
+			if (child) stack[stackTopIndex++] = child;
+		}
 	}
 	return ret;
 }

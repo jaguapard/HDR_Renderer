@@ -30,6 +30,13 @@ namespace RayCasting
 		Vec4_f32x16 normals;
 		Mask16 raysHit = 0;
 	};
+
+	struct TraceResult
+	{
+		float t = INFINITY, worldBarycentrics[3], textureCoords[2];
+		uint32_t modelIndex, triangleIndex;
+		Vec4f normal;
+	};
 }
 
 class RayCastingRenderer : public RendererBase
@@ -46,4 +53,5 @@ protected:
 	static inline constexpr bool discardUntexturedTriangles = true;
 
 	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 activeRays, bool shadowRays, uint32_t threadIndex);
+	RayCasting::TraceResult traceRay(Vec4f rayOrigin, Vec4f rayDir, bool shadow, uint32_t threadIndex);
 };
