@@ -112,6 +112,7 @@ Threadpool threadpool;
 
 int main(int argc, char* argv[]) 
 {
+    SDL_Window* window;
     try
     {
         Statsman::statsmenForThreads.resize(threadpool.getWorkerCount() + 1); //last one for main thread
@@ -120,7 +121,7 @@ int main(int argc, char* argv[])
      
         int w = 2560;
         int h = 1440;
-        SDL_Window* window = SDL_CreateWindow("SDL3 + D3D11 Pixel Display", w, h, 0);
+        window = SDL_CreateWindow("SDL3 + D3D11 Pixel Display", w, h, 0);
         if (!window) RAISE_ERROR("SDL_CreateWindow failed");
 
         SDL_PropertiesID props = SDL_GetWindowProperties(window);
@@ -252,7 +253,8 @@ int main(int argc, char* argv[])
         gs.camAng = { 0.000000, -1.588021, -0.288000 };
         gs.outputTextureParams = texDesc;
         gs.threadpool = &threadpool;
-        OSD osd;
+        uint32_t OSD_fontSize = std::max<uint32_t>(6, float(texDesc.Height) / 72);
+        OSD osd(OSD_fontSize);
         uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
         double lastOsdDrawMs = NAN;
         while (running) {
@@ -275,6 +277,7 @@ int main(int argc, char* argv[])
                     running = false; break;
                 }
             }
+            if (!running) break;
 
             if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
             {
@@ -336,12 +339,12 @@ int main(int argc, char* argv[])
             };
             if (gs.osdEnabled) //VERY slow, impacts FPS a lot, disabled by default
             {
-                auto osdSurface = osd.draw(additionalInfo);
+                float scalingFactor = 1;// std::max(0.5f, float(texDesc.Height) / h); //very small OSD becomes unreadable
+                auto osdSurface = osd.draw(scalingFactor, additionalInfo);
                 int osdW = osdSurface->w;
                 int osdH = osdSurface->h;
                 const Vec4f* osdPixels = (Vec4f*)(osdSurface->pixels);
                 uint64_t* output = (uint64_t*)gs.graphicsOutputBuffer;
-                //just abruptly cuts off OSD if it's too big. TODO: scale this?
                 for (int y = 0; y < std::min<int>(osdH, texDesc.Height); ++y)
                 {
                     for (int x = 0; x < std::min<int>(osdW, texDesc.Width); ++x)
@@ -349,7 +352,7 @@ int main(int argc, char* argv[])
                         Vec4f osdPixel = osdPixels[y * osdW + x];
                         if (osdPixel.x > 0 || osdPixel.y > 0 || osdPixel.z > 0) //alpha is always 1 in returned surface for some reason, so work around by testing manually
                         {
-                            int outInd = y * texDesc.Width + x;
+                            int outInd = (texDesc.Height - y - 1) * texDesc.Width + x; //currently, y is backwards (0 = bottom of the screen, h-1 = top). Renderers don't care, so just flip OSD instead.
                             output[outInd] = _mm_extract_epi64(_mm_cvtps_ph(osdPixel, _MM_FROUND_NO_EXC), 0);
                         }
                     }
@@ -408,10 +411,6 @@ int main(int argc, char* argv[])
         vs->Release(); ps->Release(); sampler->Release(); srv->Release();
         cpuTexture->Release(); rtv->Release(); swapChain->Release();
         context->Release(); device->Release();
-
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 0;
     }
     catch (const std::exception& e)
     {
@@ -419,4 +418,8 @@ int main(int argc, char* argv[])
         ss << e.what() << "\nSDL error reports: " << SDL_GetError() << "\n" << "strerror: " << strerror(errno) << "\n";
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", ss.str().c_str(), nullptr);
     }
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    std::_Exit(0); //TODO: stop tokens in threadpool jthreads
+    return 0;
 }

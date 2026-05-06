@@ -12,13 +12,13 @@
 class OSD
 {
 public:
-	OSD();
+	OSD(uint32_t fontSize = 0);
 	void reset();
 	void registerFrameBegin(); //must be called before any drawing and processing is attempted
 	void registerFrameDone(bool remember = true);
 
 	std::string composeString(const std::vector<std::pair<std::string, std::string>>& additionalInfo = {});
-	Smart_Surface draw(const std::vector<std::pair<std::string, std::string>>& additionalInfo = {});
+	Smart_Surface draw(float scalingFactor, const std::vector<std::pair<std::string, std::string>>& additionalInfo = {});
 
 	struct PercentileInfo
 	{
