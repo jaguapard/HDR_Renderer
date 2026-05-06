@@ -658,8 +658,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
 					if (Statsman::ENABLED)
 					{
-						MyStatsman.rendering.barycentricsCalculated += 16;
-						MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						MyStatsman.rasterizing.barycentricsCalculated += 16;
+						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 					}
 					if (!pointsInsideTriangleMask) continue;
 
@@ -672,9 +672,9 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
 					if (Statsman::ENABLED)
 					{
-						MyStatsman.rendering.zBufferFetchLanes += 16;
-						MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-						MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+						MyStatsman.rasterizing.zBufferFetchLanes += 16;
+						MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
 					}
 					if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
@@ -698,11 +698,11 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 
 					if (Statsman::ENABLED)
 					{
-						MyStatsman.rendering.zBufferWriteLanes += 16;
-						MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-						MyStatsman.rendering.frameBufWriteLanes += 16;
-						MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-						MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+						MyStatsman.rasterizing.zBufferWriteLanes += 16;
+						MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+						MyStatsman.rasterizing.frameBufWriteLanes += 16;
+						MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+						MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
 					}
 				}
 			}

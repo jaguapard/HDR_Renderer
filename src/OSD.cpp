@@ -122,28 +122,71 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 	{
 		ss << "\n";
 		auto [s, ag] = Statsman::aggregateAll();
-		ss << toThousandsSeparatedString(s.triangles.rendered) << " triangles rendered\n";
-		ss << toThousandsSeparatedString(s.triangles.total) << " total triangles\n";
-		ss << "Render jobs: " << toThousandsSeparatedString(s.rendering.renderJobCountProducer) << " (producer-side), " << toThousandsSeparatedString(s.rendering.renderJobCountConsumer) << " (consumer-side, " << s.rendering.renderJobCountConsumer * 100.0 / s.rendering.renderJobCountProducer << "%)\n";
+
+		ss << toThousandsSeparatedString(s.rasterizing.trianglesRendered) << " triangles rendered\n";
+		ss << toThousandsSeparatedString(s.rasterizing.trianglesTotal) << " total triangles\n";
+
+		ss << "Render jobs: "
+			<< toThousandsSeparatedString(s.rasterizing.renderJobCountProducer)
+			<< " (producer-side), "
+			<< toThousandsSeparatedString(s.rasterizing.renderJobCountConsumer)
+			<< " (consumer-side, "
+			<< s.rasterizing.renderJobCountConsumer * 100.0 / s.rasterizing.renderJobCountProducer
+			<< "%)\n";
+
 		ss << "Vertices behind near plane: ";
-		for (int i = 0; i < 4; ++i) ss << i << ": " << toThousandsSeparatedString(s.triangles.verticesBehindNearPlane[i]) << (i != 3 ? ", " : "");
-		ss << "\nVertice index deltas: " << double(s.triangles.vertIndexDelta) / s.triangles.vertIndexDeltaCount << " avg, " << s.triangles.vertIndexDeltaMax.value_or(NAN) << " max, " << s.triangles.vertIndexDeltaMin.value_or(NAN) << " min\n";
-		ss << "Memory allocations by new: " << toThousandsSeparatedString(s.allocsByNew) << ", frees by delete: " << toThousandsSeparatedString(s.freesByDelete) << ", new - delete: " << toThousandsSeparatedString(s.allocsByNew-s.freesByDelete) << "\n";
+		for (int i = 0; i < 4; ++i)
+			ss << i << ": "
+			<< toThousandsSeparatedString(s.rasterizing.verticesBehindNearPlane[i])
+			<< (i != 3 ? ", " : "");
+
+		ss << "\nVertice index deltas: "
+			<< double(s.rasterizing.vertIndexDelta) / s.rasterizing.vertIndexDeltaCount
+			<< " avg, "
+			<< s.rasterizing.vertIndexDeltaMax.value_or(NAN)
+			<< " max, "
+			<< s.rasterizing.vertIndexDeltaMin.value_or(NAN)
+			<< " min\n";
+
+		ss << "Memory allocations by new: "
+			<< toThousandsSeparatedString(s.allocsByNew)
+			<< ", frees by delete: "
+			<< toThousandsSeparatedString(s.freesByDelete)
+			<< ", new - delete: "
+			<< toThousandsSeparatedString(s.allocsByNew - s.freesByDelete)
+			<< "\n";
 
 		double count = Statsman::statsmenForThreads.size();
+
 		ss << "\n";
-		ss << "Barycentircs calculated: " << toThousandsSeparatedString(s.rendering.barycentricsCalculated) << "\n"
-			<< "Points inside triangles: " << toThousandsSeparatedString(s.rendering.pointsInsideTriangles) << "\n"
-			<< "Depth buffer fetch lanes: " << laneSurvivalRateString(s.rendering.zBufferFetchLanes, s.rendering.zBufferFetchAliveLanes) << "\n"
-			<< "Not occluded points: " << toThousandsSeparatedString(s.rendering.notOccludedPoints) << "\n"
-			<< "Opaque pixels: " << toThousandsSeparatedString(s.rendering.opaquePixels) << "\n"
-			<< "Texture gather lanes: " << laneSurvivalRateString(s.rendering.textureGatheredLanes, s.rendering.textureGatherAliveLanes) << "\n"
-			<< "Depth buffer write lanes: " << laneSurvivalRateString(s.rendering.zBufferWriteLanes, s.rendering.zBufferWriteAliveLanes) << "\n"
-			<< "Frame buffer write lanes: " << laneSurvivalRateString(s.rendering.frameBufWriteLanes, s.rendering.frameBufWriteAliveLanes) << "\n\n"
-			<< "Transformation times: " << ag.transformMsMax.value_or(NAN) << " ms max, " << ag.transformMsTotal.value_or(NAN) / count << " ms avg, " << ag.transformMsMin.value_or(NAN) << " ms min\n"
-			<< "Draw times: " << ag.drawMsMax.value_or(NAN) << " ms max, " << ag.drawMsTotal.value_or(NAN) / count << " ms avg, " << ag.drawMsMin.value_or(NAN) << " ms min\n"
-			<< "Depth buffer clean times: " << ag.zBufferCleanMsMax.value_or(NAN) << " ms max\n" // << ag.zBufferCleanMsTotal.value_or(NAN) / count << 
-			<< "Frame buffer clean times: " << ag.framebufCleanMsMax.value_or(NAN) << " ms max\n";
+		ss << "Barycentircs calculated: "
+			<< toThousandsSeparatedString(s.rasterizing.barycentricsCalculated) << "\n"
+			<< "Points inside triangles: "
+			<< toThousandsSeparatedString(s.rasterizing.pointsInsideTriangles) << "\n"
+			<< "Depth buffer fetch lanes: "
+			<< laneSurvivalRateString(s.rasterizing.zBufferFetchLanes, s.rasterizing.zBufferFetchAliveLanes) << "\n"
+			<< "Not occluded points: "
+			<< toThousandsSeparatedString(s.rasterizing.notOccludedPoints) << "\n"
+			<< "Opaque pixels: "
+			<< toThousandsSeparatedString(s.rasterizing.opaquePixels) << "\n"
+			<< "Texture gather lanes: "
+			<< laneSurvivalRateString(s.rasterizing.textureGatheredLanes, s.rasterizing.textureGatherAliveLanes) << "\n"
+			<< "Depth buffer write lanes: "
+			<< laneSurvivalRateString(s.rasterizing.zBufferWriteLanes, s.rasterizing.zBufferWriteAliveLanes) << "\n"
+			<< "Frame buffer write lanes: "
+			<< laneSurvivalRateString(s.rasterizing.frameBufWriteLanes, s.rasterizing.frameBufWriteAliveLanes) << "\n\n"
+			<< "Transformation times: "
+			<< ag.transformMsMax.value_or(NAN) << " ms max, "
+			<< ag.transformMsTotal.value_or(NAN) / count << " ms avg, "
+			<< ag.transformMsMin.value_or(NAN) << " ms min\n"
+			<< "Draw times: "
+			<< ag.drawMsMax.value_or(NAN) << " ms max, "
+			<< ag.drawMsTotal.value_or(NAN) / count << " ms avg, "
+			<< ag.drawMsMin.value_or(NAN) << " ms min\n"
+			<< "Depth buffer clean times: "
+			<< ag.zBufferCleanMsMax.value_or(NAN) << " ms max\n"
+			<< "Frame buffer clean times: "
+			<< ag.framebufCleanMsMax.value_or(NAN) << " ms max\n";
 	}
 	return ss.str();
 }
