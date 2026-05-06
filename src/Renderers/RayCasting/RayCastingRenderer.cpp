@@ -245,7 +245,10 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					int diffuseMapIndex = this->sceneModels[hit.modelIndex].textureIndex;
 					textureColor = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hit.textureCoords[0], hit.textureCoords[1]);
 
-					//todo: shadow
+					Vec4f shadowTraceOrigin = camPos + rayDir * hit.t + hit.normal * 1;
+					TraceResult shadowHit = this->traceRay(shadowTraceOrigin, lightDir, true, threadIndexFake);
+					if (shadowHit.t < INFINITY) textureColor *= 0.1f; //Clang screws this up again! It's always considered true for some reason, not on MSVC
+					//textureColor.w = 1;
 				}
 				framebuf[size_t(y) * bufW + size_t(x)] = _mm_extract_epi64(_mm_cvtps_ph(textureColor, _MM_FROUND_NO_EXC), 0);
 			}
