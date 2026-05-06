@@ -257,8 +257,24 @@ int main(int argc, char* argv[])
         OSD osd(OSD_fontSize);
         uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
         double lastOsdDrawMs = NAN;
+        
+        std::shared_ptr<RendererBase> scheduledRendererChange = nullptr;
+        enum RendererCycle
+        {
+            RASTERIZING = 0,
+            RAY_CASTING = 1,
+            COUNT = 2,
+        };
         while (running) {
             for (auto& it : Statsman::statsmenForThreads) it.reset();
+            if (scheduledRendererChange)
+            {
+                currentRenderer = scheduledRendererChange;
+                scheduledRendererChange = nullptr;
+                currentRenderer->loadScene(oldSponza);
+                continue;
+            }
+
             osd.registerFrameBegin();
             frameCounter++;
             C_Input& inp = C_Input::getInstance();
@@ -278,6 +294,13 @@ int main(int argc, char* argv[])
                 }
             }
             if (!running) break;
+
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_3)) //swap renderers
+            {
+                if (dynamic_cast<RasterizingRenderer*>(currentRenderer.get())) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
+                else scheduledRendererChange = std::make_shared<RasterizingRenderer>();
+                continue;
+            }
 
             if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_1)) Statsman::ENABLED ^= 1;
             if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
