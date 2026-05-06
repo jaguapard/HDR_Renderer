@@ -3,6 +3,36 @@
 #include <optional>
 #include <atomic>
 
+class OSD;
+struct Statsman;
+struct StatsmanLine
+{
+	friend struct Statsman;
+	friend class OSD;
+
+	StatsmanLine() = default;
+	StatsmanLine(double d);
+	operator double() const;
+	StatsmanLine& operator=(double d);
+	StatsmanLine operator+(double d) const;
+	StatsmanLine operator+(const StatsmanLine& line) const;
+	StatsmanLine& operator+=(const StatsmanLine& line);
+	StatsmanLine operator-(double d) const;
+	StatsmanLine operator*(double d) const;
+	StatsmanLine operator/(double d) const;
+	StatsmanLine& operator+=(double d);
+	StatsmanLine& operator-=(double d);
+	StatsmanLine& operator*=(double d);
+	StatsmanLine& operator/=(double d);
+	StatsmanLine& operator++();
+	StatsmanLine operator++(int);
+	//StatsmanLine& operator=
+	
+	bool isAggregate() const; //unknowable if all opts are null
+private:
+	std::optional<double> value, min, max, sum;
+	StatsmanLine& aggregateWith(const StatsmanLine& other);
+};
 struct alignas(64) Statsman
 {
 
@@ -19,28 +49,30 @@ struct alignas(64) Statsman
 
 	struct Rasterizing
 	{
-		uint64_t trianglesTotal, trianglesRendered, verticesBehindNearPlane[4], vertIndexDelta, vertIndexDeltaCount;
-		std::optional<uint64_t> vertIndexDeltaMin, vertIndexDeltaMax;
+		StatsmanLine trianglesTotal, trianglesRendered, verticesBehindNearPlane[4], vertIndexDelta, vertIndexDeltaCount, vertIndexDeltaMin, vertIndexDeltaMax;
 
-		uint64_t barycentricsCalculated, pointsInsideTriangles, notOccludedPoints, opaquePixels, textureGatheredLanes, textureGatherAliveLanes, zBufferFetchLanes, zBufferFetchAliveLanes, zBufferWriteLanes, zBufferWriteAliveLanes, frameBufWriteLanes, frameBufWriteAliveLanes, renderJobCountProducer, renderJobCountConsumer;
+		StatsmanLine barycentricsCalculated, pointsInsideTriangles, notOccludedPoints, opaquePixels, textureGatheredLanes, textureGatherAliveLanes, zBufferFetchLanes, zBufferFetchAliveLanes, zBufferWriteLanes, zBufferWriteAliveLanes, frameBufWriteLanes, frameBufWriteAliveLanes, renderJobCountProducer, renderJobCountConsumer;
 
-		std::optional<double> transformMs, drawMs, zBufferCleanMs, frameBufferCleanMs;
+		StatsmanLine transformMs, drawMs, zBufferCleanMs, frameBufferCleanMs, triangleIndexBufferCleanMs, shadowMapDepthBufferCleanMs;
 	};
 	
 
+	/*
 	//these parametes are auto-calculated in aggregateAll() from multiple Statsman insances
 	struct Aggregated
 	{
-		std::optional<double> transformMsMin, transformMsMax, transformMsTotal, drawMsMin, drawMsMax, drawMsTotal, zBufferCleanMsMin, zBufferCleanMsMax, zBufferCleanMsTotal, framebufCleanMsMin, framebufCleanMsMax, framebufCleanMsTotal;
+		std::optional<double> transformMsMin, transformMsMax, transformMsTotal, drawMsMin, drawMsMax, drawMsTotal, zBufferCleanMsMin, zBufferCleanMsMax, zBufferCleanMsTotal, framebufCleanMsMin, framebufCleanMsMax, framebufCleanMsTotal, triangleIndexBufferCleanMsMin, triangleIndexBufferCleanMsMax, triangleIndexBufferCleanMsTotal, shadowMapDepthBufferCleanMsMin, shadowMapDepthBufferCleanMsMax, shadowMapDepthBufferCleanMsTotal;
 	};
+	
+	*/
 	Statsman() { reset(); }
-	Statsman(const Statsman& s) {memcpy(this, &s, sizeof(*this));}
-
+	Statsman(const Statsman& s) { memcpy(this, &s, sizeof(*this)); }
 	Rasterizing rasterizing;
 
 	std::atomic<uint64_t> allocsByNew, freesByDelete;
 
-	static std::pair<Statsman,Aggregated> aggregateAll();
+	static Statsman aggregateAll();
+	//static std::pair<Statsman,Aggregated> aggregateAll();
 
 	static std::vector<Statsman> statsmenForThreads;
 };

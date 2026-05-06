@@ -1,14 +1,15 @@
 #include "Statsman.h"
+#include <assert.h>
 
 void Statsman::reset()
 {
 	memset(this, 0, sizeof(*this));
+	allocsByNew = freesByDelete = 0;
 }
 
-std::pair<Statsman, Statsman::Aggregated> Statsman::aggregateAll()
+Statsman Statsman::aggregateAll()
 {
 	Statsman ret;
-	Aggregated ag;
 
 	for (auto& other : Statsman::statsmenForThreads)
 	{
@@ -17,22 +18,11 @@ std::pair<Statsman, Statsman::Aggregated> Statsman::aggregateAll()
 
 		ret.rasterizing.trianglesRendered += other.rasterizing.trianglesRendered;
 		ret.rasterizing.trianglesTotal += other.rasterizing.trianglesTotal;
-
-		for (int i = 0; i <= 3; ++i)
-			ret.rasterizing.verticesBehindNearPlane[i] += other.rasterizing.verticesBehindNearPlane[i];
+		for (int i = 0; i <= 3; ++i) ret.rasterizing.verticesBehindNearPlane[i] += other.rasterizing.verticesBehindNearPlane[i];
 
 		ret.rasterizing.vertIndexDelta += other.rasterizing.vertIndexDelta;
 		ret.rasterizing.vertIndexDeltaCount += other.rasterizing.vertIndexDeltaCount;
-
-		if (other.rasterizing.vertIndexDeltaMin)
-			ret.rasterizing.vertIndexDeltaMin =
-			std::min(ret.rasterizing.vertIndexDeltaMin.value_or(UINT64_MAX),
-				*other.rasterizing.vertIndexDeltaMin);
-
-		if (other.rasterizing.vertIndexDeltaMax)
-			ret.rasterizing.vertIndexDeltaMax =
-			std::max(ret.rasterizing.vertIndexDeltaMax.value_or(0),
-				*other.rasterizing.vertIndexDeltaMax);
+		ret.rasterizing.vertIndexDelta.aggregateWith(other.rasterizing.vertIndexDelta);
 
 		ret.rasterizing.barycentricsCalculated += other.rasterizing.barycentricsCalculated;
 		ret.rasterizing.pointsInsideTriangles += other.rasterizing.pointsInsideTriangles;
@@ -49,66 +39,128 @@ std::pair<Statsman, Statsman::Aggregated> Statsman::aggregateAll()
 		ret.rasterizing.renderJobCountProducer += other.rasterizing.renderJobCountProducer;
 		ret.rasterizing.renderJobCountConsumer += other.rasterizing.renderJobCountConsumer;
 
-		if (ag.framebufCleanMsMin || other.rasterizing.frameBufferCleanMs)
-			ag.framebufCleanMsMin =
-			std::min(ag.framebufCleanMsMin.value_or(INFINITY),
-				other.rasterizing.frameBufferCleanMs.value_or(INFINITY));
+		ret.rasterizing.frameBufferCleanMs.aggregateWith(other.rasterizing.frameBufferCleanMs);
+		ret.rasterizing.zBufferCleanMs.aggregateWith(other.rasterizing.zBufferCleanMs);
+		ret.rasterizing.triangleIndexBufferCleanMs.aggregateWith(other.rasterizing.triangleIndexBufferCleanMs);
+		ret.rasterizing.shadowMapDepthBufferCleanMs.aggregateWith(other.rasterizing.shadowMapDepthBufferCleanMs);
 
-		if (ag.framebufCleanMsMax || other.rasterizing.frameBufferCleanMs)
-			ag.framebufCleanMsMax =
-			std::max(ag.framebufCleanMsMax.value_or(-INFINITY),
-				other.rasterizing.frameBufferCleanMs.value_or(-INFINITY));
-
-		if (ag.framebufCleanMsTotal || other.rasterizing.frameBufferCleanMs)
-			ag.framebufCleanMsTotal =
-			ag.framebufCleanMsTotal.value_or(0) +
-			other.rasterizing.frameBufferCleanMs.value_or(0);
-
-		if (ag.zBufferCleanMsMin || other.rasterizing.zBufferCleanMs)
-			ag.zBufferCleanMsMin =
-			std::min(ag.zBufferCleanMsMin.value_or(INFINITY),
-				other.rasterizing.zBufferCleanMs.value_or(INFINITY));
-
-		if (ag.zBufferCleanMsMax || other.rasterizing.zBufferCleanMs)
-			ag.zBufferCleanMsMax =
-			std::max(ag.zBufferCleanMsMax.value_or(-INFINITY),
-				other.rasterizing.zBufferCleanMs.value_or(-INFINITY));
-
-		if (ag.zBufferCleanMsTotal || other.rasterizing.zBufferCleanMs)
-			ag.zBufferCleanMsTotal =
-			ag.zBufferCleanMsTotal.value_or(0) +
-			other.rasterizing.zBufferCleanMs.value_or(0);
-
-		if (ag.drawMsMin || other.rasterizing.drawMs)
-			ag.drawMsMin =
-			std::min(ag.drawMsMin.value_or(INFINITY),
-				other.rasterizing.drawMs.value_or(INFINITY));
-
-		if (ag.drawMsMax || other.rasterizing.drawMs)
-			ag.drawMsMax =
-			std::max(ag.drawMsMax.value_or(-INFINITY),
-				other.rasterizing.drawMs.value_or(-INFINITY));
-
-		if (ag.drawMsTotal || other.rasterizing.drawMs)
-			ag.drawMsTotal =
-			ag.drawMsTotal.value_or(0) +
-			other.rasterizing.drawMs.value_or(0);
-
-		if (ag.transformMsMin || other.rasterizing.transformMs)
-			ag.transformMsMin =
-			std::min(ag.transformMsMin.value_or(INFINITY),
-				other.rasterizing.transformMs.value_or(INFINITY));
-
-		if (ag.transformMsMax || other.rasterizing.transformMs)
-			ag.transformMsMax =
-			std::max(ag.transformMsMax.value_or(-INFINITY),
-				other.rasterizing.transformMs.value_or(-INFINITY));
-
-		if (ag.transformMsTotal || other.rasterizing.transformMs)
-			ag.transformMsTotal =
-			ag.transformMsTotal.value_or(0) +
-			other.rasterizing.transformMs.value_or(0);
+		ret.rasterizing.drawMs.aggregateWith(other.rasterizing.drawMs);
+		ret.rasterizing.transformMs.aggregateWith(other.rasterizing.transformMs);
 	}
+	return ret;
+}
 
-	return { ret, ag };
+StatsmanLine::StatsmanLine(double d)
+{
+	value = d;
+}
+
+StatsmanLine::operator double() const
+{
+	return value.value_or(0);
+}
+
+StatsmanLine& StatsmanLine::operator=(double d)
+{
+	value = d;
+	return *this;
+}
+
+StatsmanLine StatsmanLine::operator+(double d) const
+{
+	auto ret = *this;
+	ret.value = ret.value.value_or(0) + d;
+	return ret;
+}
+
+StatsmanLine StatsmanLine::operator+(const StatsmanLine& line) const
+{
+	StatsmanLine ret;
+	if (value || line.value) ret.value = value.value_or(0) + line.value.value_or(0);
+	return ret;
+}
+
+StatsmanLine& StatsmanLine::operator+=(const StatsmanLine& line)
+{
+	*this = *this + line;
+	return *this;
+}
+
+StatsmanLine StatsmanLine::operator-(double d) const
+{
+	auto ret = *this;
+	ret.value = ret.value.value_or(0) - d;
+	return ret;
+}
+
+StatsmanLine StatsmanLine::operator*(double d) const
+{
+	auto ret = *this;
+	ret.value = ret.value.value_or(0) * d;
+	return ret;
+}
+
+StatsmanLine StatsmanLine::operator/(double d) const
+{
+	auto ret = *this;
+	ret.value = ret.value.value_or(0) / d;
+	return ret;
+}
+
+StatsmanLine& StatsmanLine::operator+=(double d)
+{
+	*this = *this + d;
+	return *this;
+}
+
+StatsmanLine& StatsmanLine::operator-=(double d)
+{
+	*this = *this - d;
+	return *this;
+}
+
+StatsmanLine& StatsmanLine::operator*=(double d)
+{
+	*this = *this * d;
+	return *this;
+}
+
+StatsmanLine& StatsmanLine::operator/=(double d)
+{
+	*this = *this / d;
+	return *this;
+}
+
+StatsmanLine& StatsmanLine::aggregateWith(const StatsmanLine& other)
+{
+	assert(!other.min && !other.max && !other.sum);
+	assert(!this->value);
+	constexpr double inf = std::numeric_limits<double>::infinity();
+	
+	if (other.value)
+	{
+		double oval = *other.value;
+		this->min = std::min(this->min.value_or(inf), oval);
+		this->max = std::max(this->max.value_or(-inf), oval);
+		this->sum = this->sum.value_or(0) + oval;
+	}
+	return *this;
+}
+
+StatsmanLine& StatsmanLine::operator++()
+{
+	return (*this += 1);
+}
+
+StatsmanLine StatsmanLine::operator++(int)
+{
+	StatsmanLine tmp = *this;
+	++(*this);
+	return tmp;
+}
+
+bool StatsmanLine::isAggregate() const
+{
+	if (min || max || sum) return true;
+	return false;
 }

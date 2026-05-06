@@ -121,10 +121,12 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 	if (Statsman::ENABLED)
 	{
 		ss << "\n";
-		auto [s, ag] = Statsman::aggregateAll();
+		auto s = Statsman::aggregateAll();
 
-		ss << toThousandsSeparatedString(s.rasterizing.trianglesRendered) << " triangles rendered\n";
-		ss << toThousandsSeparatedString(s.rasterizing.trianglesTotal) << " total triangles\n";
+		//if (s.rasterizing.trianglesRendered) 
+			ss << toThousandsSeparatedString(s.rasterizing.trianglesRendered) << " triangles rendered\n";
+		//if (s.rasterizing.trianglesTotal) 
+			ss << toThousandsSeparatedString(s.rasterizing.trianglesTotal) << " total triangles\n";
 
 		ss << "Render jobs: "
 			<< toThousandsSeparatedString(s.rasterizing.renderJobCountProducer)
@@ -136,16 +138,14 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 
 		ss << "Vertices behind near plane: ";
 		for (int i = 0; i < 4; ++i)
-			ss << i << ": "
-			<< toThousandsSeparatedString(s.rasterizing.verticesBehindNearPlane[i])
-			<< (i != 3 ? ", " : "");
+			ss << i << ": " << toThousandsSeparatedString(s.rasterizing.verticesBehindNearPlane[i]) << (i != 3 ? ", " : "");
 
 		ss << "\nVertice index deltas: "
 			<< double(s.rasterizing.vertIndexDelta) / s.rasterizing.vertIndexDeltaCount
 			<< " avg, "
-			<< s.rasterizing.vertIndexDeltaMax.value_or(NAN)
+			<< s.rasterizing.vertIndexDelta.max.value_or(NAN)
 			<< " max, "
-			<< s.rasterizing.vertIndexDeltaMin.value_or(NAN)
+			<< s.rasterizing.vertIndexDelta.min.value_or(NAN)
 			<< " min\n";
 
 		ss << "Memory allocations by new: "
@@ -176,17 +176,17 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 			<< "Frame buffer write lanes: "
 			<< laneSurvivalRateString(s.rasterizing.frameBufWriteLanes, s.rasterizing.frameBufWriteAliveLanes) << "\n\n"
 			<< "Transformation times: "
-			<< ag.transformMsMax.value_or(NAN) << " ms max, "
-			<< ag.transformMsTotal.value_or(NAN) / count << " ms avg, "
-			<< ag.transformMsMin.value_or(NAN) << " ms min\n"
+			<< s.rasterizing.transformMs.max.value_or(NAN) << " ms max, "
+			<< s.rasterizing.transformMs.sum.value_or(NAN) / count << " ms avg, "
+			<< s.rasterizing.transformMs.min.value_or(NAN) << " ms min\n"
 			<< "Draw times: "
-			<< ag.drawMsMax.value_or(NAN) << " ms max, "
-			<< ag.drawMsTotal.value_or(NAN) / count << " ms avg, "
-			<< ag.drawMsMin.value_or(NAN) << " ms min\n"
+			<< s.rasterizing.drawMs.max.value_or(NAN) << " ms max, "
+			<< s.rasterizing.drawMs.sum.value_or(NAN) / count << " ms avg, "
+			<< s.rasterizing.drawMs.min.value_or(NAN) << " ms min\n"
 			<< "Depth buffer clean times: "
-			<< ag.zBufferCleanMsMax.value_or(NAN) << " ms max\n"
+			<< s.rasterizing.zBufferCleanMs.max.value_or(NAN) << " ms max\n"
 			<< "Frame buffer clean times: "
-			<< ag.framebufCleanMsMax.value_or(NAN) << " ms max\n";
+			<< s.rasterizing.frameBufferCleanMs.max.value_or(NAN) << " ms max\n";
 	}
 	return ss.str();
 }

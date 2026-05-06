@@ -536,10 +536,27 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 
 void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
+	uint64_t beginTicks = SDL_GetTicksNS();
 	this->frameBuf.clearThreadZone(threadIndex);
+	uint64_t framebufCleanTicks = SDL_GetTicksNS();
 	this->depthBufMain.clearThreadZone(threadIndex);
+	uint64_t depthBufCleanTicks = SDL_GetTicksNS();
 	this->triangleIndexBuf.clearThreadZone(threadIndex);
-	if (this->shadowMapEnabled) this->depthBufShadowMap.clearThreadZone(threadIndex);
+	uint64_t triangleIndexBufCleanTicks = SDL_GetTicksNS();
+	uint64_t shadowMapDepthCleanTicks = 0;
+	if (this->shadowMapEnabled)
+	{
+		this->depthBufShadowMap.clearThreadZone(threadIndex);
+		shadowMapDepthCleanTicks = SDL_GetTicksNS();
+	}
+
+	if (Statsman::ENABLED)
+	{
+		MyStatsman.rasterizing.frameBufferCleanMs = (framebufCleanTicks - beginTicks) / 1e6;
+		MyStatsman.rasterizing.zBufferCleanMs = (depthBufCleanTicks - framebufCleanTicks) / 1e6;
+		MyStatsman.rasterizing.triangleIndexBufferCleanMs = (triangleIndexBufCleanTicks - depthBufCleanTicks) / 1e6;
+		if (shadowMapDepthCleanTicks) MyStatsman.rasterizing.shadowMapDepthBufferCleanMs = (shadowMapDepthCleanTicks - triangleIndexBufCleanTicks) / 1e6;
+	}
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
