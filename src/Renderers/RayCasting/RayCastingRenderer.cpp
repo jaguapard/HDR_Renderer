@@ -218,6 +218,8 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	lightDir /= lightDir.len();
 	float32x16 ambientLightIntensity = 0.1;
 	int threadCount = Threadpool::instance->getWorkerCount();
+
+	uint64_t* framebuf = (uint64_t*)(settings.graphicsOutputBuffer);
 	for (int yStart = 0; yStart < bufH; yStart++)
 	{
 		tsk.func = [&, this, yStart]()
@@ -231,14 +233,27 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			{
 				float progressX = x / float(bufH);
 				float progressY = y / float(bufH);
-				Vec4f rayDir = (forward) * settings.cameraPlane_zDist + (down) * (progressY - 0.5) + (right) * (progressX - widthToHeightRatio * 0.5);
+				Vec4f rayDir = (forward)*settings.cameraPlane_zDist + (down) * (progressY - 0.5) + (right) * (progressX - widthToHeightRatio * 0.5);
 				rayDir.w = 0;
 				rayDir /= rayDir.len();
 
-				TraceResult hitInfo = this->traceRay(camPos, rayDir, false, threadIndexFake);
+				TraceResult hit = this->traceRay(camPos, rayDir, false, threadIndexFake);
+				//if (hitInfo.t >= INFINITY) continue;
+				Vec4f textureColor = { 0,0,0,1 };
+				if (hit.t < INFINITY)
+				{
+					int diffuseMapIndex = this->sceneModels[hit.modelIndex].textureIndex;
+					textureColor = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hit.textureCoords[0], hit.textureCoords[1]);
+
+					//todo: shadow
+				}
+				framebuf[size_t(y) * bufW + size_t(x)] = _mm_extract_epi64(_mm_cvtps_ph(textureColor, _MM_FROUND_NO_EXC), 0);
 			}
-		}
+		};
+		tasks.emplace_back(settings.threadpool->addTask(tsk));
 	}
+
+	/*
 	for (int yStart = 0; yStart < bufH; yStart += 4)
 	{
 		tsk.func = [&, this, yStart]() 
@@ -297,7 +312,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			}
 		};
 		tasks.emplace_back(settings.threadpool->addTask(tsk));
-	}
+	}*/
 	
 	settings.threadpool->blockUntilComplete(tasks);
 }
