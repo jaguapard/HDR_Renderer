@@ -62,14 +62,17 @@ Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, V
 	Vec4_f32x16 edge1 = triB - triA;
 	Vec4_f32x16 edge2 = triC - triA;
 
-	// Backface culling, assuming CCW-wound triangles.
-	//const Vec4f normal = edge1.cross3d(edge2); // No need to normalize
-	//if (normal.dot3d(rayDir) > 0) return INFINITY;
+	Mask16 intersectingTriangles = 0xFFFF;
+	// Backface culling, assuming CW-wound triangles.
+	/*
+	const Vec4_f32x16 normal = edge1.cross3d(edge2); // No need to normalize
+	intersectingTriangles &= normal.dot3d(rayDirs) > 0.f;
+	if (!intersectingTriangles) return 0;*/
 
 	Vec4_f32x16 ray_cross_e2 = rayDirs.cross3d(edge2);
 	float32x16 det = edge1.dot3d(ray_cross_e2);
 
-	Mask16 intersectingTriangles = float32x16(_mm512_abs_ps(det)) >= eps;
+	intersectingTriangles &= float32x16(_mm512_abs_ps(det)) >= eps;
 	if (!intersectingTriangles) return 0; // Ray is parallel to triangle
 
 	float32x16 inv_det = float32x16(1.f) / det;
