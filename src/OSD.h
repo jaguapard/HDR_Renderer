@@ -8,14 +8,14 @@
 #include "smart.h"
 //#include "Statsman.h"
 #include "Vec.h"
-
+class RendererBase;
 class OSD
 {
 public:
 	OSD(uint32_t fontSize = 0);
 	void reset();
 	void registerFrameBegin(); //must be called before any drawing and processing is attempted
-	void registerFrameDone(bool remember = true);
+	void registerFrameDone(const RendererBase* currRenderer, bool remember = true);
 
 	std::string composeString(const std::vector<std::pair<std::string, std::string>>& additionalInfo = {});
 	Smart_Surface draw(float scalingFactor, const std::vector<std::pair<std::string, std::string>>& additionalInfo = {});
@@ -39,4 +39,5 @@ private:
 	//Statsman oldStats;
 	uint64_t frameNumber = 0;
 	std::deque<double> frameTimesMs;
+	const RendererBase* currRenderer = nullptr;
 };

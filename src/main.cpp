@@ -257,8 +257,24 @@ int main(int argc, char* argv[])
         OSD osd(OSD_fontSize);
         uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
         double lastOsdDrawMs = NAN;
+        
+        std::shared_ptr<RendererBase> scheduledRendererChange = nullptr;
+        enum RendererCycle
+        {
+            RASTERIZING = 0,
+            RAY_CASTING = 1,
+            COUNT = 2,
+        };
         while (running) {
             for (auto& it : Statsman::statsmenForThreads) it.reset();
+            if (scheduledRendererChange)
+            {
+                currentRenderer = scheduledRendererChange;
+                scheduledRendererChange = nullptr;
+                currentRenderer->loadScene(oldSponza);
+                continue;
+            }
+
             osd.registerFrameBegin();
             frameCounter++;
             C_Input& inp = C_Input::getInstance();
@@ -279,6 +295,14 @@ int main(int argc, char* argv[])
             }
             if (!running) break;
 
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_3)) //swap renderers
+            {
+                if (dynamic_cast<RasterizingRenderer*>(currentRenderer.get())) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
+                else scheduledRendererChange = std::make_shared<RasterizingRenderer>();
+                continue;
+            }
+
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_1)) Statsman::ENABLED ^= 1;
             if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
             {
                 RendererLoadSceneData loadSceneData = inp.wasCharPressedOnThisFrame('0') ? newSponza : oldSponza;
@@ -327,7 +351,7 @@ int main(int argc, char* argv[])
             //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
             gs.graphicsOutputBuffer = mapped.pData;
             currentRenderer->renderFrame(gs);
-            osd.registerFrameDone();
+            osd.registerFrameDone(currentRenderer.get());
 
             uint64_t ticksBeforeOSD = SDL_GetTicksNS();
             std::vector<std::pair<std::string, std::string>> additionalInfo = {
@@ -361,7 +385,7 @@ int main(int argc, char* argv[])
             else
             {
                 uint64_t currTicks = SDL_GetTicksNS();
-                if (currTicks - lastOsdInfoTicks > 1000000000)
+                if (currTicks - lastOsdInfoTicks > 1e9)
                 {
                     std::string text = osd.composeString(additionalInfo);
                     std::cout << text << "\n";

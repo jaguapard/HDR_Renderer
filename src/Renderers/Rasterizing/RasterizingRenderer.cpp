@@ -536,10 +536,27 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 
 void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 {
+	uint64_t beginTicks = SDL_GetTicksNS();
 	this->frameBuf.clearThreadZone(threadIndex);
+	uint64_t framebufCleanTicks = SDL_GetTicksNS();
 	this->depthBufMain.clearThreadZone(threadIndex);
+	uint64_t depthBufCleanTicks = SDL_GetTicksNS();
 	this->triangleIndexBuf.clearThreadZone(threadIndex);
-	if (this->shadowMapEnabled) this->depthBufShadowMap.clearThreadZone(threadIndex);
+	uint64_t triangleIndexBufCleanTicks = SDL_GetTicksNS();
+	uint64_t shadowMapDepthCleanTicks = 0;
+	if (this->shadowMapEnabled)
+	{
+		this->depthBufShadowMap.clearThreadZone(threadIndex);
+		shadowMapDepthCleanTicks = SDL_GetTicksNS();
+	}
+
+	if (Statsman::ENABLED)
+	{
+		MyStatsman.rasterizing.frameBufferCleanMs = (framebufCleanTicks - beginTicks) / 1e6;
+		MyStatsman.rasterizing.zBufferCleanMs = (depthBufCleanTicks - framebufCleanTicks) / 1e6;
+		MyStatsman.rasterizing.triangleIndexBufferCleanMs = (triangleIndexBufCleanTicks - depthBufCleanTicks) / 1e6;
+		if (shadowMapDepthCleanTicks) MyStatsman.rasterizing.shadowMapDepthBufferCleanMs = (shadowMapDepthCleanTicks - triangleIndexBufCleanTicks) / 1e6;
+	}
 
 	auto [d_low, d_high] = Threadpool::instance->getLimitsForThread(threadIndex, 0, this->triangleStore.size());
 	size_t startInd = d_low, stopInd = d_high;
@@ -658,8 +675,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
 					if (Statsman::ENABLED)
 					{
-						MyStatsman.rendering.barycentricsCalculated += 16;
-						MyStatsman.rendering.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						MyStatsman.rasterizing.barycentricsCalculated += 16;
+						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 					}
 					if (!pointsInsideTriangleMask) continue;
 
@@ -672,9 +689,9 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
 					if (Statsman::ENABLED)
 					{
-						MyStatsman.rendering.zBufferFetchLanes += 16;
-						MyStatsman.rendering.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-						MyStatsman.rendering.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+						MyStatsman.rasterizing.zBufferFetchLanes += 16;
+						MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
 					}
 					if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
@@ -698,11 +715,11 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 
 					if (Statsman::ENABLED)
 					{
-						MyStatsman.rendering.zBufferWriteLanes += 16;
-						MyStatsman.rendering.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-						MyStatsman.rendering.frameBufWriteLanes += 16;
-						MyStatsman.rendering.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-						MyStatsman.rendering.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+						MyStatsman.rasterizing.zBufferWriteLanes += 16;
+						MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+						MyStatsman.rasterizing.frameBufWriteLanes += 16;
+						MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+						MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
 					}
 				}
 			}

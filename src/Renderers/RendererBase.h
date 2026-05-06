@@ -6,6 +6,7 @@
 #include "../Vec.h"
 #include "../helpers.h"
 #include "TextureManager.h"
+#include "../Statsman.h"
 #undef min
 #undef max
 struct GameSettings;
