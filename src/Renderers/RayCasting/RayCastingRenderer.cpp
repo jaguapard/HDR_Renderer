@@ -202,18 +202,19 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	Vec4f lightDir = { 0.4, 0.5, 0.2, 0 };
 	lightDir /= lightDir.len();
 	int threadCount = Threadpool::instance->getWorkerCount();
-	for (int y = 0; y < bufH; ++y)
+	for (int yStart = 0; yStart < bufH; yStart += 4)
 	{
-		tsk.func = [&, this, y]() 
+		tsk.func = [&, this, yStart]() 
 		#ifdef VS_CLANG 
 			__attribute__((noinline)) //Prevent inlining of lambda on Clang. Without it, profiling results are total garbage. MSVC doesn't work with this, but it has useful profiling without it.
 		#endif
 			{
-			int threadIndexFake = y % threadCount;
-			for (float32x16 x = float32x16::sequence(); Mask16 bounds = x < bufW; x += 16)
+			int threadIndexFake = (yStart/4) % threadCount;
+			float32x16 y = float32x16(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3) + yStart;
+			for (float32x16 x = float32x16(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3); Mask16 bounds = x < bufW & y < bufH; x += 4)
 			{
 				float32x16 progressX = x / float(bufH);
-				float progressY = y / float(bufH);
+				float32x16 progressY = y / float(bufH);
 				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
 				rayDirs /= rayDirs.len3d();
 
@@ -241,7 +242,18 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					}
 				}
 				size_t xInt = x[0];
-				mask_store_vec4_f32x16_to_framebuffer(textureColors, settings.graphicsOutputBuffer, xInt, y, settings.outputTextureParams.Width, bounds);
+
+				__m256i fp16_r = _mm512_cvtps_ph(textureColors.r, _MM_FROUND_NO_EXC);
+				__m256i fp16_g = _mm512_cvtps_ph(textureColors.g, _MM_FROUND_NO_EXC);
+				__m256i fp16_b = _mm512_cvtps_ph(textureColors.b, _MM_FROUND_NO_EXC);
+				__m256i fp16_a = _mm512_cvtps_ph(textureColors.a, _MM_FROUND_NO_EXC); //TODO: can be forced to 1 and moved later
+				for (int packY = 0; packY < 4; ++packY)
+				{
+					__m256i fp16_rg = _mm256_permutex2var_epi16(fp16_r, _mm256_add_epi16(_mm256_setr_epi16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0), _mm256_set1_epi16(packY * 4)), fp16_g);
+					__m256i fp16_ba = _mm256_permutex2var_epi16(fp16_b, _mm256_add_epi16(_mm256_setr_epi16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19), _mm256_set1_epi16(packY * 4)), fp16_a);
+					__m256i toStore = _mm256_mask_mov_epi16(fp16_rg, 0b1100110011001100, fp16_ba);
+					_mm256_mask_store_epi64((uint64_t*)(settings.graphicsOutputBuffer) + (yStart + packY) * bufW + xInt, bounds >> 4 * packY, toStore);
+				}
 			}
 		};
 		tasks.emplace_back(settings.threadpool->addTask(tsk));
