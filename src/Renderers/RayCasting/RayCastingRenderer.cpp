@@ -250,7 +250,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	settings.threadpool->blockUntilComplete(tasks);
 }
 
-RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 mask, bool shadowRays, uint32_t threadIndex)
+RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 activeRays, bool shadowRays, uint32_t threadIndex)
 {
 	Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
 	std::array<OctreeNode*, 2048> stack;
@@ -264,7 +264,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 		++nodesInspected;
 		OctreeNode* currNode = stack[--stackTopIndex];
 		float32x16 bboxTmin, bboxTmax; //not used
-		Mask16 raysIntersectingNodeBoundingBox = mask & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax) & ret.t > bboxTmin;
+		Mask16 raysIntersectingNodeBoundingBox = activeRays & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax) & ret.t > bboxTmin;
 		rayNodeIntersections += _mm_popcnt_u32(raysIntersectingNodeBoundingBox);
 		rayNodeTests += 16;
 		if (!raysIntersectingNodeBoundingBox) continue;
@@ -276,7 +276,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			uint32_t modelIndex = content->modelIndex;
 			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
 			float32x16 t;
-			Mask16 raysHittingThisTriangle = mask & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
+			Mask16 raysHittingThisTriangle = activeRays & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
 			triangleIntersectionTestsLive += _mm_popcnt_u32(raysHittingThisTriangle);
 			triangleIntersectionTests += 16;
 			if (!raysHittingThisTriangle) continue;
@@ -288,7 +288,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
 
 			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex].textureIndex);
-			auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle);
+			auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle); //todo: add t < ret.t?
 			float32x16 textureAlpha = accessor.gatherA();
 
 			Mask16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
@@ -311,7 +311,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 					ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
 				}
 			}
-			else if (!(mask & ~ret.raysHit)) goto end;
+			else if (!(activeRays & ~ret.raysHit)) goto end;
 		}
 
 		for (int i = 0; i < currNode->CHILD_COUNT; ++i)
