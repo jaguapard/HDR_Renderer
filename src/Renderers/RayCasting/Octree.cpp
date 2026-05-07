@@ -99,8 +99,8 @@ RayCasting::Octree::Octree(RayCastingRenderer& rend)
 {
 	this->rend = &rend;
 	BoundingBox globalAABB;
-	globalAABB.xmin = globalAABB.ymin = globalAABB.zmin = INFINITY;
-	globalAABB.xmax = globalAABB.ymax = globalAABB.zmax = -INFINITY;
+	globalAABB.xmin = globalAABB.ymin = globalAABB.zmin = FLT_MAX;
+	globalAABB.xmax = globalAABB.ymax = globalAABB.zmax = -FLT_MAX;
 	for (const auto& model : rend.sceneModels)
 		for (const auto& triangle : model.triangles)
 			globalAABB = globalAABB.unionWith({ triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space });

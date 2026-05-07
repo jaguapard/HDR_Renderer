@@ -1,8 +1,8 @@
 #include "BoundingBox.h"
 BoundingBox::BoundingBox(Vec4f v1, Vec4f v2, Vec4f v3)
 {
-	xmin = ymin = zmin = INFINITY;
-	xmax = ymax = zmax = -INFINITY;
+	xmin = ymin = zmin = FLT_MAX;
+	xmax = ymax = zmax = -FLT_MAX;
 	for (const auto& v : {v1,v2,v3})
 	{
 		xmin = std::min(xmin, v.x);
@@ -42,8 +42,8 @@ bool BoundingBox::containsFully(const BoundingBox& other) const
 BoundingBox BoundingBox::infinite()
 {
 	BoundingBox bb;
-	bb.xmin = bb.ymin = bb.zmin = -INFINITY;
-	bb.xmax = bb.ymax = bb.zmax = INFINITY;
+	bb.xmin = bb.ymin = bb.zmin = -FLT_MAX;
+	bb.xmax = bb.ymax = bb.zmax = FLT_MAX;
 	return bb;
 }
 
@@ -67,7 +67,7 @@ std::pair<float, float> BoundingBox::getMinAndMaxIntestionsFor(Vec4f rayOrigin, 
 
 	float tmin_total = std::max(std::max(0.f, tmin_z), std::max(tmin_x, tmin_y));
 	float tmax_total = std::min(tmax_z, std::min(tmax_x, tmax_y));
-	if (tmin_total > tmax_total) return { INFINITY, -INFINITY };
+	if (tmin_total > tmax_total) return { FLT_MAX, -FLT_MAX };
 	return { tmin_total, tmax_total };
 }
 

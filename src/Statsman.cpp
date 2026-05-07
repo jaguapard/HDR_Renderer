@@ -142,7 +142,7 @@ StatsmanLine& StatsmanLine::aggregateWith(const StatsmanLine& other)
 {
 	assert(!other.min && !other.max && !other.sum);
 	assert(!this->value);
-	constexpr double inf = std::numeric_limits<double>::infinity();
+	constexpr double inf = std::numeric_limits<double>::max();
 	
 	if (other.value)
 	{
