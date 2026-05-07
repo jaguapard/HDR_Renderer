@@ -68,6 +68,9 @@ namespace bob
 		float32x8 clamp(float min, float max) const;
 		int moveMask() const;
 
+		__forceinline float& operator[](size_t i) { return f[i]; }
+		__forceinline const float& operator[](size_t i) const { return f[i]; }
+		__forceinline float32x8 sqrt() const { return _mm256_sqrt_ps(*this); }
 		static float32x8 sequence(float mult = 1.0);
 	};
 
