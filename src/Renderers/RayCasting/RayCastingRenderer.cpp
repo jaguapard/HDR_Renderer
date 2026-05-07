@@ -258,35 +258,36 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 
 	std::vector<Threadpool::TaskHandle> tasks;
 	Threadpool::Task tsk;
-	Vec4_f32x16 rayOrigins = camPos;
+	Vec4_f32x8 rayOrigins = camPos;
 	Vec4f lightDir = { 0.4, 0.5, 0.2, 0 };
 	lightDir /= lightDir.len();
-	float32x16 ambientLightIntensity = 0.1;
+	float32x8 ambientLightIntensity = 0.1;
 	int threadCount = Threadpool::instance->getWorkerCount();
-	for (int yStart = 0; yStart < bufH; yStart += 4)
+	for (int yStart = 0; yStart < bufH; yStart += 2)
 	{
 		tsk.func = [&, this, yStart]() 
 		#ifdef VS_CLANG 
 			__attribute__((noinline)) //Prevent inlining of lambda on Clang. Without it, profiling results are total garbage. MSVC doesn't work with this, but it has useful profiling without it.
 		#endif
 			{
-			int threadIndexFake = (yStart/4) % threadCount;
-			float32x16 y = float32x16(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3) + yStart;
-			for (float32x16 x = float32x16(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3); Mask16 bounds = x < bufW & y < bufH; x += 4)
+			int threadIndexFake = (yStart/2) % threadCount;
+			float32x8 y = float32x8(0, 0, 0, 0, 1, 1, 1, 1) + yStart;
+			for (float32x8 x = float32x8(0, 1, 2, 3, 0, 1, 2, 3); float32x8 bounds = x < bufW & y < bufH; x += 4)
 			{
-				float32x16 progressX = x / float(bufH);
-				float32x16 progressY = y / float(bufH);
-				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
+				float32x8 progressX = x / float(bufH);
+				float32x8 progressY = y / float(bufH);
+				Vec4_f32x8 rayDirs = Vec4_f32x8(forward) * settings.cameraPlane_zDist + Vec4_f32x8(down) * (progressY - 0.5) + Vec4_f32x8(right) * (progressX - widthToHeightRatio * 0.5);
 				rayDirs /= rayDirs.len3d();
 
 				TraceResults hits = this->traceRays(rayOrigins, rayDirs, bounds, false, threadIndexFake);
 
-				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
+				Vec4_f32x8 textureColors(0.f, 0.f, 0.f, 1.f);
 				if (hits.raysHit)
 				{
+					uint8_t hitMask = hits.raysHit.moveMask();
 					for (int i = 0; i < 16; ++i)
 					{
-						if (!(hits.raysHit.mask & (1 << i))) continue;
+						if (!(hitMask & (1 << i))) continue;
 						int diffuseMapIndex = this->sceneModels[hits.modelIndices[i]].textureIndex;
 						Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hits.textureCoords[0][i], hits.textureCoords[1][i]);
 						textureColors.x[i] = texturePixel.x;
@@ -295,11 +296,11 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						textureColors.w[i] = texturePixel.w;
 					}
 					
-					float32x16 normalShadingMult = _mm512_max_ps(_mm512_setzero_ps(), hits.normals.dot3d(lightDir));
-					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
+					float32x8 normalShadingMult = _mm256_max_ps(_mm256_setzero_ps(), hits.normals.dot3d(lightDir));
+					Vec4_f32x8 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
 					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true, threadIndexFake);
 					//float32x16 shadowMult = _mm512_maskz_mov_ps(~shadowTrace.raysHit, float32x16(1));
-					float32x16 totalMult = _mm512_add_ps(ambientLightIntensity, _mm512_maskz_mov_ps(~shadowTrace.raysHit, normalShadingMult));
+					float32x8 totalMult = ambientLightIntensity + float32x8(_mm256_blendv_ps(normalShadingMult, _mm256_setzero_ps(), shadowTrace.raysHit)); //_mm512_add_ps(ambientLightIntensity, _mm512_maskz_mov_ps(~shadowTrace.raysHit, normalShadingMult));
 					for (int i = 0; i < 3; ++i)
 					{
 						textureColors[i] *= totalMult;
@@ -307,16 +308,16 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				}
 				size_t xInt = x[0];
 
-				__m256i fp16_r = _mm512_cvtps_ph(textureColors.r, _MM_FROUND_NO_EXC);
-				__m256i fp16_g = _mm512_cvtps_ph(textureColors.g, _MM_FROUND_NO_EXC);
-				__m256i fp16_b = _mm512_cvtps_ph(textureColors.b, _MM_FROUND_NO_EXC);
-				__m256i fp16_a = _mm512_cvtps_ph(textureColors.a, _MM_FROUND_NO_EXC); //TODO: can be forced to 1 and moved later
-				for (int packY = 0; packY < 4; ++packY)
+				__m128i fp16_r = _mm256_cvtps_ph(textureColors.r, _MM_FROUND_NO_EXC);
+				__m128i fp16_g = _mm256_cvtps_ph(textureColors.g, _MM_FROUND_NO_EXC);
+				__m128i fp16_b = _mm256_cvtps_ph(textureColors.b, _MM_FROUND_NO_EXC);
+				__m128i fp16_a = _mm256_cvtps_ph(textureColors.a, _MM_FROUND_NO_EXC);
+				for (int packY = 0; packY < 2; ++packY)
 				{
-					__m256i fp16_rg = _mm256_permutex2var_epi16(fp16_r, _mm256_add_epi16(_mm256_setr_epi16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0), _mm256_set1_epi16(packY * 4)), fp16_g);
-					__m256i fp16_ba = _mm256_permutex2var_epi16(fp16_b, _mm256_add_epi16(_mm256_setr_epi16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19), _mm256_set1_epi16(packY * 4)), fp16_a);
+					__m256i fp16_rg = _mm256_permutex2var_epi16(_mm256_castsi128_si256(fp16_r), _mm256_add_epi16(_mm256_setr_epi16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0), _mm256_set1_epi16(packY * 4)), _mm256_castsi128_si256(fp16_g));
+					__m256i fp16_ba = _mm256_permutex2var_epi16(_mm256_castsi128_si256(fp16_b), _mm256_add_epi16(_mm256_setr_epi16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19), _mm256_set1_epi16(packY * 4)), _mm256_castsi128_si256(fp16_a));
 					__m256i toStore = _mm256_mask_mov_epi16(fp16_rg, 0b1100110011001100, fp16_ba);
-					_mm256_mask_store_epi64((uint64_t*)(settings.graphicsOutputBuffer) + (yStart + packY) * bufW + xInt, bounds >> 4 * packY, toStore);
+					_mm256_mask_store_epi64((uint64_t*)(settings.graphicsOutputBuffer) + (yStart + packY) * bufW + xInt, bounds.moveMask() >> 4 * packY, toStore);
 				}
 			}
 		};
@@ -326,9 +327,9 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	settings.threadpool->blockUntilComplete(tasks);
 }
 
-RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 activeRays, bool shadowRays, uint32_t threadIndex)
+RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, float32x8 activeRays, bool shadowRays, uint32_t threadIndex)
 {
-	Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
+	Vec4_f32x8 rcpRayDirs = Vec4_f32x8(1.f, 1.f, 1.f, 0.f) / rayDirs;
 	std::array<OctreeNode*, 2048> stack;
 	TraceResults ret;
 
@@ -339,10 +340,10 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 	{
 		++nodesInspected;
 		OctreeNode* currNode = stack[--stackTopIndex];
-		float32x16 bboxTmin, bboxTmax; //not used
-		Mask16 raysIntersectingNodeBoundingBox = activeRays & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax) & ret.t > bboxTmin;
-		rayNodeIntersections += _mm_popcnt_u32(raysIntersectingNodeBoundingBox);
-		rayNodeTests += 16;
+		float32x8 bboxTmin, bboxTmax; //not used
+		float32x8 raysIntersectingNodeBoundingBox = activeRays & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax) & ret.t > bboxTmin;
+		rayNodeIntersections += _mm_popcnt_u32(raysIntersectingNodeBoundingBox.moveMask());
+		rayNodeTests += 8;
 		if (!raysIntersectingNodeBoundingBox) continue;
 
 		for (int contentInd = 0; const OctreeContent* content = currNode->getContentOrNull(contentInd); ++contentInd)
@@ -351,41 +352,37 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			uint32_t triangleIndex = content->triangleIndex;
 			uint32_t modelIndex = content->modelIndex;
 			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
-			float32x16 t;
-			Mask16 raysHittingThisTriangle = activeRays & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
-			triangleIntersectionTestsLive += _mm_popcnt_u32(raysHittingThisTriangle);
-			triangleIntersectionTests += 16;
+			float32x8 t;
+			float32x8 raysHittingThisTriangle = activeRays & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
+			triangleIntersectionTestsLive += _mm_popcnt_u32(raysHittingThisTriangle.moveMask());
+			triangleIntersectionTests += 8;
 			if (!raysHittingThisTriangle) continue;
 
-			std::array<float32x16, 3> worldBarycentrics;
+			std::array<float32x8, 3> worldBarycentrics;
 			calculateBarycentricCoordinates3D(rayOrigins + rayDirs * t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, worldBarycentrics);
-			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
-			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
+			Vec4_f32x8 uv(0.f, 0.f, 0.f, 0.f);
+			for (int i = 0; i < 3; ++i) uv += Vec4_f32x8(triangle.tv[i].diffuse) * worldBarycentrics[i];
 
 			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex].textureIndex);
-			auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle); //todo: add t < ret.t?
-			float32x16 textureAlpha = accessor.gatherA();
+			auto accessor = texture.getGatherAccessor(_mm512_castps256_ps512(uv.x), _mm512_castps256_ps512(uv.y), raysHittingThisTriangle.moveMask()); //todo: add t < ret.t?
+			float32x8 textureAlpha = _mm512_castps512_ps256(accessor.gatherA());
 
-			Mask16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
+			float32x8 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
 			ret.raysHit |= toOverride;
 			if (!shadowRays)
 			{
-				ret.t = _mm512_mask_mov_ps(ret.t, toOverride, t);
-
-				ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
-				ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
-				Vec4_f32x16 normals(0.f, 0.f, 0.f, 0.f);
-				for (int i = 0; i < 3; ++i) normals += Vec4_f32x16(triangle.tv[i].normal) * worldBarycentrics[i];
+				ret.t = _mm256_blendv_ps(ret.t, t, toOverride);//_mm256_mask_mov_ps(ret.t, toOverride.moveMask(), t);
+				_mm256_maskstore_epi32(ret.modelIndices.data(), _mm256_castps_si256(toOverride), _mm256_set1_epi32(modelIndex));
+				_mm256_maskstore_epi32(ret.triangleIndices.data(), _mm256_castps_si256(toOverride), _mm256_set1_epi32(triangleIndex));
+				Vec4_f32x8 normals(0.f, 0.f, 0.f, 0.f);
+				for (int i = 0; i < 3; ++i) normals += Vec4_f32x8(triangle.tv[i].normal) * worldBarycentrics[i];
 				normals /= normals.len3d();
 
 				for (int k = 0; k < 3; ++k)
 				{
-					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
-					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, normals[k]);
-				}
-				for (int k = 0; k < 2; ++k)
-				{
-					ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
+					ret.worldBarycentrics[k] = _mm256_blendv_ps(ret.worldBarycentrics[k], worldBarycentrics[k], toOverride);
+					ret.normals[k] = _mm256_blendv_ps(ret.normals[k], normals[k], toOverride);
+					if (k < 2) ret.textureCoords[k] = _mm256_blendv_ps(ret.textureCoords[k], uv[k], toOverride);
 				}
 			}
 			else

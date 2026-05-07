@@ -25,10 +25,11 @@ namespace RayCasting
 
 	struct TraceResults
 	{
-		float32x16 t = FLT_MAX, worldBarycentrics[3], textureCoords[2];
-		int32x16 modelIndices, triangleIndices;
-		Vec4_f32x16 normals;
-		Mask16 raysHit = 0;
+		float32x8 t = FLT_MAX, worldBarycentrics[3], textureCoords[2];
+		//int32x16 modelIndices, triangleIndices;
+		std::array<int, 8> modelIndices, triangleIndices;
+		Vec4_f32x8 normals;
+		float32x8 raysHit = 0.f;
 	};
 }
 
@@ -45,5 +46,5 @@ protected:
 	RayCasting::Octree octree;
 	static inline constexpr bool discardUntexturedTriangles = true;
 
-	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 activeRays, bool shadowRays, uint32_t threadIndex);
+	RayCasting::TraceResults traceRays(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, float32x8 activeRays, bool shadowRays, uint32_t threadIndex);
 };
