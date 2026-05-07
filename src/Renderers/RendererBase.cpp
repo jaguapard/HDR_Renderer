@@ -50,8 +50,21 @@ void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const
 	beta = ((C - P).cross3d(A - P)).dot3d(n) / n.dot3d(n);
 	gamma = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
 }
+//TODO: remake these into templated types?
+void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, float32x8& alpha, float32x8& beta, float32x8& gamma)
+{
+	Vec4_f32x8 n = (B - A).cross3d(C - A);
+	alpha = ((B - P).cross3d(C - P)).dot3d(n) / n.dot3d(n);
+	beta = ((C - P).cross3d(A - P)).dot3d(n) / n.dot3d(n);
+	gamma = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
+}
 
 void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, std::array<float32x16, 3>& outBarycentrics)
+{
+	calculateBarycentricCoordinates3D(P, A, B, C, outBarycentrics[0], outBarycentrics[1], outBarycentrics[2]);
+}
+
+void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, std::array<float32x8, 3>& outBarycentrics)
 {
 	calculateBarycentricCoordinates3D(P, A, B, C, outBarycentrics[0], outBarycentrics[1], outBarycentrics[2]);
 }
