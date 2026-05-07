@@ -86,3 +86,19 @@ Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* fra
 	ret.a = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(b0_15_a0_15_ph, 1));
 	return ret;
 }
+
+void RendererBase::scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, Mask16 mask, void* frameBuf, int framebufW)
+{
+	int32x16 scatterInd = y * framebufW + x;
+	__m256i fp16_r = _mm512_cvtps_ph(colors.r, _MM_FROUND_NO_EXC);
+	__m256i fp16_g = _mm512_cvtps_ph(colors.g, _MM_FROUND_NO_EXC);
+	__m256i fp16_b = _mm512_cvtps_ph(colors.b, _MM_FROUND_NO_EXC);
+	__m256i fp16_a = _mm512_cvtps_ph(colors.a, _MM_FROUND_NO_EXC); //TODO: can be forced to 1 and moved later
+
+	int32x16 fp16_rg = _mm512_inserti32x8(_mm512_castsi256_si512(fp16_r), fp16_g, 1);
+	int32x16 fp16_ba = _mm512_inserti32x8(_mm512_castsi256_si512(fp16_b), fp16_a, 1);
+	int32x16 rgba0_7 = _mm512_permutex2var_epi16(fp16_rg, _mm512_setr_epi16(0, 16, 32, 48, 1, 17, 33, 49, 2, 18, 34, 50, 3, 19, 35, 51, 4, 20, 36, 52, 5, 21, 37, 53, 6, 22, 38, 54, 7, 23, 39, 55), fp16_ba);
+	int32x16 rgba8_15 = _mm512_permutex2var_epi16(fp16_rg, _mm512_setr_epi16(8, 24, 40, 56, 9, 25, 41, 57, 10, 26, 42, 58, 11, 27, 43, 59, 12, 28, 44, 60, 13, 29, 45, 61, 14, 30, 46, 62, 15, 31, 47, 63), fp16_ba);
+	_mm512_mask_i32scatter_epi64(frameBuf, mask, _mm512_extracti32x8_epi32(scatterInd, 0), rgba0_7, 8);
+	_mm512_mask_i32scatter_epi64(frameBuf, mask >> 8, _mm512_extracti32x8_epi32(scatterInd, 1), rgba8_15, 8);
+}

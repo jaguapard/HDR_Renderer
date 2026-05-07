@@ -30,6 +30,9 @@ public:
 	static void calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, std::array<float32x8, 3>& outBarycentrics);
 	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
+
+	//Writes out colors to pixels (x,y) of the framebuffer using mask
+	static void scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, Mask16 mask, void* frameBuf, int framebufW);
 protected:
 	TextureManager textureManager;
 };
