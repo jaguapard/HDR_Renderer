@@ -343,7 +343,11 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 					ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
 				}
 			}
-			else if (!(activeRays & ~ret.raysHit)) goto end;
+			else
+			{
+				activeRays &= ~toOverride;
+				if (!activeRays) goto end;
+			}
 		}
 
 		for (int i = 0; i < currNode->CHILD_COUNT; ++i)
