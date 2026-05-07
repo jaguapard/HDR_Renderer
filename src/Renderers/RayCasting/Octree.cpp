@@ -1,5 +1,7 @@
 #include "Octree.h"
 #include "RayCastingRenderer.h"
+#include <iostream>
+
 using namespace RayCasting;
 BoundingBox RayCasting::OctreeNode::getBoundingBoxForChildIndex(int i) const
 {
@@ -115,6 +117,53 @@ RayCasting::Octree::Octree(RayCastingRenderer& rend)
 			if (!this->root->tryAddTriangle(modelIndex, triangleIndex, rend)) throw std::runtime_error("Failed to add triangle into Octree! Model index: " + std::to_string(modelIndex) + ", triangle index " + std::to_string(triangleIndex));
 		}
 	}
+
+	std::cout << "\n";
+	std::array<OctreeNode*, 2048> stack;
+	std::array<int, 2048> level;
+	int stackTop = 1;
+	stack[0] = this->root.get();
+	level[0] = 1;
+	size_t nodeCount = 0;
+	size_t nodesWithContent = 0;
+	size_t contentCount = 0, minContentCount = -1, maxContentCount = 0;
+	size_t maxLevel = 0;
+	while (stackTop > 0)
+	{
+		OctreeNode* node = stack[--stackTop];
+		if (!node) continue;
+
+		size_t currLevel = level[stackTop];
+		maxLevel = std::max(currLevel, maxLevel);
+		++nodeCount;
+		bool countedContentNode = false;
+		size_t currNodeContentCount = 0;
+		for (int contentInd = 0; const OctreeContent * cont = node->getContentOrNull(contentInd); ++contentInd)
+		{
+			if (cont->isEmpty()) continue;
+			if (!countedContentNode) {
+				countedContentNode = true;
+				++nodesWithContent;
+			}
+			++contentCount;
+			++currNodeContentCount;
+		}
+		if (currNodeContentCount != 0) {
+			minContentCount = std::min(currNodeContentCount, minContentCount);
+			maxContentCount = std::max(maxContentCount, currNodeContentCount);
+		}
+
+		for (int i = 0; i < node->CHILD_COUNT; ++i)
+		{
+			auto* c = node->getChild(i);
+			if (!c) continue;
+			stack[stackTop++] = c;
+			level[stackTop - 1] = currLevel + 1;
+		}
+	}
+
+	std::cout << "Octree analysis:\n" << nodeCount << " total nodes, deepest level: " << maxLevel << ", nodes with content: " << nodesWithContent << ", " << "content count: " << contentCount << "\n";
+	std::cout << "Min content size: " << minContentCount << ", max content size: " << maxContentCount << "\n\n";
 }
 
 bool RayCasting::OctreeContent::isEmpty() const
