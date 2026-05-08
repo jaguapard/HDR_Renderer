@@ -148,7 +148,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
 	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
 	if (inp.wasCharPressedOnThisFrame('B')) this->faceCullingType = EnumCycler::next(this->faceCullingType);
-	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_5)) this->sceneExposionInProgress = ExplodeAndRestoreSceneEffect(settings.gameTime, 3, 15, this->triangleStore.size());
+	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_5)) this->sceneExposionInProgress = ExplodeAndRestoreSceneEffect(settings.gameTime, 0.1, 15, this->triangleStore.size());
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_6)) this->shadowMapEnabled ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_7)) this->useShadowMapBias ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_8)) this->useShadowMapFrontFaceCulling ^= 1;
