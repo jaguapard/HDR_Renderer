@@ -54,7 +54,7 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 	//TODO: may tesselate them in the future?
 	mask &= triangleArea < 400.f;
 
-	MatrixPack16_4x4 rotation = MatrixPack16_4x4::rotationXYZ(triRot);
+	MatrixPack16_4x4 rotation = MatrixPack16_4x4::fast_rotationXYZ(triRot);
 	for (int i = 0; i < 3; ++i)
 	{
 		Vec4_f32x16 transformed = rotation * (verts[i].space - triangleMiddle) + triangleMiddle + triShift;

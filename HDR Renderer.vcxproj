@@ -385,6 +385,7 @@
     <ClCompile Include="src\AssetLoader.cpp" />
     <ClCompile Include="src\BoundingBox.cpp" />
     <ClCompile Include="src\C_Input.cpp" />
+    <ClCompile Include="src\LUTMan.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\OSD.cpp" />
     <ClCompile Include="src\Renderers\ColorPixelBuffer.cpp" />
@@ -434,6 +435,7 @@
     <ClInclude Include="src\Renderers\TextureManager.h" />
     <ClInclude Include="src\smart.h" />
     <ClInclude Include="src\Statsman.h" />
+    <ClInclude Include="src\LUTMan.h" />
     <ClInclude Include="src\Threadpool.h" />
     <ClInclude Include="src\Vec.h" />
   </ItemGroup>

@@ -76,6 +76,12 @@ public:
 	static MatrixPack16_4x4 rotationZ(bob::float32x16 theta);
 	static MatrixPack16_4x4 rotationXYZ(const bob::Vec4_f32x16& angle);
 
+	//These function return very fast low quality approximations for the rotation matrices. Use only if inaccuracies don't matter
+	static MatrixPack16_4x4 fast_rotationX(bob::float32x16 theta);
+	static MatrixPack16_4x4 fast_rotationY(bob::float32x16 theta);
+	static MatrixPack16_4x4 fast_rotationZ(bob::float32x16 theta);
+	static MatrixPack16_4x4 fast_rotationXYZ(const bob::Vec4_f32x16& angle);
+
 	static MatrixPack16_4x4 identity();
 
 	__forceinline bob::Vec4_f32x16 operator*(const bob::Vec4_f32x16& v) const
