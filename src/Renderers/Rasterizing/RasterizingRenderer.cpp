@@ -148,6 +148,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	if (inp.wasCharPressedOnThisFrame('N')) this->shadingMode = EnumCycler::next(this->shadingMode);
 	if (inp.wasCharPressedOnThisFrame('M')) this->drawShadowMapDebug ^= 1;
 	if (inp.wasCharPressedOnThisFrame('B')) this->faceCullingType = EnumCycler::next(this->faceCullingType);
+	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_5)) this->sceneExposionInProgress = ExplodeAndRestoreSceneEffect(settings.gameTime, 3, 15, this->triangleStore.size());
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_6)) this->shadowMapEnabled ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_7)) this->useShadowMapBias ^= 1;
 	if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_8)) this->useShadowMapFrontFaceCulling ^= 1;
@@ -159,6 +160,12 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 		return;
 	}
 
+	
+	if (this->sceneExposionInProgress)
+	{
+		this->sceneExposionInProgress->onFrameStart(settings.gameTime);
+		if (this->sceneExposionInProgress->isFinished()) this->sceneExposionInProgress = std::nullopt;
+	}
 
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getWorkerCount();
@@ -397,6 +404,11 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 	{
 		this->vertexStore.gatherXYZUV(input.vertexIndices[i], input.validInputs, originalVertices[i].space, originalVertices[i].u, originalVertices[i].v);
 		originalVertices[i].space.w = 1;
+	}
+
+	if (this->sceneExposionInProgress)
+	{
+		originalVertices = this->sceneExposionInProgress->applyToTriangles(originalVertices, input.triangleIndices, input.validInputs);
 	}
 	bool UVs_loaded = true, normals_loaded = false;
 
