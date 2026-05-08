@@ -12,6 +12,8 @@
 #include "Threadpool.h"
 #include "OSD.h"
 #include "Statsman.h"
+#include "LUTMan.h"
+
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "SDL3.lib")
@@ -112,6 +114,7 @@ Threadpool threadpool;
 
 int main(int argc, char* argv[]) 
 {
+    LUTMan::init();
     SDL_Window* window;
     try
     {
