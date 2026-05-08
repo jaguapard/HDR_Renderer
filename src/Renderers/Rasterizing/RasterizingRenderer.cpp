@@ -912,6 +912,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				float32x16 fracY = sunScreenPositions.y - sy0;
 				const float32x16 sampleX[] = { sx0, sx1, sx0, sx1};
 				const float32x16 sampleY[] = { sy0, sy0, sy1, sy1};
+				float32x16 smapSamples[4];
 				for (int i = 0; i < 4; ++i)
 				{
 					float32x16 sx = sampleX[i];
@@ -933,9 +934,14 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 					{
 						pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
 					}
-					shadowMult = _mm512_mask_add_ps(shadowMult, ~pointsInShadow, shadowMult, float32x16(1));
+					smapSamples[i] = _mm512_maskz_mov_ps(~pointsInShadow, float32x16(1));
+					//shadowMult = _mm512_mask_add_ps(shadowMult, ~pointsInShadow, shadowMult, float32x16(1));
 				}
-				shadowMult /= 4.f;
+
+				float32x16 lx1 = lerp(smapSamples[0], smapSamples[1], fracX);// fracX* smapSamples[0] + (-fracX + 1) * smapSamples[1];
+				float32x16 lx2 = lerp(smapSamples[2], smapSamples[3], fracX);// fracX*smapSamples[2] + (-fracX + 1) * smapSamples[3];
+				shadowMult = lerp(lx1, lx2, fracY);//fracY * lx1 + (-fracY + 1) * lx2;
+				//shadowMult /= 4.f;
 				//for (auto& it : shadowMult.f) if (it > 0 && it < 1) __debugbreak();
 			}
 
