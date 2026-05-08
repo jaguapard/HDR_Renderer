@@ -17,6 +17,7 @@ struct GameSettings
 	bool osdEnabled = false;
 	bool texturingEnabled = true;
 	float flySpeed = 15;
+	double gameTime = 0;
 
 	Threadpool* threadpool = nullptr;
 };

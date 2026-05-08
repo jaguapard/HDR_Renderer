@@ -265,7 +265,16 @@ int main(int argc, char* argv[])
             RAY_CASTING = 1,
             COUNT = 2,
         };
+
+        uint64_t prevFrameTicks = SDL_GetTicksNS();
         while (running) {
+            uint64_t thisFrameTicks = SDL_GetTicksNS();
+            double dt = (thisFrameTicks - prevFrameTicks) / 1e9;
+            dt = std::clamp(dt, 0.0, 0.1);
+            prevFrameTicks = thisFrameTicks;
+            gs.gameTime += dt;
+            //std::cout << gs.gameTime << "sec \n";
+            
             for (auto& it : Statsman::statsmenForThreads) it.reset();
             if (scheduledRendererChange)
             {
@@ -416,19 +425,6 @@ int main(int argc, char* argv[])
             context->Draw(3, 0);
             if (FAILED(swapChain->Present(0, 0)))
                 RAISE_ERROR("swapChain->Present failed");
-
-            uint64_t ticksOnEnd = SDL_GetTicks();
-            /*
-            if (ticksOnEnd - ticksOnStart >= 1000)
-            {
-                uint64_t delta = ticksOnEnd - ticksOnStart;
-                ticksOnStart = ticksOnEnd;
-
-                double fps = (frameCounter-oldFrameCounter) / (delta / (1000.0));
-                std::cout << fps << " FPS\n";
-                oldFrameCounter = frameCounter;
-                
-            }*/
         }
 
         // Cleanup
