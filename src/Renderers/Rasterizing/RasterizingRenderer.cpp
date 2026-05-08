@@ -891,35 +891,65 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
 
 			Mask16 pointsInShadow = 0;
+			float32x16 shadowMult = 1.f;
 			if (this->shadowMapEnabled)
 			{
+				shadowMult = 0.f;
 				const auto& currentShadowMap = this->drawCommands[1];
 				Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
 				float32x16 zInv = float32x16(1) / sunWorldPositions.z;
 				Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
+				//sunScreenPositions.x = _mm512_roundscale_ps(sunScreenPositions.x, _MM_FROUND_TO_NEAREST_INT);
+				//sunScreenPositions.y = _mm512_roundscale_ps(sunScreenPositions.y, _MM_FROUND_TO_NEAREST_INT);
 				sunScreenPositions.z = zInv;
-				sunScreenPositions.y = sunScreenPositions.y;
 
-				Mask16 inShadowMapBounds = xBoundsMask & (sunScreenPositions.x >= 0.f) & (sunScreenPositions.x < float(this->drawCommands[1].renderW)) & (sunScreenPositions.y >= 0.f) & (sunScreenPositions.y < float(this->drawCommands[1].renderH));
-				int32x16 gatherInd = int32x16(sunScreenPositions.y.trunc()) * this->drawCommands[1].renderW + int32x16(sunScreenPositions.x.trunc());
-				float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(FLT_MAX), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+				for (float oy = -1; oy <= 1; ++oy)
+				{
+					for (float ox = -1; ox <= 1; ++ox)
+					{
+						float32x16 sx = sunScreenPositions.x + ox;
+						float32x16 sy = sunScreenPositions.y + oy;
+						float32x16 sx0 = _mm512_floor_ps(sx);
+						float32x16 sy0 = _mm512_floor_ps(sy);
+						float32x16 sx1 = sx0 + 1;
+						float32x16 sy1 = sy0 + 1;
+						float32x16 fracX = sx - sx0;
+						float32x16 fracY = sy - sy0;
+						const float32x16 sampleX[] = { sx0, sx1, sx0, sx1 };
+						const float32x16 sampleY[] = { sy0, sy0, sy1, sy1 };
+						float32x16 smapSamples[4];
+						for (int i = 0; i < 4; ++i)
+						{
+							float32x16 ssx = sampleX[i];
+							float32x16 ssy = sampleY[i];
 
-				pointsInShadow = ~inShadowMapBounds;
-				if (this->useShadowMapBias)
-				{
-					float32x16 bias = 10.f; //still some acne, noticable panning
-					float32x16 shadowMapProperDepth = float32x16(1) / shadowMapDepths;
-					float32x16 geometryProperDepth = float32x16(1) / sunScreenPositions.z;
-					pointsInShadow |= (shadowMapProperDepth + bias < geometryProperDepth);
+							Mask16 inShadowMapBounds = xBoundsMask & ssx >= 0.f & ssy >= 0.f & ssx < float(this->drawCommands[1].renderW) & ssy < float(this->drawCommands[1].renderH);
+							int32x16 gatherInd = int32x16(ssy.trunc()) * this->drawCommands[1].renderW + int32x16(ssx.trunc());
+							float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(FLT_MAX), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+							pointsInShadow = ~inShadowMapBounds;
+							if (this->useShadowMapBias)
+							{
+								float32x16 bias = 10.f; //still some acne, noticable panning
+								float32x16 shadowMapProperDepth = float32x16(1) / shadowMapDepths;
+								float32x16 geometryProperDepth = float32x16(1) / sunScreenPositions.z;
+								pointsInShadow |= (shadowMapProperDepth + bias < geometryProperDepth);
+							}
+							else
+							{
+								pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
+							}
+							smapSamples[i] = _mm512_maskz_mov_ps(~pointsInShadow, float32x16(1));
+						}
+
+						float32x16 lx1 = lerp(smapSamples[0], smapSamples[1], fracX);// fracX* smapSamples[0] + (-fracX + 1) * smapSamples[1];
+						float32x16 lx2 = lerp(smapSamples[2], smapSamples[3], fracX);// fracX*smapSamples[2] + (-fracX + 1) * smapSamples[3];
+						shadowMult += lerp(lx1, lx2, fracY);//fracY * lx1 + (-fracY + 1) * lx2;
+					}
 				}
-				else
-				{
-					pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
-				}
+				shadowMult /= 9.f;
 			}
 
-			Vec4_f32x16 totalLight;
-			for (int i = 0; i < 3; ++i) totalLight[i] = this->ambientLightIntensity;
+			float32x16 normalShadingMult;
 			float32x16 normalDot;
 			if (shadingMode == ShadingMode::SMOOTH)
 			{
@@ -929,12 +959,17 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				Vec4_f32x16 lightDir = lightTo - lightFrom;
 				lightDir /= lightDir.len3d();
 				normalDot = -normals.dot3d(lightDir);
-				totalLight += _mm512_max_ps(float32x16(0.f), normalDot * this->lightIntesity);
+				normalShadingMult = _mm512_max_ps(float32x16(0.f), normalDot * this->lightIntesity);
 			}
-			else totalLight += this->lightIntesity;
+			else normalShadingMult = 1.f;
 
-			for (int i = 0; i < 3; ++i) totalLight[i] = _mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
-			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!
+			for (int i = 0; i < 3; ++i)
+			{
+				texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, texturePixels[i], shadowMult * normalShadingMult + this->ambientLightIntensity);//unfilled pixels (sky) is invulnerable to lighting!
+			}
+			/*
+			for (int i = 0; i < 3; ++i) totalLight[i] *= shadowMult;//_mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
+			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!*/
 			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
 		}
 	}
