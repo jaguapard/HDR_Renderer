@@ -11,6 +11,7 @@ Rasterizing::ExplodeAndRestoreSceneEffect::ExplodeAndRestoreSceneEffect(double s
 	std::random_device dev;
 	std::mt19937 gen(dev());
 
+	//these values represent max shift and rotation during the effect
 	std::normal_distribution<float> shiftDistrib(0, 300);
 	std::uniform_real_distribution<float> rotDistrib(0, 4 * 3.14159 * 16);
 	for (size_t i = 0; i < triangleCount; ++i)
@@ -49,6 +50,8 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 	std::array<VertexPack16, 3> ret = verts;
 	float32x16 triangleArea = (verts[0].space - verts[1].space).cross3d(verts[0].space - verts[2].space).len3d() * 0.5f;
 	Vec4_f32x16 triangleMiddle = (verts[0].space + verts[1].space + verts[2].space) / 3.f;
+	//don't affect large triangles, since they pollute the screen with their movement and rotation. Also looks better, like only flimsy things exploding, while wall and floors stay firm
+	//TODO: may tesselate them in the future?
 	mask &= triangleArea < 400.f;
 
 	MatrixPack16_4x4 rotation = MatrixPack16_4x4::rotationXYZ(triRot);
