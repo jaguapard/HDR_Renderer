@@ -50,21 +50,13 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 	float32x16 triangleArea = (verts[0].space - verts[1].space).cross3d(verts[0].space - verts[2].space).len3d() * 0.5f;
 	Vec4_f32x16 triangleMiddle = (verts[0].space + verts[1].space + verts[2].space) / 3.f;
 	mask &= triangleArea < 400.f;
-	for (int i = 0; i < 16; ++i)
+
+	MatrixPack16_4x4 rotation = MatrixPack16_4x4::rotationXYZ(triRot);
+	for (int i = 0; i < 3; ++i)
 	{
-		if (!(mask.mask & (1 << i))) continue;
-		
-		Matrix4 rotation = Matrix4::rotationXYZ(triRot.extractHorizontalVector(i));
-		Vec4f tm = triangleMiddle.extractHorizontalVector(i);
-		for (int j = 0; j < 3; ++j)
-		{
-			Vec4f v = verts[j].space.extractHorizontalVector(i);
-			Vec4f relToMiddle = v - tm;
-			Vec4f relToMiddleRotate = rotation * relToMiddle;
-			Vec4f transformed = relToMiddleRotate + tm + triShift.extractHorizontalVector(i);
-			transformed.w = 1; //should you?
-			for (int k = 0; k < 4; ++k) ret[j].space[k][i] = transformed[k];
-		}
+		Vec4_f32x16 transformed = rotation * (verts[i].space - triangleMiddle) + triangleMiddle + triShift;
+		transformed.w = 1; //TODO: look at this when adding homogeneous coords
+		for (int j = 0; j < 4; ++j) ret[i].space[j] = _mm512_mask_mov_ps(verts[i].space[j], mask, transformed[j]);
 	}
 	return ret;
 }
