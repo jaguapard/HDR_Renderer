@@ -1,4 +1,5 @@
 #include "Matrix4.h"
+#include "../../src/LUTMan.h"
 using namespace bob;
 
 Matrix4::Matrix4(const std::initializer_list<bob::_SSE_Vec4_float> lst)
@@ -319,7 +320,7 @@ float32x16 sin16(float32x16 x)
 	return ret;
 }
 float32x16 cos16(float32x16 x)
-{
+{	
 	float32x16 ret;
 	for (int i = 0; i < 16; ++i) ret[i] = cosf(x[i]);
 	return ret;
@@ -406,6 +407,90 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationXYZ(const bob::Vec4_f32x16& angle)
 {
 	return rotationZ(angle.z) * rotationY(angle.y) * rotationX(angle.x);
 }
+
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(float32x16 theta)
+{
+	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	MatrixPack16_4x4 ret;
+	ret.elements[0][0] = cosTheta;
+	ret.elements[0][1] = sinTheta;
+	ret.elements[0][2] = 0.f;
+	ret.elements[0][3] = 0.f;
+
+	ret.elements[1][0] = -sinTheta;
+	ret.elements[1][1] = cosTheta;
+	ret.elements[1][2] = 0.f;
+	ret.elements[1][3] = 0.f;
+
+	ret.elements[2][0] = 0.f;
+	ret.elements[2][1] = 0.f;
+	ret.elements[2][2] = 1.f;
+	ret.elements[2][3] = 0.f;
+
+	ret.elements[3][0] = 0.f;
+	ret.elements[3][1] = 0.f;
+	ret.elements[3][2] = 0.f;
+	ret.elements[3][3] = 1.f;
+	return ret;
+}
+
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(float32x16 theta)
+{
+	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	MatrixPack16_4x4 ret;
+	ret.elements[0][0] = cosTheta;
+	ret.elements[0][1] = 0.f;
+	ret.elements[0][2] = -sinTheta;
+	ret.elements[0][3] = 0.f;
+
+	ret.elements[1][0] = 0.f;
+	ret.elements[1][1] = 1.f;
+	ret.elements[1][2] = 0.f;
+	ret.elements[1][3] = 0.f;
+
+	ret.elements[2][0] = sinTheta;
+	ret.elements[2][1] = 0.f;
+	ret.elements[2][2] = cosTheta;
+	ret.elements[2][3] = 0.f;
+
+	ret.elements[3][0] = 0.f;
+	ret.elements[3][1] = 0.f;
+	ret.elements[3][2] = 0.f;
+	ret.elements[3][3] = 1.f;
+	return ret;
+}
+
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationZ(float32x16 theta)
+{
+	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	MatrixPack16_4x4 ret;
+	ret.elements[0][0] = 1.f;
+	ret.elements[0][1] = 0.f;
+	ret.elements[0][2] = 0.f;
+	ret.elements[0][3] = 0.f;
+
+	ret.elements[1][0] = 0.f;
+	ret.elements[1][1] = cosTheta;
+	ret.elements[1][2] = sinTheta;
+	ret.elements[1][3] = 0.f;
+
+	ret.elements[2][0] = 0.f;
+	ret.elements[2][1] = -sinTheta;
+	ret.elements[2][2] = cosTheta;
+	ret.elements[2][3] = 0.f;
+
+	ret.elements[3][0] = 0.f;
+	ret.elements[3][1] = 0.f;
+	ret.elements[3][2] = 0.f;
+	ret.elements[3][3] = 1.f;
+	return ret;
+}
+
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationXYZ(const bob::Vec4_f32x16& angle)
+{
+	return fast_rotationZ(angle.z) * fast_rotationY(angle.y) * fast_rotationX(angle.x);
+}
+
 
 MatrixPack16_4x4 MatrixPack16_4x4::identity()
 {
