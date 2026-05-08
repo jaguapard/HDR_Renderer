@@ -226,7 +226,7 @@ int main(int argc, char* argv[])
         uint64_t frameCounter = 0, oldFrameCounter = 0;
         uint64_t ticksOnStart = SDL_GetTicks();
 
-        std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RayCastingRenderer>();
+        std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RasterizingRenderer>();
         RendererLoadSceneData oldSponza, newSponza;
         oldSponza.files = { { "H:/Sponza goodies/old_sponza/old_sponza.obj", "obj" } };
         /*newSponza.files = {{"H:/Sponza goodies/main1_sponza/NewSponza_Main_Yup_003.fbx", ""},
