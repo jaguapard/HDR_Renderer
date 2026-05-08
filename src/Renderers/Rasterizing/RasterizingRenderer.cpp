@@ -903,46 +903,50 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				//sunScreenPositions.y = _mm512_roundscale_ps(sunScreenPositions.y, _MM_FROUND_TO_NEAREST_INT);
 				sunScreenPositions.z = zInv;
 
-				Vec4_f32x16 smapFloor, smapCeil;
-				float32x16 sx0 = smapFloor.x = _mm512_floor_ps(sunScreenPositions.x);
-				float32x16 sy0 = smapFloor.y = _mm512_floor_ps(sunScreenPositions.y);
-				float32x16 sx1 = smapCeil.x = sx0 + 1;
-				float32x16 sy1 = smapCeil.y = sy0 + 1;
-				float32x16 fracX = sunScreenPositions.x - sx0;
-				float32x16 fracY = sunScreenPositions.y - sy0;
-				const float32x16 sampleX[] = { sx0, sx1, sx0, sx1};
-				const float32x16 sampleY[] = { sy0, sy0, sy1, sy1};
-				float32x16 smapSamples[4];
-				for (int i = 0; i < 4; ++i)
+				for (float oy = -1; oy <= 1; ++oy)
 				{
-					float32x16 sx = sampleX[i];
-					float32x16 sy = sampleY[i];
-					Mask16 inShadowMapBounds = xBoundsMask & sx >= 0.f & sy >= 0.f & sx < float(this->drawCommands[1].renderW) & sy < float(this->drawCommands[1].renderH);
-					
-					int32x16 gatherInd = int32x16(sy.trunc()) * this->drawCommands[1].renderW + int32x16(sx.trunc());
-					float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(FLT_MAX), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+					for (float ox = -1; ox <= 1; ++ox)
+					{
+						float32x16 sx = sunScreenPositions.x + ox;
+						float32x16 sy = sunScreenPositions.y + oy;
+						float32x16 sx0 = _mm512_floor_ps(sx);
+						float32x16 sy0 = _mm512_floor_ps(sy);
+						float32x16 sx1 = sx0 + 1;
+						float32x16 sy1 = sy0 + 1;
+						float32x16 fracX = sx - sx0;
+						float32x16 fracY = sy - sy0;
+						const float32x16 sampleX[] = { sx0, sx1, sx0, sx1 };
+						const float32x16 sampleY[] = { sy0, sy0, sy1, sy1 };
+						float32x16 smapSamples[4];
+						for (int i = 0; i < 4; ++i)
+						{
+							float32x16 ssx = sampleX[i];
+							float32x16 ssy = sampleY[i];
 
-					pointsInShadow = ~inShadowMapBounds;
-					if (this->useShadowMapBias)
-					{
-						float32x16 bias = 10.f; //still some acne, noticable panning
-						float32x16 shadowMapProperDepth = float32x16(1) / shadowMapDepths;
-						float32x16 geometryProperDepth = float32x16(1) / sunScreenPositions.z;
-						pointsInShadow |= (shadowMapProperDepth + bias < geometryProperDepth);
+							Mask16 inShadowMapBounds = xBoundsMask & ssx >= 0.f & ssy >= 0.f & ssx < float(this->drawCommands[1].renderW) & ssy < float(this->drawCommands[1].renderH);
+							int32x16 gatherInd = int32x16(ssy.trunc()) * this->drawCommands[1].renderW + int32x16(ssx.trunc());
+							float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(FLT_MAX), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+							pointsInShadow = ~inShadowMapBounds;
+							if (this->useShadowMapBias)
+							{
+								float32x16 bias = 10.f; //still some acne, noticable panning
+								float32x16 shadowMapProperDepth = float32x16(1) / shadowMapDepths;
+								float32x16 geometryProperDepth = float32x16(1) / sunScreenPositions.z;
+								pointsInShadow |= (shadowMapProperDepth + bias < geometryProperDepth);
+							}
+							else
+							{
+								pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
+							}
+							smapSamples[i] = _mm512_maskz_mov_ps(~pointsInShadow, float32x16(1));
+						}
+
+						float32x16 lx1 = lerp(smapSamples[0], smapSamples[1], fracX);// fracX* smapSamples[0] + (-fracX + 1) * smapSamples[1];
+						float32x16 lx2 = lerp(smapSamples[2], smapSamples[3], fracX);// fracX*smapSamples[2] + (-fracX + 1) * smapSamples[3];
+						shadowMult += lerp(lx1, lx2, fracY);//fracY * lx1 + (-fracY + 1) * lx2;
 					}
-					else
-					{
-						pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
-					}
-					smapSamples[i] = _mm512_maskz_mov_ps(~pointsInShadow, float32x16(1));
-					//shadowMult = _mm512_mask_add_ps(shadowMult, ~pointsInShadow, shadowMult, float32x16(1));
 				}
-
-				float32x16 lx1 = lerp(smapSamples[0], smapSamples[1], fracX);// fracX* smapSamples[0] + (-fracX + 1) * smapSamples[1];
-				float32x16 lx2 = lerp(smapSamples[2], smapSamples[3], fracX);// fracX*smapSamples[2] + (-fracX + 1) * smapSamples[3];
-				shadowMult = lerp(lx1, lx2, fracY);//fracY * lx1 + (-fracY + 1) * lx2;
-				//shadowMult /= 4.f;
-				//for (auto& it : shadowMult.f) if (it > 0 && it < 1) __debugbreak();
+				shadowMult /= 9.f;
 			}
 
 			float32x16 normalShadingMult;
