@@ -11,7 +11,7 @@ Rasterizing::ExplodeAndRestoreSceneEffect::ExplodeAndRestoreSceneEffect(double s
 	std::random_device dev;
 	std::mt19937 gen(dev());
 
-	std::uniform_real_distribution<float> shiftDistrib(-1000, 1000);
+	std::normal_distribution<float> shiftDistrib(0, 300);
 	//std::normal_distribution<float> rotDistrib(0, 0.1 * 3.14159);
 	std::uniform_real_distribution<float> rotDistrib(0, 0.1 * 3.14159);
 	for (size_t i = 0; i < triangleCount; ++i)
