@@ -7,7 +7,7 @@
 #include "RenderJobStore.h"
 #include "primitives.h"
 #include "RasterizingBuffer.h"
-#include "RasterizingEffects.h"
+#include "RasterizingExplodeAndRestoreSceneEffect.h"
 
 namespace Rasterizing
 {

@@ -1,4 +1,4 @@
-#include "RasterizingEffects.h"
+#include "RasterizingExplodeAndRestoreSceneEffect.h"
 #include <random>
 using namespace Rasterizing;
 
@@ -46,7 +46,7 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 		triShift[i] = lerp(0.f, shift, lerpT);
 		triRot[i] = lerp(0.f, rot, lerpT);
 	}
-	
+
 	std::array<VertexPack16, 3> ret = verts;
 	float32x16 triangleArea = (verts[0].space - verts[1].space).cross3d(verts[0].space - verts[2].space).len3d() * 0.5f;
 	Vec4_f32x16 triangleMiddle = (verts[0].space + verts[1].space + verts[2].space) / 3.f;
