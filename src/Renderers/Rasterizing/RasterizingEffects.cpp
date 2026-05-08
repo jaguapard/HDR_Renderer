@@ -28,9 +28,9 @@ void Rasterizing::ExplodeAndRestoreSceneEffect::onFrameStart(double gameTime)
 	this->gameTime = gameTime;
 	if (gameTime < this->flipTime)
 	{
-		this->effectProgress = (gameTime - this->startTime) / (this->flipTime - this->startTime);
+		this->lerpBase = (gameTime - this->startTime) / (this->flipTime - this->startTime);
 	}
-	else this->effectProgress = 1 - (gameTime - this->flipTime) / (this->endTime - this->flipTime);
+	else this->lerpBase = 1 - (gameTime - this->flipTime) / (this->endTime - this->flipTime);
 }
 
 std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTriangles(const std::array<VertexPack16, 3>& verts, const int32x16 triangleInd, Mask16 mask) const
@@ -38,7 +38,7 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 	float32x16 z = 0.f;
 	Vec4_f32x16 triShift, triRot;
 
-	float lerpT = powf(this->effectProgress, 8);
+	float lerpT = powf(this->lerpBase, 8);
 	for (int i = 0; i < 3; ++i)
 	{
 		float32x16 shift = _mm512_mask_i32gather_ps(z, mask, triangleInd, this->shift[i].data(), 4);
