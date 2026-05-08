@@ -7,18 +7,10 @@
 #include "RenderJobStore.h"
 #include "primitives.h"
 #include "RasterizingBuffer.h"
+#include "RasterizingExplodeAndRestoreSceneEffect.h"
 
 namespace Rasterizing
 {
-	
-	/*
-	struct Triangle
-	{
-		uint32_t vertIndex[3];
-		uint32_t diffuseMapVertIndex[3]; //different triangles may have different texture coords, like cube's edges if all faces are distinct pictures
-
-		//static std::vector<float> xStore, yStore, zStore, uStore, vStore;
-	};*/
 
 	//Inclusive
 	struct SequentialRange
@@ -35,7 +27,7 @@ namespace Rasterizing
 		int modelIndex;
 		//std::vector<SequentialRange> global_xyz_indices, global_uv_indices;
 		//std::vector<SequentialRange> 
-	};	
+	};
 }
 class RasterizingRenderer : public RendererBase
 {
@@ -123,5 +115,6 @@ private:
 	//float lightIntensity, skyLightIntensity;
 	float ambientLightIntensity = 0.3, lightIntesity = 3;
 	bool drawShadowMapDebug = false, skipTrianglesWithFallbackTexure = true, useShadowMapBias = false, useShadowMapFrontFaceCulling = true;
+	std::optional<Rasterizing::ExplodeAndRestoreSceneEffect> sceneExposionInProgress;
 	Rasterizing::FaceCullingType faceCullingType = Rasterizing::FaceCullingType::NONE;
 };

@@ -16,7 +16,9 @@ struct GameSettings
 	bool mouseCaptured = false;
 	bool osdEnabled = false;
 	bool texturingEnabled = true;
-	float flySpeed = 15;
+	float flySpeed = 550;
+	double gameTime = 0;
+	double gameTimeLastDt = 0;
 
 	Threadpool* threadpool = nullptr;
 };
