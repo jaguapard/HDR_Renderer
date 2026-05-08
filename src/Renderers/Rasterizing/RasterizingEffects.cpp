@@ -55,13 +55,6 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 		if (!(mask.mask & (1 << i))) continue;
 		
 		Matrix4 rotation = Matrix4::rotationXYZ(triRot.extractHorizontalVector(i));
-		/*Matrix4 translation = Matrix4::identity();
-		translation.elements[0][3] = -triShift.x[i];
-		translation.elements[1][3] = -triShift.y[i];
-		translation.elements[2][3] = -triShift.z[i];
-		translation.elements[3][3] = 1.f;
-		//Matrix4 total = rotation*translation;
-		Matrix4 total = rotation;*/
 		Vec4f tm = triangleMiddle.extractHorizontalVector(i);
 		for (int j = 0; j < 3; ++j)
 		{
@@ -69,7 +62,6 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 			Vec4f relToMiddle = v - tm;
 			Vec4f relToMiddleRotate = rotation * relToMiddle;
 			Vec4f transformed = relToMiddleRotate + tm + triShift.extractHorizontalVector(i);
-			//Vec4f transformed = total * verts[j].space.extractHorizontalVector(i);
 			transformed.w = 1; //should you?
 			for (int k = 0; k < 4; ++k) ret[j].space[k][i] = transformed[k];
 		}
