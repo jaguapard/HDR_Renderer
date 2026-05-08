@@ -16,7 +16,7 @@ namespace Rasterizing
 		bool isFinished() const;
 	private:
 		double startTime, flipTime, endTime, gameTime;
-		float lerpT = 0;
+		float effectProgress = 0;
 		std::vector<float> shift[3], rot[3]; //shift and rotations for each axis, applied per-triangle
 	};
 }
