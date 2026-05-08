@@ -48,7 +48,7 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 	}
 	
 	std::array<VertexPack16, 3> ret = verts;
-	float32x16 triangleArea = (verts[0].space - verts[1].space).len3d() * (verts[0].space - verts[2].space).len3d() * 0.5f;
+	float32x16 triangleArea = (verts[0].space - verts[1].space).cross3d(verts[0].space - verts[2].space).len3d() * 0.5f;
 	Vec4_f32x16 triangleMiddle = (verts[0].space + verts[1].space + verts[2].space) / 3.f;
 	mask &= triangleArea < 400.f;
 	for (int i = 0; i < 16; ++i)
