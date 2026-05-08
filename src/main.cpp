@@ -273,6 +273,7 @@ int main(int argc, char* argv[])
             dt = std::clamp(dt, 0.0, 0.1);
             prevFrameTicks = thisFrameTicks;
             gs.gameTime += dt;
+            gs.gameTimeLastDt = dt;
             //std::cout << gs.gameTime << "sec \n";
             
             for (auto& it : Statsman::statsmenForThreads) it.reset();
@@ -344,7 +345,7 @@ int main(int argc, char* argv[])
             if (inp.isButtonHeld(SDL_SCANCODE_X)) camAdd -= Vec4f(0, 1, 0);
             if (float len = camAdd.len())
             {
-                camAdd = camAdd / len * gs.flySpeed;
+                camAdd = camAdd / len * gs.flySpeed * gs.gameTimeLastDt;
             }
             gs.camPos += camAdd;
 
