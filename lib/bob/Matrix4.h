@@ -64,3 +64,47 @@ public:
 private:
 	float det3(int excludeRow, int excludeCol) const;
 };
+
+//class representing pack of 16 4x4 matrices.
+//Value at elements[i][j][k] is i'th row and j'th column of k'th matrix in the pack
+class alignas(64) MatrixPack16_4x4
+{
+public:
+	bob::float32x16 elements[4][4];
+	static MatrixPack16_4x4 rotationX(bob::float32x16 theta);
+	static MatrixPack16_4x4 rotationY(bob::float32x16 theta);
+	static MatrixPack16_4x4 rotationZ(bob::float32x16 theta);
+	static MatrixPack16_4x4 rotationXYZ(const bob::Vec4_f32x16& angle);
+
+	static MatrixPack16_4x4 identity();
+
+	__forceinline bob::Vec4_f32x16 operator*(const bob::Vec4_f32x16& v) const
+	{
+		bob::Vec4_f32x16 ret = 0;
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int j = 0; j < 4; ++j)
+			{
+				ret[i] += v[j] * elements[i][j];
+			}
+		}
+		return ret;
+	}
+
+	__forceinline MatrixPack16_4x4 operator*(const MatrixPack16_4x4& other) const 
+	{
+		MatrixPack16_4x4 ret;
+		memset(&ret, 0, sizeof(ret));
+		for (int i = 0; i < 4; ++i)
+		{
+			for (int j = 0; j < 4; ++j)
+			{
+				for (int k = 0; k < 4; ++k)
+				{
+					ret.elements[i][j] += this->elements[i][k] * other.elements[k][j];
+				}
+			}
+		}
+		return ret;
+	}
+};
