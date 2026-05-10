@@ -670,8 +670,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		float32x16 group_dAlpha_dy = (v2.space.x - v1.space.x) * currTriangles.rcpSignedArea;
 		float32x16 group_dBeta_dx = (v2.space.y - v0.space.y) * currTriangles.rcpSignedArea;
 		float32x16 group_dBeta_dy = (v0.space.x - v2.space.x) * currTriangles.rcpSignedArea;
-		float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues!
-		float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues!
+		float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues?
+		float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues?
 
 		for (int i = 0; i < 16; ++i)
 		{
@@ -679,11 +679,13 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 			int currDiffuseMapIndex = inp.diffuseMapIndices[i];
 
 			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
-			for (float32x16 y = float32x16(0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3)+group_yBeg[i]; y <= group_yEnd[i]; y+=4)
+			//4x4 packed layout is much more friendly to small geometry compared to 1x16 (much less dead lanes),
+			//while penalties from having to split one 512 bit memory operation with 4x128 are minimal
+			for (float32x16 y = float32x16(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3) + group_yBeg[i]; y <= group_yEnd[i]; y += 4)
 			{
 				float32x16 dy = y - group_yBeg[i];
 				uint32_t yStart = y[0];
-				for (float32x16 x = float32x16(0,1,2,3,0,1,2,3,0,1,2,3,0,1,2,3) + group_xBeg[i]; Mask16 boundsMask = (y <= group_yEnd[i]) & (x <= group_xEnd[i]); x += 4)
+				for (float32x16 x = float32x16(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3) + group_xBeg[i]; Mask16 boundsMask = (y <= group_yEnd[i]) & (x <= group_xEnd[i]); x += 4)
 				{
 					uint32_t xStart = x[0];
 					float32x16 dx = x - group_xBeg[i];
