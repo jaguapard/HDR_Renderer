@@ -39,6 +39,12 @@ std::vector<SequentialRange> intsToMergedRanges(std::vector<int> ints)
 void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 {
 	Uint64 ticksBegin = SDL_GetTicksNS();
+	this->vertexStore.clear();
+	this->triangleStore.clear();
+	this->textureManager.clear();
+	this->sceneModels.clear();
+	this->sceneExposionInProgress = std::nullopt;
+
 	std::mutex mtx;
 	std::vector<Threadpool::TaskHandle> tasks;
 	std::string savePaths[] = {"new_sponza.bmdl2", "curtains.bmdl2", "tree.bmdl2", "ivy.bmdl2"};

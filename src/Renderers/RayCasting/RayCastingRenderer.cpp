@@ -141,6 +141,10 @@ float32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, 
 }
 void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 {
+	this->octree.root.reset();
+	this->textureManager.clear();
+	this->sceneModels.clear();
+
 	AssetLoader ldr;
 	std::vector<AssetLoader::ImportedModel> loadedModels;
 	for (auto [path, mode] : scd.files)
