@@ -5,7 +5,6 @@
 - Renderers too aware of the scene, gotta separate it into a class
 
 # Rasterizing renderer
-- Scene explosion effect messes up vertex attributes (most notably UVs) (probably last pass issue)
 - Some transparent pixels are sky-colored, most notable during scene explosion
 - No support for different projections, homogenious space unused
 - Multitexturing crashes on Clang but not MSVC (outdated and deprecated concept anyway)

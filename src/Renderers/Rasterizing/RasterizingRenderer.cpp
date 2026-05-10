@@ -842,7 +842,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Mask16 filledPixels = xBoundsMask & (triangleIndices != -1);
 			if (!filledPixels) continue;
 
-			VertexPack16 untransformedVerts[3];
+			std::array<VertexPack16, 3> untransformedVerts;
 			int32x16 vInd[3];
 			int32x16 diffuseMapIndices;
 			this->triangleStore.gatherVertexAndDiffuseMapIndices(triangleIndices, filledPixels, vInd[0], vInd[1], vInd[2], diffuseMapIndices);
@@ -853,6 +853,12 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				{
 					this->vertexStore.gatherNormals(vInd[i], filledPixels, untransformedVerts[i].normal);
 				}
+			}
+
+			//TODO: not a good fix, but works. When adding more effects, this will have to be changed too.
+			if (this->sceneExposionInProgress)
+			{
+				untransformedVerts = this->sceneExposionInProgress->applyToTriangles(untransformedVerts, triangleIndices, filledPixels);
 			}
 
 			const Vec4_f32x16& r1 = untransformedVerts[0].space;
