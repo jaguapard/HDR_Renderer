@@ -7,15 +7,22 @@ class C_Input
 {
 public:
 	C_Input(const C_Input&) = delete;
-	C_Input(const C_Input&&) = delete;
-	void operator=(const C_Input&) = delete;
-	void operator=(const C_Input&&) = delete;
+	C_Input(C_Input&&) = delete;
+	C_Input& operator=(const C_Input&) = delete;
+	C_Input& operator=(C_Input&&) = delete;
+
+	//This should be called on beginning of every frame. All "xOnThisFrame" methods consider events processed by C_Input in the time from last beginNewFrame() call and corresponding method call
 	void beginNewFrame();
 
-	void handleEvent(const SDL_Event& ev); //Take an event and process it. This should be called on every frame. Any events not pretaining to input are ignored, so it's safe to pass any events here.
+	//Take an event and process it. This should be called on every frame for each event. Any events not pretaining to input are safely ignored
+	void handleEvent(const SDL_Event& ev);
 
 	bool isButtonHeld(SDL_Scancode k);
-	bool wasButtonPressedOnThisFrame(SDL_Scancode k); //usable for one-time detections. Will only return true on frame the button was pressed on, holding it will not return true repeatedly.
+
+	//Returns true only on the frame the button was pressed on, holding it will not return true repeatedly.
+	bool wasButtonPressedOnThisFrame(SDL_Scancode k);
+
+	//Returns true only on the frame the button was pressed on, holding it will not return true repeatedly.
 	bool wasCharPressedOnThisFrame(char c);
 
 	bool isMouseButtonHeld(int button);
@@ -30,6 +37,4 @@ private:
 	std::unordered_map<SDL_Scancode, bool> buttonHoldStatus;
 	std::unordered_map<SDL_Scancode, bool> buttonPressStatus;
 	std::unordered_map<int, bool> mouseButtonHoldStatus;
-
-	bool empty = true;
 };

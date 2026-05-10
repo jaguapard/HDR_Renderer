@@ -3,8 +3,8 @@
 
 C_Input::C_Input()
 {
-	if (!this->empty) throw std::runtime_error("C_Input singleton attempted to be created twice. This should never happen.");
-	this->empty = false;
+	//if (!this->empty) throw std::runtime_error("C_Input singleton attempted to be created twice. This should never happen.");
+	//this->empty = false;
 	charToScancodeMap['0'] = SDL_SCANCODE_0;
 	for (char c = '1'; c <= '9'; ++c)
 	{
