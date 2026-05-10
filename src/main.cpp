@@ -229,7 +229,16 @@ int main(int argc, char* argv[])
         uint64_t frameCounter = 0, oldFrameCounter = 0;
         uint64_t ticksOnStart = SDL_GetTicks();
 
-        std::shared_ptr<RendererBase> currentRenderer = std::make_shared<RasterizingRenderer>();
+        enum class SceneEnum
+        {
+            OLD_SPONZA,
+            NEW_SPONZA,
+            //SINGLE_TRIANGLE_DEBUG,
+            COUNT,
+        };
+
+        SceneEnum currSceneEnum = SceneEnum::OLD_SPONZA;
+        std::shared_ptr<RendererBase> currentRenderer;
         RendererLoadSceneData oldSponza, newSponza;
         oldSponza.files = { { "H:/Sponza goodies/old_sponza/old_sponza.obj", "obj" } };
         /*newSponza.files = {{"H:/Sponza goodies/main1_sponza/NewSponza_Main_Yup_003.fbx", ""},
@@ -243,7 +252,7 @@ int main(int argc, char* argv[])
             {"H:/Sponza goodies/pkg_c1_trees/tree.bmdl2", "bmdl"},
             {"H:/Sponza goodies/pkg_b_ivy/ivy.bmdl2", "bmdl"},
         };
-        currentRenderer->loadScene(oldSponza);
+       // currentRenderer->loadScene(oldSponza);
       
         constexpr double PIXELS_PER_DOUBLING = 250;
         constexpr double MIDPOINT_NITS = 20;
@@ -262,14 +271,9 @@ int main(int argc, char* argv[])
         double lastOsdDrawMs = NAN;
         
         std::shared_ptr<RendererBase> scheduledRendererChange = nullptr;
-        enum RendererCycle
-        {
-            RASTERIZING = 0,
-            RAY_CASTING = 1,
-            COUNT = 2,
-        };
-
         uint64_t prevFrameTicks = SDL_GetTicksNS();
+        bool sceneReloadNeeded = false;
+        bool skipThisFrame = false;
         while (running) {
             uint64_t thisFrameTicks = SDL_GetTicksNS();
             double dt = (thisFrameTicks - prevFrameTicks) / 1e9;
@@ -280,11 +284,35 @@ int main(int argc, char* argv[])
             //std::cout << gs.gameTime << "sec \n";
             
             for (auto& it : Statsman::statsmenForThreads) it.reset();
-            if (scheduledRendererChange)
+            if (!currentRenderer && !scheduledRendererChange)
+            {
+                scheduledRendererChange = std::make_shared<RasterizingRenderer>();
+                sceneReloadNeeded = true;
+                skipThisFrame = true;
+                //else if (dynamic_cast<RasterizingRenderer*>(currentRenderer.get())) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
+                //else if (dynamic_cast<RayCastingRenderer*>(currentRenderer.get())) scheduledRendererChange = std::make_shared<RasterizingRenderer>();
+                //else throw std::runtime_error("Unknown renderer type ")
+            }
+            if (scheduledRendererChange) //change renderer if it's scheduled, or create default one if it doesn't exist
             {
                 currentRenderer = scheduledRendererChange;
                 scheduledRendererChange = nullptr;
-                currentRenderer->loadScene(oldSponza);
+                sceneReloadNeeded = true;
+                skipThisFrame = true;
+            }
+            if (sceneReloadNeeded)
+            {
+                skipThisFrame = true;
+                RendererLoadSceneData ldscd;
+                if (currSceneEnum == SceneEnum::OLD_SPONZA) ldscd = oldSponza;
+                else if (currSceneEnum == SceneEnum::NEW_SPONZA) ldscd = newSponza;
+                else throw std::runtime_error("Attempted to load unknown scene in scheduled renderer change!");
+                currentRenderer->loadScene(ldscd); //TODO: make it clear!
+                sceneReloadNeeded = false;
+            }
+            if (skipThisFrame)
+            {
+                skipThisFrame = false;
                 continue;
             }
 
@@ -318,9 +346,9 @@ int main(int argc, char* argv[])
             if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_1)) Statsman::ENABLED ^= 1;
             if (inp.wasCharPressedOnThisFrame('0') || inp.wasCharPressedOnThisFrame('9'))
             {
-                RendererLoadSceneData loadSceneData = inp.wasCharPressedOnThisFrame('0') ? newSponza : oldSponza;
-                currentRenderer = std::make_shared<RasterizingRenderer>();
-                currentRenderer->loadScene(loadSceneData);
+                currSceneEnum = inp.wasCharPressedOnThisFrame('0') ? SceneEnum::NEW_SPONZA : SceneEnum::OLD_SPONZA;
+                sceneReloadNeeded = true;
+                continue;
             }
 
             D3D11_MAPPED_SUBRESOURCE mapped;

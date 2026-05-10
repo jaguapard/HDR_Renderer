@@ -73,6 +73,13 @@ bool TextureManager::handleIsValid(int h) const
 	return h >= 0;
 }
 
+void TextureManager::clear()
+{
+	std::lock_guard lck(this->mtx);
+	this->bufferForTexture.clear();
+	this->sizesForTexture.clear();
+	this->textures.clear();
+}
 Vec4_f32x16 TextureManager::gatherLinearIntensitiesFromMultipleTextures(int32x16 textureIndices, float32x16 u, float32x16 v, Mask16 mask) const
 {
 	__m512i ptrs0_7 = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), mask, _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(textureIndices, 0)), this->bufferForTexture.data(), 8);
