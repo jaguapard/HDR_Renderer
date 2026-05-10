@@ -673,18 +673,18 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 			int currDiffuseMapIndex = inp.diffuseMapIndices[i];
 
 			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
-			for (float y = group_yBeg[i]; y <= group_yEnd[i]; ++y)
+			for (float32x16 y = float32x16(0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3)+group_yBeg[i]; y <= group_yEnd[i]; y+=4)
 			{
-				size_t yInt = y;
-				size_t xInt = group_xBeg[i];
 				float32x16 dy = y - group_yBeg[i];
-				for (float32x16 x = float32x16::sequence() + group_xBeg[i]; Mask16 xBoundsMask = (x <= group_xEnd[i]); x += 16, xInt += 16)
+				uint32_t yStart = y[0];
+				for (float32x16 x = float32x16(0,1,2,3,0,1,2,3,0,1,2,3,0,1,2,3) + group_xBeg[i]; Mask16 boundsMask = (y <= group_yEnd[i]) & (x <= group_xEnd[i]); x += 4)
 				{
+					uint32_t xStart = x[0];
 					float32x16 dx = x - group_xBeg[i];
 					float32x16 alpha = dy * group_dAlpha_dy[i] + dx * group_dAlpha_dx[i] + group_initialAlpha[i];
 					float32x16 beta = dy * group_dBeta_dy[i] + dx * group_dBeta_dx[i] + group_initialBeta[i];
 					float32x16 gamma = dy * group_dGamma_dy[i] + dx * group_dGamma_dx[i] + group_initialGamma[i];
-					Mask16 pointsInsideTriangleMask = (xBoundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
+					Mask16 pointsInsideTriangleMask = (boundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
 					if (Statsman::ENABLED)
 					{
 						MyStatsman.rasterizing.barycentricsCalculated += 16;
@@ -695,7 +695,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u[i], v0.v[i], v0.space.z[i], 0.f) * alpha +
 						Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
 						Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
-					float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
+
+					float32x16 currDepthValues = mask_load_rows_4x128_to_512_ps(pointsInsideTriangleMask, zBuffer, xStart, yStart, w);
+
+					//float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
 					//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
 					//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
 					Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
@@ -718,11 +721,11 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
 					if (!opaquePixelsMask) continue;
 
-					_mm512_mask_storeu_ps(zBuffer + yInt * w + xInt, opaquePixelsMask, interpolatedDividedUv.z);
+					mask_store_rows_512_to_4x128_ps(interpolatedDividedUv.z, opaquePixelsMask, zBuffer, xStart, yStart, w);
 
 					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 					{
-						_mm512_mask_storeu_epi32(triangleIndBuf + yInt * w + xInt, opaquePixelsMask, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]));
+						mask_store_rows_512_to_4x128_ps(_mm512_castsi512_ps(_mm512_set1_epi32(inp.progenitorTriangleIndices[i])), opaquePixelsMask, triangleIndBuf, xStart, yStart, w);
 					}
 
 					if (Statsman::ENABLED)
