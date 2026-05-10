@@ -670,8 +670,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		float32x16 group_dAlpha_dy = (v2.space.x - v1.space.x) * currTriangles.rcpSignedArea;
 		float32x16 group_dBeta_dx = (v2.space.y - v0.space.y) * currTriangles.rcpSignedArea;
 		float32x16 group_dBeta_dy = (v0.space.x - v2.space.x) * currTriangles.rcpSignedArea;
-		float32x16 group_dGamma_dx = -group_dAlpha_dx - group_dBeta_dx; //TODO: replace with proper calculation, precision issues?
-		float32x16 group_dGamma_dy = -group_dAlpha_dy - group_dBeta_dy; //TODO: replace with proper calculation, precision issues?
+		float32x16 group_dGamma_dx = (v0.space.y - v1.space.y) * currTriangles.rcpSignedArea; //this should have better precision than -group_dAlpha_dx - group_dBeta_dx since y2 should cancel out completely algebraically;
+		float32x16 group_dGamma_dy = (v1.space.x - v0.space.x) * currTriangles.rcpSignedArea; //same for -group_dAlpha_dy - group_dBeta_dy and x2
 
 		for (int i = 0; i < 16; ++i)
 		{
