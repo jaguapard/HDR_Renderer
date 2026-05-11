@@ -6,10 +6,10 @@ void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack
 	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
 	//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
 	//Second - 4-7, third - 8-11, fourth - 12-15
-	__m256i ph_r = _mm512_cvtps_ph(pack.r, _MM_FROUND_NO_EXC);
-	__m256i ph_g = _mm512_cvtps_ph(pack.g, _MM_FROUND_NO_EXC);
-	__m256i ph_b = _mm512_cvtps_ph(pack.b, _MM_FROUND_NO_EXC);
-	__m256i ph_a = _mm512_cvtps_ph(pack.a, _MM_FROUND_NO_EXC);
+	__m256i ph_r = _mm512_cvtps_ph(pack.r, _MM_FROUND_TO_NEAREST_INT);
+	__m256i ph_g = _mm512_cvtps_ph(pack.g, _MM_FROUND_TO_NEAREST_INT);
+	__m256i ph_b = _mm512_cvtps_ph(pack.b, _MM_FROUND_TO_NEAREST_INT);
+	__m256i ph_a = _mm512_cvtps_ph(pack.a, _MM_FROUND_TO_NEAREST_INT);
 	for (int i = 0; i < 16; i += 4)
 	{
 		__m256i rg_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0));
@@ -90,10 +90,10 @@ Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* fra
 void RendererBase::scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, Mask16 mask, void* frameBuf, int framebufW)
 {
 	int32x16 scatterInd = y * framebufW + x;
-	__m256i fp16_r = _mm512_cvtps_ph(colors.r, _MM_FROUND_NO_EXC);
-	__m256i fp16_g = _mm512_cvtps_ph(colors.g, _MM_FROUND_NO_EXC);
-	__m256i fp16_b = _mm512_cvtps_ph(colors.b, _MM_FROUND_NO_EXC);
-	__m256i fp16_a = _mm512_cvtps_ph(colors.a, _MM_FROUND_NO_EXC); //TODO: can be forced to 1 and moved later
+	__m256i fp16_r = _mm512_cvtps_ph(colors.r, _MM_FROUND_TO_NEAREST_INT);
+	__m256i fp16_g = _mm512_cvtps_ph(colors.g, _MM_FROUND_TO_NEAREST_INT);
+	__m256i fp16_b = _mm512_cvtps_ph(colors.b, _MM_FROUND_TO_NEAREST_INT);
+	__m256i fp16_a = _mm512_cvtps_ph(colors.a, _MM_FROUND_TO_NEAREST_INT); //TODO: can be forced to 1 and moved later
 
 	int32x16 fp16_rg = _mm512_inserti32x8(_mm512_castsi256_si512(fp16_r), fp16_g, 1);
 	int32x16 fp16_ba = _mm512_inserti32x8(_mm512_castsi256_si512(fp16_b), fp16_a, 1);

@@ -311,10 +311,10 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				}
 				size_t xInt = x[0];
 
-				__m256i fp16_r = _mm512_cvtps_ph(textureColors.r, _MM_FROUND_NO_EXC);
-				__m256i fp16_g = _mm512_cvtps_ph(textureColors.g, _MM_FROUND_NO_EXC);
-				__m256i fp16_b = _mm512_cvtps_ph(textureColors.b, _MM_FROUND_NO_EXC);
-				__m256i fp16_a = _mm512_cvtps_ph(textureColors.a, _MM_FROUND_NO_EXC); //TODO: can be forced to 1 and moved later
+				__m256i fp16_r = _mm512_cvtps_ph(textureColors.r, _MM_FROUND_TO_NEAREST_INT);
+				__m256i fp16_g = _mm512_cvtps_ph(textureColors.g, _MM_FROUND_TO_NEAREST_INT);
+				__m256i fp16_b = _mm512_cvtps_ph(textureColors.b, _MM_FROUND_TO_NEAREST_INT);
+				__m256i fp16_a = _mm512_cvtps_ph(textureColors.a, _MM_FROUND_TO_NEAREST_INT); //TODO: can be forced to 1 and moved later
 				for (int packY = 0; packY < 4; ++packY)
 				{
 					__m256i fp16_rg = _mm256_permutex2var_epi16(fp16_r, _mm256_add_epi16(_mm256_setr_epi16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0), _mm256_set1_epi16(packY * 4)), fp16_g);
