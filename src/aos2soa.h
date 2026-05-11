@@ -145,7 +145,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose_no
 	constexpr uint64_t packLoadMask = (1ull << FieldCount) - 1; //avoid touching OOB for tails. Load only FieldCount lower floats
 
 #ifdef VS_CLANG //Specialized versions below rely very heavily on Clang optimizations, and if they fail, that will become horrible garbage code, probably slower than gathers anyway.
-	if constexpr (FieldCount > 2 && FieldCount <= 4) //can probaly expand it to 2 as well. 3 requires ps masked loads
+	if constexpr (FieldCount > 2 && FieldCount <= 4)
 	{
 		float r0[16], r1[16], r2[16], r3[16];
 		for (int i = 0; i < 16; i += 4)
@@ -301,36 +301,3 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose_no
 	}
 	return ret;
 }
-
-/*
-		else
-		}
-		else static_assert(false, "Unsupported FieldCount for gather_aos2soa");*/
-
-		/*
-		else if constexpr (FieldCount == 2) //TODO: UNTESTED. too much shuffling so it's slower than just gathering?
-		{
-			__m256i indLo = _mm512_extracti32x8_epi32(ind, 0);
-			__m256i indHi = _mm512_extracti32x8_epi32(ind, 1);
-			__m512i g1 = _mm512_mask_i32gather_epi64(_mm512_setzero_si512(), mask, indLo, p, 8);        //|a0,b0,a1,b1|a2,b2,a3,b3|...
-			__m512i g2 = _mm512_mask_i32gather_epi64(_mm512_setzero_si512(), mask >> 8, indHi, p+1, 8); //|a8,b8,a9,b9|a10,b10,a11,b11|
-			__m512i u1 = _mm512_unpacklo_epi32(g1, g2); //|a0,a8,b0,b8|a2,a10,b2,b10|...
-			__m512i u2 = _mm512_unpackhi_epi32(g1, g2); //|a1,a9,b1,b9|a3,a11,b3,b11|...
-			__m512i q1 = _mm512_unpacklo_epi64(u1, u2); //|a0,a8,a1,a9|a2,a10,a3,a11|...
-			__m512i q2 = _mm512_unpackhi_epi64(u1, u2); //|b0,b8,b1,b9|b2,b10,b3,b11|...
-			__m512i perm1 = _mm512_permutexvar_epi32(_mm512_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15), q1);
-			__m512i perm2 = _mm512_permutexvar_epi32(_mm512_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15), q2);
-			_mm512_storeu_si512(&ret[0], perm1);
-			_mm512_storeu_si512(&ret[1], perm2);
-		}*/
-		/* //not sure about this either
-		if constexpr (FieldCount == 2) {
-			const double* dp = (const double*)base;
-			for (int i = 0; i < 16; ++i) {
-				__m128 x = _mm_maskz_loadu_pd(dp + uind[i], mask >> i);
-				_mm_store_ss((float*)(ret[0].data()), x);
-				_mm_store_ss((float*)(ret[1].data()), std::bit_cast<int32_t, float>(_mm_extract_ps(x, 1)));
-			}
-			return ret;
-		}*
-		*/
