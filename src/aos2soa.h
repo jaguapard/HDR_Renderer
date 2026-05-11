@@ -176,9 +176,9 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose_no
 		for (int i = 0; i < 16; i += 4)
 		{
 			__m256 v0 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i]));    //|abcd|efgh|_0/4/8/12
-			__m256 v1 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i+1]));  //|abcd|efgh|_1/5/9/13
-			__m256 v2 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i+2]));  //|abcd|efgh|_2/6/10/14
-			__m256 v3 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i+3]));  //|abcd|efgh|_3/7/11/15
+			__m256 v1 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 1]));  //|abcd|efgh|_1/5/9/13
+			__m256 v2 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 2]));  //|abcd|efgh|_2/6/10/14
+			__m256 v3 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 3]));  //|abcd|efgh|_3/7/11/15
 
 			__m256 tmp0 = _mm256_unpacklo_ps(v0, v1); //|a0,a1,b0,b1|e0,e1,f0,f1|
 			__m256 tmp1 = _mm256_unpacklo_ps(v2, v3); //|a2,a3,b2,b3|e2,e3,f2,f3|
@@ -198,6 +198,57 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose_no
 			if constexpr (FieldCount > 6) _mm_storeu_ps((float*)&ret[6] + i, _mm256_extractf128_ps(cg, 1));
 			if constexpr (FieldCount > 7) _mm_storeu_ps((float*)&ret[7] + i, _mm256_extractf128_ps(dh, 1));
 		}
+		/* seems slower
+		for (int i = 0; i < 16; i += 8)
+		{
+			__m256 v0 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i]));    //|abcd|efgh|_0/8
+			__m256 v1 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 1]));  //|abcd|efgh|_1/9
+			__m256 v2 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 2]));  //|abcd|efgh|_2/10
+			__m256 v3 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 3]));  //|abcd|efgh|_3/11
+			__m256 v4 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 4]));  //|abcd|efgh|_4/12
+			__m256 v5 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 5]));  //|abcd|efgh|_5/13
+			__m256 v6 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 6]));  //|abcd|efgh|_6/14
+			__m256 v7 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 7]));  //|abcd|efgh|_7/15
+
+			__m512 ins0 = _mm512_insertf32x8(_mm512_castps256_ps512(v0), v4, 1); //|abcd0|efgh0|abcd4|efgh4|
+			__m512 ins1 = _mm512_insertf32x8(_mm512_castps256_ps512(v1), v5, 1); //|abcd1|efgh1|abcd5|efgh5|
+			__m512 ins2 = _mm512_insertf32x8(_mm512_castps256_ps512(v2), v6, 1); //|abcd2|efgh2|abcd6|efgh6|
+			__m512 ins3 = _mm512_insertf32x8(_mm512_castps256_ps512(v3), v7, 1); //|abcd3|efgh3|abcd7|efgh7|
+
+			__m512 tmp0 = _mm512_unpacklo_ps(ins0, ins1); //|a0,a1,b0,b1|e0,e1,f0,f1|a4,a5,b4,b5|e4,e5,f4,f5|
+			__m512 tmp1 = _mm512_unpacklo_ps(ins2, ins3); //|a2,a3,b2,b3|e2,e3,f2,f3|a6,a7,b6,b7|e6,e7,f6,f7|
+			__m512 tmp2 = _mm512_unpackhi_ps(ins0, ins1); //|c0,c1,d0,d1|g0,g1,h0,h1|c4,c5,d4,d5|g4,g5,h4,h5|
+			__m512 tmp3 = _mm512_unpackhi_ps(ins2, ins3); //|c2,c3,d2,d3|g2,g3,h2,h3|c6,c7,d6,d7|g6,g7,h6,h7|
+
+			__m512d aeae = _mm512_unpacklo_pd(tmp0, tmp1); //|a0,a1,a2,a3|e0,e1,e2,e3|a4,a5,a6,a7|e4,e5,e6,e7|
+			__m512d bfbf = _mm512_unpackhi_pd(tmp0, tmp1); //|b0,b1,b2,b3|f0,f1,f2,f3|b4,b5,b6,b7|f4,f5,f6,f7|
+			__m512d cgcg = _mm512_unpacklo_pd(tmp2, tmp3); //|c0,c1,c2,c3|g0,g1,g2,g3|c4,c5,c6,c7|g4,g5,g6,g7|
+			__m512d dhdh = _mm512_unpackhi_pd(tmp2, tmp3); //|d0,d1,d2,d3|h0,h1,h2,h3|d4,d5,d6,d7|h4,h5,h6,h7|
+
+			_mm_storeu_ps((float*)&ret[0] + i, _mm512_extractf32x4_ps(aeae, 0));
+			_mm_storeu_ps((float*)&ret[0] + i + 4, _mm512_extractf32x4_ps(aeae, 2));
+			_mm_storeu_ps((float*)&ret[1] + i, _mm512_extractf32x4_ps(bfbf, 0));
+			_mm_storeu_ps((float*)&ret[1] + i + 4, _mm512_extractf32x4_ps(bfbf, 2));
+			_mm_storeu_ps((float*)&ret[2] + i, _mm512_extractf32x4_ps(cgcg, 0));
+			_mm_storeu_ps((float*)&ret[2] + i + 4, _mm512_extractf32x4_ps(cgcg, 2));
+			_mm_storeu_ps((float*)&ret[3] + i, _mm512_extractf32x4_ps(dhdh, 0));
+			_mm_storeu_ps((float*)&ret[3] + i + 4, _mm512_extractf32x4_ps(dhdh, 2));
+			_mm_storeu_ps((float*)&ret[4] + i, _mm512_extractf32x4_ps(aeae, 1));
+			_mm_storeu_ps((float*)&ret[4] + i + 4, _mm512_extractf32x4_ps(aeae, 3));
+			if constexpr (FieldCount > 5) {
+				_mm_storeu_ps((float*)&ret[5] + i, _mm512_extractf32x4_ps(bfbf, 1));
+				_mm_storeu_ps((float*)&ret[5] + i + 4, _mm512_extractf32x4_ps(bfbf, 3));
+			}
+			if constexpr (FieldCount > 6) {
+				_mm_storeu_ps((float*)&ret[6] + i, _mm512_extractf32x4_ps(cgcg, 1));
+				_mm_storeu_ps((float*)&ret[6] + i + 4, _mm512_extractf32x4_ps(cgcg, 3));
+			}
+			if constexpr (FieldCount > 7) {
+				_mm_storeu_ps((float*)&ret[7] + i, _mm512_extractf32x4_ps(dhdh, 1));
+				_mm_storeu_ps((float*)&ret[7] + i + 4, _mm512_extractf32x4_ps(dhdh, 3));
+			}
+		}
+		*/
 		return ret;
 	}
 	if constexpr (FieldCount > 8 && FieldCount <= 16) //TODO: this version is untested
