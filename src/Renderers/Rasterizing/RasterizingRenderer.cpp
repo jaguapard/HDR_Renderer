@@ -404,6 +404,7 @@ void RasterizingRenderer::performNearPlaneClipping(float clippingZ, std::array<V
 
 void RasterizingRenderer::transformVertices(const VertexStageInput& input, VertexStageOutput* output) const
 {
+	if (!input.validInputs) return;
 	//assert(std::fmod(input.threadCount, 1) == 0);
 	std::array<VertexPack16, 3> originalVertices;
 	for (int i = 0; i < 3; ++i)

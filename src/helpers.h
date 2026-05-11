@@ -1,6 +1,7 @@
 #pragma once
 #include "Vec.h"
 #include <string>
+#include <immintrin.h>
 
 template <typename T>
 __forceinline T lerp(const T& start, const T& end, float amount)
@@ -85,54 +86,29 @@ __forceinline __mmask64 duplicate_mmask_bits_16_to_64(__mmask16 m)
 {
 	__m512i a = _mm512_movm_epi32(m);
 	return _mm512_movepi8_mask(a);
-	//return _mm512_cmpeq_epi8_mask(a, _mm512_setzero_si512());
 }
+
+
+__forceinline __m512i helper_mm512_setr_epi8(int8_t i0, int8_t i1, int8_t i2, int8_t i3, int8_t i4, int8_t i5, int8_t i6, int8_t i7, int8_t i8, int8_t i9, int8_t i10, int8_t i11, int8_t i12, int8_t i13, int8_t i14, int8_t i15, int8_t i16, int8_t i17, int8_t i18, int8_t i19, int8_t i20, int8_t i21, int8_t i22, int8_t i23, int8_t i24, int8_t i25, int8_t i26, int8_t i27, int8_t i28, int8_t i29, int8_t i30, int8_t i31, int8_t i32, int8_t i33, int8_t i34, int8_t i35, int8_t i36, int8_t i37, int8_t i38, int8_t i39, int8_t i40, int8_t i41, int8_t i42, int8_t i43, int8_t i44, int8_t i45, int8_t i46, int8_t i47, int8_t i48, int8_t i49, int8_t i50, int8_t i51, int8_t i52, int8_t i53, int8_t i54, int8_t i55, int8_t i56, int8_t i57, int8_t i58, int8_t i59, int8_t i60, int8_t i61, int8_t i62, int8_t i63)
+{
+	return _mm512_set_epi8(i63, i62, i61, i60, i59, i58, i57, i56, i55, i54, i53, i52, i51, i50, i49, i48, i47, i46, i45, i44, i43, i42, i41, i40, i39, i38, i37, i36, i35, i34, i33, i32, i31, i30, i29, i28, i27, i26, i25, i24, i23, i22, i21, i20, i19, i18, i17, i16, i15, i14, i13, i12, i11, i10, i9, i8, i7, i6, i5, i4, i3, i2, i1, i0);
+}
+
+//Returns 64 bit mask that has all bits of m duplicated three times, i.e: mask with bits 0123456789abcd will become 000111222...ddd. Returned mask's bits 48-63 are set to zero
+__forceinline __mmask64 duplicate_mmask_bits_16_to_48(__mmask16 m)
+{
+	__m512i a = _mm512_movm_epi32(m);
+	__m512i b = _mm512_maskz_compress_epi8(0x7777777777777777, a);
+	return _mm512_movepi8_mask(b);
+	/*
+	__m128i a = _mm_movm_epi8(m);
+	__m512i b = _mm512_maskz_permutexvar_epi8(0x0000FFFFFFFFFFFF, helper_mm512_setr_epi8(0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15, 15, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), _mm512_castsi128_si512(a));
+	return _mm512_movepi8_mask(b);*/
+}
+
 //Returns 32 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 001122...dd
 __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
 {
 	__m256i a = _mm256_movm_epi16(m);
 	return _mm256_movepi8_mask(a);
-	//return _mm512_cmpeq_epi8_mask(a, _mm512_setzero_si512());
-}
-
-//Loads 16 16-byte elements from base using mask and ind, then transposes and stores them into 4 SoA vectors.
-//If an element is masked off, it is not loaded and it's returned value is undefined.
-//A, B, C and D must be 64-byte types.
-//for i in [0,15]:
-//    if mask[i]:
-//        tmp = load contigious 16 bytes starting at byte size_t(base) + ind[i]*16
-//        ret1[i*4..i*4+3] = tmp[0..3]
-//        ret2[i*4..i*4+3] = tmp[4..7]
-//        ret3[i*4..i*4+3] = tmp[8..11]
-//        ret4[i*4..i*4+3] = tmp[12..15]
-template <typename A, typename B, typename C, typename D>
-	requires (sizeof(A) == 64 && sizeof(B) == 64 && sizeof(C) == 64 && sizeof(D) == 64)
-__forceinline void masked_16x4aos_to_4x16soa_gather_and_transpose(int32x16 ind, Mask16 mask, const void* base, A& ret1, B& ret2, C& ret3, D& ret4)
-{
-	ind *= 4;
-	float r0[16], r1[16], r2[16], r3[16];
-	uint32_t* uind = (uint32_t*)&ind;
-	const float* fp = (const float*)base;
-	__mmask32 m = duplicate_mmask_bits_16_to_32(mask);
-	for (int i = 0; i < 16; i += 4)
-	{
-		__m128 v0 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2), fp + uind[i]));
-		__m128 v1 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 2), fp + uind[i + 1]));
-		__m128 v2 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 4), fp + uind[i + 2]));
-		__m128 v3 = _mm_castpd_ps(_mm_maskz_loadu_pd(m >> (i * 2 + 6), fp + uind[i + 3]));
-
-		_mm_storeu_ps(&r0[i], v0); //r0 = abcd0,abcd4,abcd8,abcd12
-		_mm_storeu_ps(&r1[i], v1); //r1 = abcd1,abcd5,abcd9,abcd13
-		_mm_storeu_ps(&r2[i], v2); //r2 = abcd2,abcd6,abcd10,abcd14
-		_mm_storeu_ps(&r3[i], v3); //r3 = abcd3,abcd7,abcd11,abcd15
-	}
-
-	__m512 aabb01 = _mm512_unpacklo_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-	__m512 aabb23 = _mm512_unpacklo_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-	__m512 ccdd01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-	__m512 ccdd23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-	_mm512_storeu_pd(&ret1, _mm512_unpacklo_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
-	_mm512_storeu_pd(&ret2, _mm512_unpackhi_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
-	_mm512_storeu_pd(&ret3, _mm512_unpacklo_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
-	_mm512_storeu_pd(&ret4, _mm512_unpackhi_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
 }

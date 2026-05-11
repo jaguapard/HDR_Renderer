@@ -75,7 +75,10 @@
     <ClCompile Include="src\Renderers\TextureManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderers\Rasterizing\RasterizingEffects.cpp">
+    <ClCompile Include="src\LUTMan.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\Rasterizing\RasterizingExplodeAndRestoreSceneEffect.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -182,8 +185,14 @@
     <ClInclude Include="src\Renderers\TextureManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderers\Rasterizing\RasterizingEffects.h">
-      <Filter>Header Files\Renderers</Filter>
+    <ClInclude Include="src\Renderers\Rasterizing\RasterizingExplodeAndRestoreSceneEffect.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\LUTMan.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\aos2soa.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

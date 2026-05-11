@@ -6,7 +6,7 @@
 #include "RenderJobStore.h"
 #include <map>
 #include "BufferZoneManager.h"
-#include "../../helpers.h"
+#include "../../aos2soa.h"
 #include "../../Threadpool.h"
 
 namespace Rasterizing
@@ -109,9 +109,10 @@ namespace Rasterizing
 
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
-			__m512 pppp;
-			masked_16x4aos_to_4x16soa_gather_and_transpose(ind, mask, this->xyzp.data(), retXYZ.x, retXYZ.y, retXYZ.z, pppp);
-			interleaved_ph_to_ps(_mm512_castps_si512(pppp), retU, retV);
+			if (!mask) return;
+			std::array<float32x16, 4> a = aos2soa_gather_and_transpose_nonzero_mask<float32x16, 4>(this->xyzp.data(), ind, mask);
+			for (int i = 0; i < 3; ++i) retXYZ[i] = a[i];
+			interleaved_ph_to_ps(_mm512_castps_si512(a[3]), retU, retV);
 			/*
 			for (int i = 0; i < 4; ++i)
 			{
@@ -174,7 +175,11 @@ namespace Rasterizing
 		
 		__forceinline void gatherVertexAndDiffuseMapIndices(int32x16 ind, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
 		{
-			masked_16x4aos_to_4x16soa_gather_and_transpose(ind, mask, this->vind_diffuseInd.data(), retVind0, retVind1, retVind2, retDiffMapInd);
+			auto a = aos2soa_gather_and_transpose_nonzero_mask<int32x16, 4>(this->vind_diffuseInd.data(), ind, mask);
+			retVind0 = a[0];
+			retVind1 = a[1];
+			retVind2 = a[2];
+			retDiffMapInd = a[3];
 		}
 		//loads and returns vertex indices for 16 sequential triangles, starting from startInd. Masked off elements values are not defined
 		__forceinline void loadVertexAndDiffuseMapIndices16(uint32_t startInd, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const

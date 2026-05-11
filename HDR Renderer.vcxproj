@@ -413,6 +413,7 @@
     <ClInclude Include="lib\bob\Vec2.h" />
     <ClInclude Include="lib\bob\Vec3.h" />
     <ClInclude Include="lib\bob\VectorPack.h" />
+    <ClInclude Include="src\aos2soa.h" />
     <ClInclude Include="src\AssetLoader.h" />
     <ClInclude Include="src\BlockStore.h" />
     <ClInclude Include="src\BoundingBox.h" />
