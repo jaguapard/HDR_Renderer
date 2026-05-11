@@ -415,7 +415,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 
 	if (this->sceneExposionInProgress)
 	{
-		originalVertices = this->sceneExposionInProgress->applyToTriangles(originalVertices, input.triangleIndices, input.validInputs);
+		this->sceneExposionInProgress->applyToTrianglesInPlace(originalVertices, input.triangleIndices, input.validInputs);
 	}
 	bool UVs_loaded = true, normals_loaded = false;
 
@@ -859,7 +859,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			//TODO: not a good fix, but works. When adding more effects, this will have to be changed too.
 			if (this->sceneExposionInProgress)
 			{
-				untransformedVerts = this->sceneExposionInProgress->applyToTriangles(untransformedVerts, triangleIndices, filledPixels);
+				this->sceneExposionInProgress->applyToTrianglesInPlace(untransformedVerts, triangleIndices, filledPixels);
 			}
 
 			const Vec4_f32x16& r1 = untransformedVerts[0].space;

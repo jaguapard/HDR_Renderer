@@ -33,14 +33,14 @@ void Rasterizing::ExplodeAndRestoreSceneEffect::onFrameStart(double gameTime)
 	else this->lerpBase = 1 - (gameTime - this->flipTime) / (this->endTime - this->flipTime);
 }
 
-std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTriangles(const std::array<VertexPack16, 3>& verts, const int32x16 triangleInd, Mask16 mask) const
+void Rasterizing::ExplodeAndRestoreSceneEffect::applyToTrianglesInPlace(std::array<VertexPack16, 3>& verts, const int32x16 triangleInd, Mask16 mask) const
 {
 	float32x16 triangleArea = (verts[0].space - verts[1].space).cross3d(verts[0].space - verts[2].space).len3d() * 0.5f;
 	Vec4_f32x16 triangleMiddle = (verts[0].space + verts[1].space + verts[2].space) / 3.f;
 	//don't affect large triangles, since they pollute the screen with their movement and rotation. Also looks better, like only flimsy things exploding, while wall and floors stay firm
 	//TODO: may tesselate them in the future?
 	mask &= triangleArea < 400.f;
-	if (!mask) return verts;
+	if (!mask) return;
 
 	float32x16 z = 0.f;
 	Vec4_f32x16 triShift, triRot;
@@ -52,15 +52,13 @@ std::array<VertexPack16, 3> Rasterizing::ExplodeAndRestoreSceneEffect::applyToTr
 		triRot[i] = lerp(0.f, unpacked[i * 2 + 1], lerpT);
 	}
 
-	std::array<VertexPack16, 3> ret = verts;
 	MatrixPack16_4x4 rotation = MatrixPack16_4x4::fast_rotationXYZ(triRot);
 	for (int i = 0; i < 3; ++i)
 	{
 		Vec4_f32x16 transformed = rotation * (verts[i].space - triangleMiddle) + triangleMiddle + triShift;
 		transformed.w = 1; //TODO: look at this when adding homogeneous coords
-		for (int j = 0; j < 4; ++j) ret[i].space[j] = _mm512_mask_mov_ps(verts[i].space[j], mask, transformed[j]);
+		for (int j = 0; j < 4; ++j) verts[i].space[j] = _mm512_mask_mov_ps(verts[i].space[j], mask, transformed[j]);
 	}
-	return ret;
 }
 
 bool Rasterizing::ExplodeAndRestoreSceneEffect::isFinished() const
