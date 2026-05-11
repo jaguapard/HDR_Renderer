@@ -20,6 +20,6 @@ namespace Rasterizing
 	private:
 		double startTime, flipTime, endTime, gameTime;
 		float lerpBase = 0;
-		std::vector<float> shift[3], rot[3]; //shift and rotations for each axis, applied per-triangle
+		std::vector<float> packedShiftAndRotationPerTriangle; //shift and rotations for each axis, applied per-triangle, stored in packed layout
 	};
 }
