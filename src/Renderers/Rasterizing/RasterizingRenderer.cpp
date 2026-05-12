@@ -638,6 +638,12 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 	}
 }
 
+struct PixelScavenger
+{
+	static inline constexpr uint32_t MAX_SIZE = 256;
+	std::array<float, MAX_SIZE+16> x, y;
+	uint32_t size = 0;
+};
 void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const int threadIndex)
 {
 	const auto& drawCmd = *inp.cmd;
@@ -680,6 +686,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 			int currDiffuseMapIndex = inp.diffuseMapIndices[i];
 
 			const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
+			PixelScavenger scavenger;
+			bool processingTail = false;
 			//4x4 packed layout is much more friendly to small geometry compared to 1x16 (much less dead lanes),
 			//while penalties from having to split one 512 bit memory operation with 4x128 are minimal
 			for (float32x16 y = float32x16(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3) + group_yBeg[i]; y <= group_yEnd[i]; y += 4)
@@ -699,54 +707,92 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 						MyStatsman.rasterizing.barycentricsCalculated += 16;
 						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 					}
-					if (!pointsInsideTriangleMask) continue;
+					//this branch may acually be slower than just letting 0 entries get written to scavenger. The scavenger does prevent execution falling through further already
+					//if (!pointsInsideTriangleMask) continue;
 
-					Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u[i], v0.v[i], v0.space.z[i], 0.f) * alpha +
-						Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
-						Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
+					float32x16 cx = _mm512_maskz_compress_ps(pointsInsideTriangleMask, x);
+					float32x16 cy = _mm512_maskz_compress_ps(pointsInsideTriangleMask, y);
+					_mm512_storeu_ps(&scavenger.x[scavenger.size], cx);
+					_mm512_storeu_ps(&scavenger.y[scavenger.size], cy);
+					scavenger.size += _mm_popcnt_u32(pointsInsideTriangleMask);
+					if (scavenger.size < scavenger.MAX_SIZE) continue;
 
-					float32x16 currDepthValues = mask_load_rows_4x128_to_512_ps(pointsInsideTriangleMask, zBuffer, xStart, yStart, w);
-
-					//float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
-					//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
-					//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
-					Mask16 notOccludedPoints = pointsInsideTriangleMask & currDepthValues < interpolatedDividedUv.z;
-					if (Statsman::ENABLED)
+					float32x16 oldX = x;
+					float32x16 oldY = y;
+					float32x16 oldDy = dy;
+					float32x16 oldDx = dx;
+					scavenge:
+					for (int scavengeInd = 0; scavengeInd < scavenger.size; scavengeInd += 16)
 					{
-						MyStatsman.rasterizing.zBufferFetchLanes += 16;
-						MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
-						MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+						Mask16 scavengerBounds = int32x16::sequence() + scavengeInd < scavenger.size;
+						x = _mm512_loadu_ps(&scavenger.x[scavengeInd]);
+						y = _mm512_loadu_ps(&scavenger.y[scavengeInd]);
+						dx = x - group_xBeg[i];
+						dy = y - group_yBeg[i];
+
+						alpha = dy * group_dAlpha_dy[i] + dx * group_dAlpha_dx[i] + group_initialAlpha[i];
+						beta = dy * group_dBeta_dy[i] + dx * group_dBeta_dx[i] + group_initialBeta[i];
+						gamma = dy * group_dGamma_dy[i] + dx * group_dGamma_dx[i] + group_initialGamma[i];
+						Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u[i], v0.v[i], v0.space.z[i], 0.f) * alpha +
+							Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
+							Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
+
+						//float32x16 currDepthValues = mask_load_rows_4x128_to_512_ps(pointsInsideTriangleMask, zBuffer, xStart, yStart, w);
+						int32x16 intX = x.trunc();
+						int32x16 intY = y.trunc();
+						int32x16 zbufferGatherInd = intY * w + intX;
+						float32x16 currDepthValues = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), scavengerBounds, zbufferGatherInd, zBuffer, 4);
+
+						//float32x16 currDepthValues = _mm512_maskz_loadu_ps(pointsInsideTriangleMask, zBuffer + yInt * w + xInt);
+						//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
+						//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
+						Mask16 notOccludedPoints = scavengerBounds & currDepthValues < interpolatedDividedUv.z;
+						if (Statsman::ENABLED)
+						{
+							MyStatsman.rasterizing.zBufferFetchLanes += 16;
+							MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+							MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+						}
+						if (!notOccludedPoints) continue; //if all points are occluded, then skip
+
+						Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
+						Vec4_f32x16 texturePixels;
+						if (depthOnly)
+						{
+							auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
+							texturePixels.a = accessor.gatherA();
+						}
+
+						Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
+						if (!opaquePixelsMask) continue;
+
+						_mm512_mask_i32scatter_ps(zBuffer, opaquePixelsMask, zbufferGatherInd, interpolatedDividedUv.z, 4);
+
+						if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
+						{
+							_mm512_mask_i32scatter_epi32(triangleIndBuf, opaquePixelsMask, zbufferGatherInd, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]), 4);
+						}
+
+						if (Statsman::ENABLED)
+						{
+							MyStatsman.rasterizing.zBufferWriteLanes += 16;
+							MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+							MyStatsman.rasterizing.frameBufWriteLanes += 16;
+							MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+							MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+						}
 					}
-					if (!notOccludedPoints) continue; //if all points are occluded, then skip
-
-					Vec4_f32x16 uvCorrected = interpolatedDividedUv / interpolatedDividedUv.z;
-					Vec4_f32x16 texturePixels;
-					if (depthOnly)
-					{
-						auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-						texturePixels.a = accessor.gatherA();
-					}
-
-					Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
-					if (!opaquePixelsMask) continue;
-
-					mask_store_rows_512_to_4x128_ps(interpolatedDividedUv.z, opaquePixelsMask, zBuffer, xStart, yStart, w);
-
-					if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
-					{
-						mask_store_rows_512_to_4x128_ps(_mm512_castsi512_ps(_mm512_set1_epi32(inp.progenitorTriangleIndices[i])), opaquePixelsMask, triangleIndBuf, xStart, yStart, w);
-					}
-
-					if (Statsman::ENABLED)
-					{
-						MyStatsman.rasterizing.zBufferWriteLanes += 16;
-						MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-						MyStatsman.rasterizing.frameBufWriteLanes += 16;
-						MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-						MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
-					}
+					if (processingTail) goto triangleEnd;
+					x = oldX; //restore values of the loop
+					y = oldY;
+					dx = oldDx;
+					dy = oldDy;
+					scavenger.size = 0;
 				}
 			}
+			processingTail = true;
+			goto scavenge;
+			triangleEnd:
 		}
 	}
 }
