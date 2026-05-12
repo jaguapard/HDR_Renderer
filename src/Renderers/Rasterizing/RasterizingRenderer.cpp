@@ -707,7 +707,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 						MyStatsman.rasterizing.barycentricsCalculated += 16;
 						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
 					}
-					if (!pointsInsideTriangleMask) continue;
+					//this branch may acually be slower than just letting 0 entries get written to scavenger. The scavenger does prevent execution falling through further already
+					//if (!pointsInsideTriangleMask) continue;
 
 					float32x16 cx = _mm512_maskz_compress_ps(pointsInsideTriangleMask, x);
 					float32x16 cy = _mm512_maskz_compress_ps(pointsInsideTriangleMask, y);
