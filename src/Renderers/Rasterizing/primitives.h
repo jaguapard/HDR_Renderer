@@ -110,7 +110,7 @@ namespace Rasterizing
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
 			if (!mask) return;
-			std::array<float32x16, 4> a = aos2soa_gather_and_transpose_nonzero_mask<float32x16, 4>(this->xyzp.data(), ind, mask);
+			std::array<float32x16, 4> a = aos2soa_gather_and_transpose<float32x16, 4>(this->xyzp.data(), ind, mask);
 			for (int i = 0; i < 3; ++i) retXYZ[i] = a[i];
 			interleaved_ph_to_ps(_mm512_castps_si512(a[3]), retU, retV);
 			/*
@@ -175,7 +175,7 @@ namespace Rasterizing
 		
 		__forceinline void gatherVertexAndDiffuseMapIndices(int32x16 ind, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
 		{
-			auto a = aos2soa_gather_and_transpose_nonzero_mask<int32x16, 4>(this->vind_diffuseInd.data(), ind, mask);
+			auto a = aos2soa_gather_and_transpose<int32x16, 4>(this->vind_diffuseInd.data(), ind, mask);
 			retVind0 = a[0];
 			retVind1 = a[1];
 			retVind2 = a[2];
