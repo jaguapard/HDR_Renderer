@@ -761,6 +761,12 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 						{
 							auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
 							texturePixels.a = accessor.gatherA();
+							if (Statsman::ENABLED) 
+							{
+								MyStatsman.rasterizing.opacityMapGatherLanes += 16;
+								MyStatsman.rasterizing.opacityMapGatherLanesLive += _mm_popcnt_u32(accessor.gatherMask);
+								MyStatsman.rasterizing.opacityMapGatherLanesUnique += _mm_popcnt_u32(accessor.gatherMask & (int32x16(_mm512_conflict_epi32(accessor.gatherInd)) == 0));
+							}
 						}
 
 						Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);

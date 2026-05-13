@@ -175,6 +175,7 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 				<< laneSurvivalRateString(s.rasterizing.zBufferFetchLanes, s.rasterizing.zBufferFetchAliveLanes) << "\n"
 				<< "Not occluded points: "
 				<< toThousandsSeparatedString(s.rasterizing.notOccludedPoints) << "\n"
+				<< "Opacity map gather lanes: " << laneSurvivalRateString(s.rasterizing.opacityMapGatherLanes, s.rasterizing.opacityMapGatherLanesLive) << ", " << toThousandsSeparatedString(s.rasterizing.opacityMapGatherLanesUnique) << " unique.\n"
 				<< "Opaque pixels: "
 				<< toThousandsSeparatedString(s.rasterizing.opaquePixels) << "\n"
 				<< "Texture gather lanes: "

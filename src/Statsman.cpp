@@ -27,6 +27,9 @@ Statsman Statsman::aggregateAll()
 		ret.rasterizing.barycentricsCalculated += other.rasterizing.barycentricsCalculated;
 		ret.rasterizing.pointsInsideTriangles += other.rasterizing.pointsInsideTriangles;
 		ret.rasterizing.notOccludedPoints += other.rasterizing.notOccludedPoints;
+		ret.rasterizing.opacityMapGatherLanes += other.rasterizing.opacityMapGatherLanes;
+		ret.rasterizing.opacityMapGatherLanesLive += other.rasterizing.opacityMapGatherLanesLive;
+		ret.rasterizing.opacityMapGatherLanesUnique += other.rasterizing.opacityMapGatherLanesUnique;
 		ret.rasterizing.opaquePixels += other.rasterizing.opaquePixels;
 		ret.rasterizing.textureGatheredLanes += other.rasterizing.textureGatheredLanes;
 		ret.rasterizing.textureGatherAliveLanes += other.rasterizing.textureGatherAliveLanes;
