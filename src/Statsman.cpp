@@ -41,6 +41,8 @@ Statsman Statsman::aggregateAll()
 		ret.rasterizing.frameBufWriteAliveLanes += other.rasterizing.frameBufWriteAliveLanes;
 		ret.rasterizing.renderJobCountProducer += other.rasterizing.renderJobCountProducer;
 		ret.rasterizing.renderJobCountConsumer += other.rasterizing.renderJobCountConsumer;
+		ret.rasterizing.shadowMapGatherLanes += other.rasterizing.shadowMapGatherLanes;
+		ret.rasterizing.shadowMapGatherLanesLive += other.rasterizing.shadowMapGatherLanesLive;
 
 		ret.rasterizing.frameBufferCleanMs.aggregateWith(other.rasterizing.frameBufferCleanMs);
 		ret.rasterizing.zBufferCleanMs.aggregateWith(other.rasterizing.zBufferCleanMs);

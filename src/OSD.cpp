@@ -184,6 +184,8 @@ std::string OSD::composeString(const std::vector<std::pair<std::string, std::str
 				<< laneSurvivalRateString(s.rasterizing.zBufferWriteLanes, s.rasterizing.zBufferWriteAliveLanes) << "\n"
 				<< "Frame buffer write lanes: "
 				<< laneSurvivalRateString(s.rasterizing.frameBufWriteLanes, s.rasterizing.frameBufWriteAliveLanes) << "\n\n"
+				
+				<< "Shadow map gather lanes: " << laneSurvivalRateString(s.rasterizing.shadowMapGatherLanes, s.rasterizing.shadowMapGatherLanesLive) << "\n"
 				<< "Transformation times: "
 				<< s.rasterizing.transformMs.max.value_or(NAN) << " ms max, "
 				<< s.rasterizing.transformMs.sum.value_or(NAN) / count << " ms avg, "

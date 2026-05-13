@@ -999,6 +999,11 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 							{
 								int32x16 gatherInd = int32x16(ssy.trunc()) * this->drawCommands[1].renderW + int32x16(ssx.trunc());
 								float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(FLT_MAX), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+								if (Statsman::ENABLED)
+								{
+									MyStatsman.rasterizing.shadowMapGatherLanes += 16;
+									MyStatsman.rasterizing.shadowMapGatherLanesLive += _mm_popcnt_u32(inShadowMapBounds);
+								}
 								pointsInShadow = ~inShadowMapBounds;
 								if (this->useShadowMapBias)
 								{

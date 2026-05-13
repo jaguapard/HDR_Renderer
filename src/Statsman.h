@@ -51,7 +51,7 @@ struct alignas(64) Statsman
 	{
 		StatsmanLine trianglesTotal, trianglesRendered, verticesBehindNearPlane[4], vertIndexDelta, vertIndexDeltaCount, vertIndexDeltaMin, vertIndexDeltaMax;
 
-		StatsmanLine barycentricsCalculated, pointsInsideTriangles, notOccludedPoints, opaquePixels, textureGatheredLanes, textureGatherAliveLanes, zBufferFetchLanes, zBufferFetchAliveLanes, zBufferWriteLanes, zBufferWriteAliveLanes, frameBufWriteLanes, frameBufWriteAliveLanes, renderJobCountProducer, renderJobCountConsumer, opacityMapGatherLanes, opacityMapGatherLanesLive, opacityMapGatherLanesUnique;
+		StatsmanLine barycentricsCalculated, pointsInsideTriangles, notOccludedPoints, opaquePixels, textureGatheredLanes, textureGatherAliveLanes, zBufferFetchLanes, zBufferFetchAliveLanes, zBufferWriteLanes, zBufferWriteAliveLanes, frameBufWriteLanes, frameBufWriteAliveLanes, renderJobCountProducer, renderJobCountConsumer, opacityMapGatherLanes, opacityMapGatherLanesLive, opacityMapGatherLanesUnique, shadowMapGatherLanes, shadowMapGatherLanesLive;
 
 		StatsmanLine transformMs, drawMs, zBufferCleanMs, frameBufferCleanMs, triangleIndexBufferCleanMs, shadowMapDepthBufferCleanMs;
 	};
