@@ -528,9 +528,6 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 					currVertex.space.z = zInv;
 					currVertex.u *= zInv;
 					currVertex.v *= zInv;
-					currVertex.normal.x *= zInv;
-					currVertex.normal.y *= zInv;
-					currVertex.normal.z *= zInv;
 				}
 			}
 
