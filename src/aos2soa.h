@@ -2,23 +2,23 @@
 #include "helpers.h"
 
 /**
-@brief Loads and transposes up to 16 packs of FieldCount contigious 4-byte elements and trasposes them to SoA layout.
+@brief Loads up to 16 packs of FieldCount contigious 4-byte elements and trasposes them to SoA layout.
 @details
 Pseudocode:
 for i in [0,15]:
 	if mask[i]:
-		tmp = load contigious (FieldCount*4) bytes starting at byte uintptr_t(base) + ind[i]*(FieldCount*4)
+		tmp = load contigious (FieldCount*4) bytes starting at byte uint64_t(base) + ind[i]*(FieldCount*4)
 		for j in [0, FieldCount-1]:
 			ret[j][i*4..i*4+3] = tmp[j*4..j*4+3]
 
 @param base: the pointer to the start of collection that indices are defined relative to
 @param ind: 32-bit indices of the packs to be gathered and transposed
-@param mask: mask with bits set for active packs. Packs at inactive indices are not read from memory and have undefined values
+@param mask: mask with bits set for active packs. Inactive indices are not read from memory and have undefined values
 @returns Array of FieldCount 512-bit vectors, with values transposed to SoA layout
 */
 template<typename ReturnType, uint32_t FieldCount>
 __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(const void* base, __m512i ind, __mmask16 mask)
-	requires (sizeof(ReturnType) == 64)
+	requires (sizeof(ReturnType) == 64 && FieldCount >= 1)
 {
 	std::array<ReturnType, FieldCount> ret;
 	if (!mask) return ret;
@@ -30,9 +30,10 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	const uint64_t rawBase = (const uint64_t)(base);
 	__m512i indLo = _mm512_cvtepi32_epi64(_mm512_extracti32x8_epi32(ind, 0));
 	__m512i indHi = _mm512_cvtepi32_epi64(_mm512_extracti32x8_epi32(ind, 1));
+	//can use *4 for easier addressing modes for free, since multiplication and extension is already required
 	__m512i offsetLo = _mm512_mullo_epi64(indLo, _mm512_set1_epi64(FieldCount * 4));
 	__m512i offsetHi = _mm512_mullo_epi64(indHi, _mm512_set1_epi64(FieldCount * 4));
-	_mm512_storeu_si512(&offsets[0], offsetLo); //can use *4 for easier addressing modes for free, since multiplication and extension is already required
+	_mm512_storeu_si512(&offsets[0], offsetLo);
 	_mm512_storeu_si512(&offsets[8], offsetHi);
 	constexpr uint64_t packLoadMask = (1ull << FieldCount) - 1; //avoid touching OOB for tails. Load only FieldCount lower floats
 
