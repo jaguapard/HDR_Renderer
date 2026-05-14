@@ -86,7 +86,7 @@ std::vector<AssetLoader::ImportedModel> AssetLoader::loadObj(std::string path, s
 				std::cout << "Texture coord " << j << " for model " << i << " in "  << path << " is named: " << coordName->C_Str() << "\n";
 			}
 		}
-		else std::cout << "Texture coords names for model " << i << " in " << path << " are not available.\n";
+		//else std::cout << "Texture coords names for model " << i << " in " << path << " are not available.\n";
 		for (size_t j = 0; j < mesh->mNumFaces; ++j)
 		{
 			aiFace face = mesh->mFaces[j];

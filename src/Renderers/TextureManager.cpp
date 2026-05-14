@@ -6,6 +6,7 @@
 
 TextureManager::TextureManager()
 {
+	std::lock_guard lck(this->mtx);
 	constexpr int fallbackSize = 64;
 	constexpr int expectedPitch = fallbackSize * 4;
 	static_assert(fallbackSize % 2 == 0);
@@ -30,7 +31,12 @@ TextureManager::TextureManager()
 int TextureManager::addTextureBySurface(SDL_Surface* s)
 {
 	auto converted = Smart_Surface(SDL_ConvertSurface(s, SDL_PIXELFORMAT_RGBA32));
-	if (!converted) return 0;
+	if (!converted)
+	{
+		std::lock_guard lck(this->mtx);
+		std::cout << "Unable to convert surface to RGBA32 format " << ": " << SDL_GetError() << "\n";
+		return 0;
+	}
 
 	ColorPixelBuffer buf = converted.get();
 	std::lock_guard lck(this->mtx);
@@ -47,9 +53,18 @@ int TextureManager::addTextureBySurface(SDL_Surface* s)
 }
 int TextureManager::addTextureByPath(std::string path)
 {
+	auto found = this->pathToIndexMap.find(path);
+	if (found != this->pathToIndexMap.end())
+	{
+		std::lock_guard lck(this->mtx);
+		std::cout << "Texture at " << path << " was already loaded, returning existing index " << found->second << "\n";
+		return found->second;
+	}
+
 	auto initialSurf = Smart_Surface(IMG_Load(path.c_str()));
 	if (!initialSurf)
 	{
+		std::lock_guard lck(this->mtx);
 		//throw std::runtime_error("Unable to open texture at " + path);
 		std::cout << "Unable to open texture at " << path << ", using fallback!\n";
 		return 0;
@@ -58,8 +73,13 @@ int TextureManager::addTextureByPath(std::string path)
 	int h = this->addTextureBySurface(initialSurf.get());
 	if (h == 0)
 	{
-		std::cout << "Unable to convert surface to RGBA32 format " << path << ": " << SDL_GetError() << ", using fallback!\n";
+		std::lock_guard lck(this->mtx);
+		std::cout << "An error occurred while adding texture from " << path << " by surface, using fallback!\n";
+		return 0;
 	}
+
+	//std::cout << "Successfully loaded texture from " << path << " and assigned it index " << h << "\n";
+	this->pathToIndexMap[path] = h;
 	return h;
 }
 
@@ -76,9 +96,11 @@ bool TextureManager::handleIsValid(int h) const
 void TextureManager::clear()
 {
 	std::lock_guard lck(this->mtx);
-	this->bufferForTexture.clear();
-	this->sizesForTexture.clear();
-	this->textures.clear();
+	//since buffers are annoying with unique pointers, resize is not possible. We also have to keep fallback texture untouched. 
+	//Thus, just pop until there's only fallback remaining
+	while (this->textures.size() > 1) this->textures.pop_back();
+	while (this->bufferForTexture.size() > 1) this->bufferForTexture.pop_back();
+	while (this->sizesForTexture.size() > 1) this->sizesForTexture.pop_back();
 }
 Vec4_f32x16 TextureManager::gatherLinearIntensitiesFromMultipleTextures(int32x16 textureIndices, float32x16 u, float32x16 v, Mask16 mask) const
 {
