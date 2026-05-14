@@ -8,7 +8,7 @@ public:
 	static void init();
 	static float32x16 sin(float32x16 x);
 	static float32x16 cos(float32x16 x);
-
+	static float32x16 log2(float32x16 x);
 private:
 	static inline std::array<float, 32> sineLUT_fp32, cosLUT_fp32;
 };
