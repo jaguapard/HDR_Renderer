@@ -361,8 +361,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			triangleIntersectionTests += 16;
 			if (!raysHittingThisTriangle) continue;
 
-			std::array<float32x16, 3> worldBarycentrics;
-			calculateBarycentricCoordinates3D(rayOrigins + rayDirs * t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, worldBarycentrics);
+			std::array<float32x16, 3> worldBarycentrics = calculateBarycentricCoordinates3D<Vec4_f32x16, float32x16>(rayOrigins + rayDirs * t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space);
 			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
 			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
 

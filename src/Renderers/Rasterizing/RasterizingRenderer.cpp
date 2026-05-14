@@ -912,12 +912,11 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			const Vec4_f32x16& r2 = untransformedVerts[1].space;
 			const Vec4_f32x16& r3 = untransformedVerts[2].space;
 
-			float32x16 alpha, beta, gamma;
-			calculateBarycentricCoordinates3D(worldCoords, r1, r2, r3, alpha, beta, gamma);
+			std::array<float32x16, 3> bary = calculateBarycentricCoordinates3D<Vec4_f32x16,float32x16>(worldCoords, r1, r2, r3);
 
-			Vec4_f32x16 uv = Vec4_f32x16(untransformedVerts[0].u, untransformedVerts[0].v, 0.f, 0.f) * alpha +
-				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
-				Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
+			Vec4_f32x16 uv = Vec4_f32x16(untransformedVerts[0].u, untransformedVerts[0].v, 0.f, 0.f) * bary[0] +
+				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * bary[1] +
+				Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * bary[2];
 			//Vec4_f32x16 normals = Vec4_f32x16(untransformedVerts[0].normal.x, untransformedVerts[0].normal.y, 0.f, 0.f) * alpha +
 			//	Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
 			//	Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
@@ -1027,7 +1026,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			float32x16 normalDot;
 			if (shadingMode == ShadingMode::SMOOTH)
 			{
-				Vec4_f32x16 normals = untransformedVerts[0].normal * alpha + untransformedVerts[1].normal * beta + untransformedVerts[2].normal * gamma;
+				Vec4_f32x16 normals = untransformedVerts[0].normal * bary[0] + untransformedVerts[1].normal * bary[1] + untransformedVerts[2].normal * bary[2];
 				normals /= normals.len3d();
 				Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
 				Vec4_f32x16 lightDir = lightTo - lightFrom;

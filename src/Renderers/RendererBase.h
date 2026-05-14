@@ -22,11 +22,6 @@ public:
 	//virtual void handleInputEvent(const SDL_Event& ev, C_Input& input) = 0;
 	virtual void loadScene(RendererLoadSceneData scd) = 0;
 	virtual void renderFrame(const GameSettings& settings) = 0;
-
-	static void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, float32x16& alpha, float32x16& beta, float32x16& gamma);
-	static void calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, float32x8& alpha, float32x8& beta, float32x8& gamma);
-	static void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, std::array<float32x16, 3>& outBarycentrics);
-	static void calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, std::array<float32x8, 3>& outBarycentrics);
 	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
 	
@@ -63,6 +58,34 @@ public:
 		retStepsY[1] = group_dBeta_dy;
 		retStepsY[2] = group_dGamma_dy;
 	}
+
+
+	template<typename VectorType, typename ValueType>
+	static __forceinline std::array<ValueType, 3> calculateBarycentricCoordinates3D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C)
+	{
+		std::array<ValueType, 3> ret;
+		/* //this version is less precise, causes texture issues in some places
+		Vec4_f32x16 v0 = B - A;
+		Vec4_f32x16 v1 = C - A;
+		Vec4_f32x16 v2 = P - A;
+
+		float32x16 d00 = v0.dot3d(v0);
+		float32x16 d01 = v0.dot3d(v1);
+		float32x16 d11 = v1.dot3d(v1);
+		float32x16 d20 = v2.dot3d(v0);
+		float32x16 d21 = v2.dot3d(v1);
+		float32x16 den = d00 * d11 - (d01 * d01);
+		beta = (d11 * d20 - d01 * d21) / den;
+		gamma = (d00 * d21 - d01 * d20) / den;
+		alpha = float32x16(1) - beta - gamma; //doesn't seem to hurt calculating it like this*/
+
+		VectorType n = (B - A).cross3d(C - A);
+		ret[0] = ((B - P).cross3d(C - P)).dot3d(n) / n.dot3d(n);
+		ret[1] = ((C - P).cross3d(A - P)).dot3d(n) / n.dot3d(n);
+		ret[2] = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
+		return ret;
+	}
+
 	static __forceinline void mask_store_rows_512_to_4x128_ps(__m512 value, __mmask16 mask, void* dst, uint32_t xStart, uint32_t yStart, uint32_t w)
 	{
 		__m128 v0 = _mm512_extractf32x4_ps(value, 0);
