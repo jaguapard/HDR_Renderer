@@ -47,6 +47,13 @@ int TextureManager::addTextureBySurface(SDL_Surface* s)
 }
 int TextureManager::addTextureByPath(std::string path)
 {
+	auto found = this->pathToIndexMap.find(path);
+	if (found != this->pathToIndexMap.end())
+	{
+		std::cout << "Texture at " << path << " was already loaded, returning existing index " << found->second << "\n";
+		return found->second;
+	}
+
 	auto initialSurf = Smart_Surface(IMG_Load(path.c_str()));
 	if (!initialSurf)
 	{
@@ -60,6 +67,9 @@ int TextureManager::addTextureByPath(std::string path)
 	{
 		std::cout << "Unable to convert surface to RGBA32 format " << path << ": " << SDL_GetError() << ", using fallback!\n";
 	}
+
+	std::cout << "Successfully loaded texture from " << path << " and assigned it index " << h << "\n";
+	this->pathToIndexMap[path] = h;
 	return h;
 }
 
