@@ -668,13 +668,11 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		const VertexPack16& v1 = currTriangles.vertices[1];
 		const VertexPack16& v2 = currTriangles.vertices[2];
 
-		std::array<float32x16, 3> initialBary = calculateBarycentricCoordinates2D({ group_xBeg, group_yBeg, 0.f, 0.f }, v0.space, v1.space, v2.space, currTriangles.rcpSignedArea);
-		float32x16 group_dAlpha_dx = (v1.space.y - v2.space.y) * currTriangles.rcpSignedArea;
-		float32x16 group_dAlpha_dy = (v2.space.x - v1.space.x) * currTriangles.rcpSignedArea;
-		float32x16 group_dBeta_dx = (v2.space.y - v0.space.y) * currTriangles.rcpSignedArea;
-		float32x16 group_dBeta_dy = (v0.space.x - v2.space.x) * currTriangles.rcpSignedArea;
-		float32x16 group_dGamma_dx = (v0.space.y - v1.space.y) * currTriangles.rcpSignedArea; //this should have better precision than -group_dAlpha_dx - group_dBeta_dx since y2 should cancel out completely algebraically;
-		float32x16 group_dGamma_dy = (v1.space.x - v0.space.x) * currTriangles.rcpSignedArea; //same for -group_dAlpha_dy - group_dBeta_dy and x2
+		std::array<float32x16, 3> initialBary, baryStepX, baryStepY;
+		calculateBarycentricCoordinatesAndSteps2D(
+			{ group_xBeg, group_yBeg, 0.f, 0.f }, 
+			v0.space, v1.space, v2.space, currTriangles.rcpSignedArea, 
+			initialBary, baryStepX, baryStepY);
 
 		for (int i = 0; i < 16; ++i)
 		{
@@ -694,9 +692,9 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				{
 					uint32_t xStart = x[0];
 					float32x16 dx = x - group_xBeg[i];
-					float32x16 alpha = dy * group_dAlpha_dy[i] + dx * group_dAlpha_dx[i] + initialBary[0][i];
-					float32x16 beta = dy * group_dBeta_dy[i] + dx * group_dBeta_dx[i] + initialBary[1][i];
-					float32x16 gamma = dy * group_dGamma_dy[i] + dx * group_dGamma_dx[i] + initialBary[2][i];
+					float32x16 alpha = dy * baryStepY[0][i] + dx * baryStepX[0][i] + initialBary[0][i];
+					float32x16 beta = dy * baryStepY[1][i] + dx * baryStepX[1][i] + initialBary[1][i];
+					float32x16 gamma = dy * baryStepY[2][i] + dx * baryStepX[2][i] + initialBary[2][i];
 					Mask16 pointsInsideTriangleMask = (boundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
 					if (Statsman::ENABLED)
 					{
@@ -726,9 +724,9 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 						dx = x - group_xBeg[i];
 						dy = y - group_yBeg[i];
 
-						alpha = dy * group_dAlpha_dy[i] + dx * group_dAlpha_dx[i] + initialBary[0][i];
-						beta = dy * group_dBeta_dy[i] + dx * group_dBeta_dx[i] + initialBary[1][i];
-						gamma = dy * group_dGamma_dy[i] + dx * group_dGamma_dx[i] + initialBary[2][i];
+						alpha = dy * baryStepY[0][i] + dx * baryStepX[0][i] + initialBary[0][i];
+						beta = dy * baryStepY[1][i] + dx * baryStepX[1][i] + initialBary[1][i];
+						gamma = dy * baryStepY[2][i] + dx * baryStepX[2][i] + initialBary[2][i];
 						Vec4_f32x16 interpolatedDividedUv = Vec4_f32x16(v0.u[i], v0.v[i], v0.space.z[i], 0.f) * alpha +
 							Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
 							Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
