@@ -59,9 +59,9 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m512 ccdd01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
 		__m512 ccdd23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
 		_mm512_storeu_pd(&ret[0], _mm512_unpacklo_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
-		_mm512_storeu_pd(&ret[1], _mm512_unpackhi_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
-		_mm512_storeu_pd(&ret[2], _mm512_unpacklo_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
-		_mm512_storeu_pd(&ret[3], _mm512_unpackhi_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
+		if constexpr (FieldCount > 1) _mm512_storeu_pd(&ret[1], _mm512_unpackhi_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
+		if constexpr (FieldCount > 2) _mm512_storeu_pd(&ret[2], _mm512_unpacklo_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
+		if constexpr (FieldCount > 3) _mm512_storeu_pd(&ret[3], _mm512_unpackhi_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
 		return ret;
 	}
 	if constexpr (FieldCount > 4 && FieldCount <= 8)
