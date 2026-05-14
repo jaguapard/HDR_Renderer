@@ -25,7 +25,7 @@ public:
 	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
 	
-	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and returns them in ret
+	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them in ret
 	//Only x and y values from input vectors are used, the rest are ignored.
 	template<typename VectorType, typename ValueType>
 	static __forceinline void calculateBarycentricCoordinates2D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, const ValueType& rcpSignedArea, std::array<ValueType, 3>& ret)
@@ -43,12 +43,12 @@ public:
 	static __forceinline void calculateBarycentricCoordinatesAndSteps2D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, const ValueType& rcpSignedArea, std::array<ValueType, 3>& retInitials, std::array<ValueType, 3>& retStepsX, std::array<ValueType, 3>& retStepsY)
 	{
 		calculateBarycentricCoordinates2D(P, A, B, C, rcpSignedArea, retInitials);
-		float32x16 group_dAlpha_dx = (B.y - C.y) * rcpSignedArea;
-		float32x16 group_dAlpha_dy = (C.x - B.x) * rcpSignedArea;
-		float32x16 group_dBeta_dx = (C.y - A.y) * rcpSignedArea;
-		float32x16 group_dBeta_dy = (A.x - C.x) * rcpSignedArea;
-		float32x16 group_dGamma_dx = (A.y - B.y) * rcpSignedArea; //this should have better precision than -group_dAlpha_dx - group_dBeta_dx since y2 should cancel out completely algebraically;
-		float32x16 group_dGamma_dy = (B.x - A.x) * rcpSignedArea; //same for -group_dAlpha_dy - group_dBeta_dy and x2
+		ValueType group_dAlpha_dx = (B.y - C.y) * rcpSignedArea;
+		ValueType group_dAlpha_dy = (C.x - B.x) * rcpSignedArea;
+		ValueType group_dBeta_dx = (C.y - A.y) * rcpSignedArea;
+		ValueType group_dBeta_dy = (A.x - C.x) * rcpSignedArea;
+		ValueType group_dGamma_dx = (A.y - B.y) * rcpSignedArea; //this should have better precision than -group_dAlpha_dx - group_dBeta_dx since y2 should cancel out completely algebraically;
+		ValueType group_dGamma_dy = (B.x - A.x) * rcpSignedArea; //same for -group_dAlpha_dy - group_dBeta_dy and x2
 		retStepsX[0] = group_dAlpha_dx;
 		retStepsX[1] = group_dBeta_dx;
 		retStepsX[2] = group_dGamma_dx;
