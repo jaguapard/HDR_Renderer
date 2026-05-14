@@ -23,7 +23,6 @@ public:
 	virtual void loadScene(RendererLoadSceneData scd) = 0;
 	virtual void renderFrame(const GameSettings& settings) = 0;
 
-	static void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma);
 	static void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, float32x16& alpha, float32x16& beta, float32x16& gamma);
 	static void calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, float32x8& alpha, float32x8& beta, float32x8& gamma);
 	static void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, std::array<float32x16, 3>& outBarycentrics);
@@ -31,6 +30,15 @@ public:
 	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
 	
+	template<typename VectorType, typename ValueType>
+	static __forceinline std::array<ValueType, 3> calculateBarycentricCoordinates2D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, const ValueType& rcpSignedArea)
+	{
+		std::array<ValueType, 3> bary;
+		bary[0] = (P - C).cross2d(B - C) * rcpSignedArea;
+		bary[1] = (P - C).cross2d(C - A) * rcpSignedArea;
+		bary[2] = (P - A).cross2d(A - B) * rcpSignedArea; //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures on big triangles
+		return bary;
+	}
 	static __forceinline void mask_store_rows_512_to_4x128_ps(__m512 value, __mmask16 mask, void* dst, uint32_t xStart, uint32_t yStart, uint32_t w)
 	{
 		__m128 v0 = _mm512_extractf32x4_ps(value, 0);

@@ -21,13 +21,6 @@ void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack
 	}
 }
 
-void RendererBase::calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
-{
-	alpha = (r - r3).cross2d(r2 - r3) * rcpSignedArea;
-	beta = (r - r3).cross2d(r3 - r1) * rcpSignedArea;
-	gamma = (r - r1).cross2d(r1 - r2) * rcpSignedArea; //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures
-}
-
 void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, float32x16& alpha, float32x16& beta, float32x16& gamma)
 {
 	/* //this version is less precise, causes texture issues in some places
