@@ -57,10 +57,10 @@ public:
 		retStepsY[2] = group_dGamma_dy;
 	}
 
-	//Calculates 3D barycentric coordinates for vector P relative to vertices A, B, C and stores them in ret
+	//Calculates 3D barycentric coordinates for vector P relative to vertices A, B, C and stores them to ret
 	//Only x, y and z values from input vectors are used for the calculations, the rest are ignored.
 	template<typename VectorType, typename ValueType>
-	static __forceinline std::array<ValueType, 3> calculateBarycentricCoordinates3D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, std::array<ValueType, 3>& ret)
+	static __forceinline void calculateBarycentricCoordinates3D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, std::array<ValueType, 3>& ret)
 	{
 		/* //this version is less precise, causes texture issues in some places
 		Vec4_f32x16 v0 = B - A;
@@ -81,7 +81,6 @@ public:
 		ret[0] = ((B - P).cross3d(C - P)).dot3d(n) / n.dot3d(n);
 		ret[1] = ((C - P).cross3d(A - P)).dot3d(n) / n.dot3d(n);
 		ret[2] = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
-		return ret;
 	}
 
 	static __forceinline void mask_store_rows_512_to_4x128_ps(__m512 value, __mmask16 mask, void* dst, uint32_t xStart, uint32_t yStart, uint32_t w)
