@@ -21,54 +21,6 @@ void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack
 	}
 }
 
-void RendererBase::calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma)
-{
-	alpha = (r - r3).cross2d(r2 - r3) * rcpSignedArea;
-	beta = (r - r3).cross2d(r3 - r1) * rcpSignedArea;
-	gamma = (r - r1).cross2d(r1 - r2) * rcpSignedArea; //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures
-}
-
-void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, float32x16& alpha, float32x16& beta, float32x16& gamma)
-{
-	/* //this version is less precise, causes texture issues in some places
-	Vec4_f32x16 v0 = B - A;
-	Vec4_f32x16 v1 = C - A;
-	Vec4_f32x16 v2 = P - A;
-
-	float32x16 d00 = v0.dot3d(v0);
-	float32x16 d01 = v0.dot3d(v1);
-	float32x16 d11 = v1.dot3d(v1);
-	float32x16 d20 = v2.dot3d(v0);
-	float32x16 d21 = v2.dot3d(v1);
-	float32x16 den = d00 * d11 - (d01 * d01);
-	beta = (d11 * d20 - d01 * d21) / den;
-	gamma = (d00 * d21 - d01 * d20) / den;
-	alpha = float32x16(1) - beta - gamma; //doesn't seem to hurt calculating it like this*/
-
-	Vec4_f32x16 n = (B - A).cross3d(C - A);
-	alpha = ((B - P).cross3d(C - P)).dot3d(n) / n.dot3d(n);
-	beta = ((C - P).cross3d(A - P)).dot3d(n) / n.dot3d(n);
-	gamma = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
-}
-//TODO: remake these into templated types?
-void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, float32x8& alpha, float32x8& beta, float32x8& gamma)
-{
-	Vec4_f32x8 n = (B - A).cross3d(C - A);
-	alpha = ((B - P).cross3d(C - P)).dot3d(n) / n.dot3d(n);
-	beta = ((C - P).cross3d(A - P)).dot3d(n) / n.dot3d(n);
-	gamma = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
-}
-
-void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, std::array<float32x16, 3>& outBarycentrics)
-{
-	calculateBarycentricCoordinates3D(P, A, B, C, outBarycentrics[0], outBarycentrics[1], outBarycentrics[2]);
-}
-
-void RendererBase::calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, std::array<float32x8, 3>& outBarycentrics)
-{
-	calculateBarycentricCoordinates3D(P, A, B, C, outBarycentrics[0], outBarycentrics[1], outBarycentrics[2]);
-}
-
 Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask)
 {
 	int loadInd = y * w + x;

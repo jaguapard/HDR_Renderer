@@ -22,15 +22,67 @@ public:
 	//virtual void handleInputEvent(const SDL_Event& ev, C_Input& input) = 0;
 	virtual void loadScene(RendererLoadSceneData scd) = 0;
 	virtual void renderFrame(const GameSettings& settings) = 0;
-
-	static void calculateBarycentricCoordinates2D(const Vec4_f32x16& r, const Vec4_f32x16& r1, const Vec4_f32x16& r2, const Vec4_f32x16& r3, const float32x16& rcpSignedArea, float32x16& alpha, float32x16& beta, float32x16& gamma);
-	static void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, float32x16& alpha, float32x16& beta, float32x16& gamma);
-	static void calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, float32x8& alpha, float32x8& beta, float32x8& gamma);
-	static void calculateBarycentricCoordinates3D(const Vec4_f32x16& P, const Vec4_f32x16& A, const Vec4_f32x16& B, const Vec4_f32x16& C, std::array<float32x16, 3>& outBarycentrics);
-	static void calculateBarycentricCoordinates3D(const Vec4_f32x8& P, const Vec4_f32x8& A, const Vec4_f32x8& B, const Vec4_f32x8& C, std::array<float32x8, 3>& outBarycentrics);
 	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
 	
+	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them to ret
+	//Only x and y values from input vectors are used for the calculations, the rest are ignored.
+	template<typename VectorType, typename ValueType>
+	static __forceinline void calculateBarycentricCoordinates2D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, const ValueType& rcpSignedArea, std::array<ValueType, 3>& ret)
+	{
+		ret[0] = (P - C).cross2d(B - C) * rcpSignedArea;
+		ret[1] = (P - C).cross2d(C - A) * rcpSignedArea;
+		ret[2] = (P - A).cross2d(A - B) * rcpSignedArea; //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures on big triangles
+	}
+
+	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them in retInitials
+	//Calculates steps for 1 unit movements in X and Y, and stores them into retStepsX and retStepsY
+	//Stepping can be done by calculating: barycentric[i] = retInitials[i] + (x-P.x)*retStepsX[i] + (y-P.y)*retStepsY[i]
+	//Only x and y values from input vectors are used for the calculations, the rest are ignored.
+	template<typename VectorType, typename ValueType>
+	static __forceinline void calculateBarycentricCoordinatesAndSteps2D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, const ValueType& rcpSignedArea, std::array<ValueType, 3>& retInitials, std::array<ValueType, 3>& retStepsX, std::array<ValueType, 3>& retStepsY)
+	{
+		calculateBarycentricCoordinates2D(P, A, B, C, rcpSignedArea, retInitials);
+		ValueType group_dAlpha_dx = (B.y - C.y) * rcpSignedArea;
+		ValueType group_dAlpha_dy = (C.x - B.x) * rcpSignedArea;
+		ValueType group_dBeta_dx = (C.y - A.y) * rcpSignedArea;
+		ValueType group_dBeta_dy = (A.x - C.x) * rcpSignedArea;
+		ValueType group_dGamma_dx = (A.y - B.y) * rcpSignedArea; //this should have better precision than -group_dAlpha_dx - group_dBeta_dx since y2 should cancel out completely algebraically;
+		ValueType group_dGamma_dy = (B.x - A.x) * rcpSignedArea; //same for -group_dAlpha_dy - group_dBeta_dy and x2
+		retStepsX[0] = group_dAlpha_dx;
+		retStepsX[1] = group_dBeta_dx;
+		retStepsX[2] = group_dGamma_dx;
+		retStepsY[0] = group_dAlpha_dy;
+		retStepsY[1] = group_dBeta_dy;
+		retStepsY[2] = group_dGamma_dy;
+	}
+
+	//Calculates 3D barycentric coordinates for vector P relative to vertices A, B, C and stores them to ret
+	//Only x, y and z values from input vectors are used for the calculations, the rest are ignored.
+	template<typename VectorType, typename ValueType>
+	static __forceinline void calculateBarycentricCoordinates3D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, std::array<ValueType, 3>& ret)
+	{
+		/* //this version is less precise, causes texture issues in some places
+		Vec4_f32x16 v0 = B - A;
+		Vec4_f32x16 v1 = C - A;
+		Vec4_f32x16 v2 = P - A;
+
+		float32x16 d00 = v0.dot3d(v0);
+		float32x16 d01 = v0.dot3d(v1);
+		float32x16 d11 = v1.dot3d(v1);
+		float32x16 d20 = v2.dot3d(v0);
+		float32x16 d21 = v2.dot3d(v1);
+		float32x16 den = d00 * d11 - (d01 * d01);
+		beta = (d11 * d20 - d01 * d21) / den;
+		gamma = (d00 * d21 - d01 * d20) / den;
+		alpha = float32x16(1) - beta - gamma; //doesn't seem to hurt calculating it like this*/
+
+		VectorType n = (B - A).cross3d(C - A);
+		ret[0] = ((B - P).cross3d(C - P)).dot3d(n) / n.dot3d(n);
+		ret[1] = ((C - P).cross3d(A - P)).dot3d(n) / n.dot3d(n);
+		ret[2] = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
+	}
+
 	static __forceinline void mask_store_rows_512_to_4x128_ps(__m512 value, __mmask16 mask, void* dst, uint32_t xStart, uint32_t yStart, uint32_t w)
 	{
 		__m128 v0 = _mm512_extractf32x4_ps(value, 0);
