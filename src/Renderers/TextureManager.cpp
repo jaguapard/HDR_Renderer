@@ -6,6 +6,7 @@
 
 TextureManager::TextureManager()
 {
+	std::lock_guard lck(this->mtx);
 	constexpr int fallbackSize = 64;
 	constexpr int expectedPitch = fallbackSize * 4;
 	static_assert(fallbackSize % 2 == 0);
@@ -95,9 +96,11 @@ bool TextureManager::handleIsValid(int h) const
 void TextureManager::clear()
 {
 	std::lock_guard lck(this->mtx);
-	this->bufferForTexture.clear();
-	this->sizesForTexture.clear();
-	this->textures.clear();
+	//since buffers are annoying with unique pointers, resize is not possible. We also have to keep fallback texture untouched. 
+	//Thus, just pop until there's only fallback remaining
+	while (this->textures.size() > 1) this->textures.pop_back();
+	while (this->bufferForTexture.size() > 1) this->bufferForTexture.pop_back();
+	while (this->sizesForTexture.size() > 1) this->sizesForTexture.pop_back();
 }
 Vec4_f32x16 TextureManager::gatherLinearIntensitiesFromMultipleTextures(int32x16 textureIndices, float32x16 u, float32x16 v, Mask16 mask) const
 {
