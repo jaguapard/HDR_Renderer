@@ -30,6 +30,8 @@ public:
 	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
 	
+	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and returns them in an array
+	//Only x and y values from input vectors are used.
 	template<typename VectorType, typename ValueType>
 	static __forceinline std::array<ValueType, 3> calculateBarycentricCoordinates2D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, const ValueType& rcpSignedArea)
 	{
@@ -38,6 +40,28 @@ public:
 		bary[1] = (P - C).cross2d(C - A) * rcpSignedArea;
 		bary[2] = (P - A).cross2d(A - B) * rcpSignedArea; //do NOT change this to 1-alpha-beta or 1-(alpha+beta). That causes wonkiness in textures on big triangles
 		return bary;
+	}
+
+	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them in retInitials
+	//Calculates steps for unit movements in X and Y, and stores them into retStepsX and retStepsY
+	//Stepping can be done by calculating: barycentric[i] = retInitials[i] + (x-P.x)*retStepsX[i] + (y-P.y)*retStepsY[i]
+	//Only x and y values from input vectors are used for the calculations, the rest are ignored.
+	template<typename VectorType, typename ValueType>
+	static __forceinline void calculateBarycentricCoordinatesAndSteps2D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, const ValueType& rcpSignedArea, std::array<ValueType, 3>& retInitials, std::array<ValueType, 3>& retStepsX, std::array<ValueType, 3>& retStepsY)
+	{
+		retInitials = calculateBarycentricCoordinates2D(P, A, B, C, rcpSignedArea);
+		float32x16 group_dAlpha_dx = (B.y - C.y) * rcpSignedArea;
+		float32x16 group_dAlpha_dy = (C.x - B.x) * rcpSignedArea;
+		float32x16 group_dBeta_dx = (C.y - A.y) * rcpSignedArea;
+		float32x16 group_dBeta_dy = (A.x - C.x) * rcpSignedArea;
+		float32x16 group_dGamma_dx = (A.y - B.y) * rcpSignedArea; //this should have better precision than -group_dAlpha_dx - group_dBeta_dx since y2 should cancel out completely algebraically;
+		float32x16 group_dGamma_dy = (B.x - A.x) * rcpSignedArea; //same for -group_dAlpha_dy - group_dBeta_dy and x2
+		retStepsX[0] = group_dAlpha_dx;
+		retStepsX[1] = group_dBeta_dx;
+		retStepsX[2] = group_dGamma_dx;
+		retStepsY[0] = group_dAlpha_dy;
+		retStepsY[1] = group_dBeta_dy;
+		retStepsY[2] = group_dGamma_dy;
 	}
 	static __forceinline void mask_store_rows_512_to_4x128_ps(__m512 value, __mmask16 mask, void* dst, uint32_t xStart, uint32_t yStart, uint32_t w)
 	{
