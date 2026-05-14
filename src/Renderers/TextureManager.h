@@ -20,5 +20,5 @@ private:
 	std::vector<uint32_t*> bufferForTexture;
 	std::vector<ColorPixelBuffer::Sizes> sizesForTexture;
 	std::unordered_map<std::string, int> pathToIndexMap;
-	std::mutex mtx;
+	std::recursive_mutex mtx;
 };
