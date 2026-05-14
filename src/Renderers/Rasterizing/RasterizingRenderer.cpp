@@ -912,7 +912,8 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			const Vec4_f32x16& r2 = untransformedVerts[1].space;
 			const Vec4_f32x16& r3 = untransformedVerts[2].space;
 
-			std::array<float32x16, 3> bary = calculateBarycentricCoordinates3D<Vec4_f32x16,float32x16>(worldCoords, r1, r2, r3);
+			std::array<float32x16, 3> bary;
+			calculateBarycentricCoordinates3D(worldCoords, r1, r2, r3, bary);
 
 			Vec4_f32x16 uv = Vec4_f32x16(untransformedVerts[0].u, untransformedVerts[0].v, 0.f, 0.f) * bary[0] +
 				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * bary[1] +

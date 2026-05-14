@@ -61,9 +61,8 @@ public:
 
 
 	template<typename VectorType, typename ValueType>
-	static __forceinline std::array<ValueType, 3> calculateBarycentricCoordinates3D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C)
+	static __forceinline std::array<ValueType, 3> calculateBarycentricCoordinates3D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, std::array<ValueType, 3>& ret)
 	{
-		std::array<ValueType, 3> ret;
 		/* //this version is less precise, causes texture issues in some places
 		Vec4_f32x16 v0 = B - A;
 		Vec4_f32x16 v1 = C - A;
