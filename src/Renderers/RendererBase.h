@@ -25,8 +25,8 @@ public:
 	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
 	
-	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them in ret
-	//Only x and y values from input vectors are used, the rest are ignored.
+	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them to ret
+	//Only x and y values from input vectors are used for the calculations, the rest are ignored.
 	template<typename VectorType, typename ValueType>
 	static __forceinline void calculateBarycentricCoordinates2D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, const ValueType& rcpSignedArea, std::array<ValueType, 3>& ret)
 	{
@@ -36,7 +36,7 @@ public:
 	}
 
 	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them in retInitials
-	//Calculates steps for unit movements in X and Y, and stores them into retStepsX and retStepsY
+	//Calculates steps for 1 unit movements in X and Y, and stores them into retStepsX and retStepsY
 	//Stepping can be done by calculating: barycentric[i] = retInitials[i] + (x-P.x)*retStepsX[i] + (y-P.y)*retStepsY[i]
 	//Only x and y values from input vectors are used for the calculations, the rest are ignored.
 	template<typename VectorType, typename ValueType>
@@ -58,7 +58,7 @@ public:
 	}
 
 	//Calculates 3D barycentric coordinates for vector P relative to vertices A, B, C and stores them in ret
-	//Only x, y and z values from input vectors are used, the rest are ignored.
+	//Only x, y and z values from input vectors are used for the calculations, the rest are ignored.
 	template<typename VectorType, typename ValueType>
 	static __forceinline std::array<ValueType, 3> calculateBarycentricCoordinates3D(const VectorType& P, const VectorType& A, const VectorType& B, const VectorType& C, std::array<ValueType, 3>& ret)
 	{
