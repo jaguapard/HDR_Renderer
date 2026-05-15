@@ -925,22 +925,16 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Vec4_f32x16 texturePixels;
 			if (texturingEnabled)
 			{
-#if defined(VS_CLANG) || 1 //TODO: Clang crashes immediately with multitexturing for some reason, so this workaround just scalarizes it for Clang
-
-				for (int j = 0; j < 16; ++j)
+				Mask16 uniqueMask = filledPixels & (int32x16(_mm512_conflict_epi32(diffuseMapIndices)) == 0);
+				int32x16 uniqueDiffuseMapIndices = _mm512_maskz_compress_epi32(uniqueMask, diffuseMapIndices);
+				int uniqueCount = _mm_popcnt_u32(uniqueMask);
+				for (int j = 0; j < uniqueCount; ++j)
 				{
-					if (!(filledPixels.mask & (1 << j))) continue;
-					int diffuseMapIndex = diffuseMapIndices[j];
-					Vec4f pixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(uv.x[j], uv.y[j]);
-					texturePixels.x[j] = pixel.x;
-					texturePixels.y[j] = pixel.y;
-					texturePixels.z[j] = pixel.z;
-					texturePixels.w[j] = pixel.w;
+					int currDiffuseMapIndex = uniqueDiffuseMapIndices[j];
+					Mask16 thisTextureMask = filledPixels & (diffuseMapIndices == currDiffuseMapIndex);
+					Vec4_f32x16 gathered = this->textureManager.getTextureByHandle(currDiffuseMapIndex).gatherLinearIntensities(uv.x, uv.y, thisTextureMask);
+					for (int k = 0; k < 4; ++k) texturePixels[k] = _mm512_mask_mov_ps(texturePixels[k], thisTextureMask, gathered[k]);
 				}
-#else
-				int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), filledPixels, triangleIndices, this->original_triangleStore.diffuseMapIndex.data(), 4);
-				texturePixels = this->textureManager.gatherLinearIntensitiesFromMultipleTextures(diffuseMapIndices, uv.x, uv.y, filledPixels);
-#endif
 			}
 			else
 			{
