@@ -593,7 +593,7 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 
 		if (this->skipTrianglesWithFallbackTexure)
 		{
-			groupActiveTriangles &= diffuseMapIndices != 0;
+			groupActiveTriangles &= diffuseMapIndices != TextureManager::FALLBACK_HANDLE;
 			if (!groupActiveTriangles) continue;
 		}
 
