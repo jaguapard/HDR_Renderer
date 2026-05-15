@@ -935,6 +935,11 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 					Mask16 thisTextureMask = filledPixels & (diffuseMapIndices == currDiffuseMapIndex);
 					Vec4_f32x16 gathered = this->textureManager.getTextureByHandle(currDiffuseMapIndex).gatherLinearIntensities(uv.x, uv.y, thisTextureMask);
 					for (int k = 0; k < 4; ++k) texturePixels[k] = _mm512_mask_mov_ps(texturePixels[k], thisTextureMask, gathered[k]);
+					if (Statsman::ENABLED)
+					{
+						MyStatsman.rasterizing.textureGatheredLanes += 16;
+						MyStatsman.rasterizing.textureGatherAliveLanes += _mm_popcnt_u32(thisTextureMask);
+					}
 				}
 			}
 			else
