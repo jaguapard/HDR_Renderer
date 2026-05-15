@@ -12,12 +12,14 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 		this->xyzp.push_back(x);
 		this->xyzp.push_back(y);
 		this->xyzp.push_back(z);
-		__m128 uv_f32 = _mm_setr_ps(u, v, u, u);
-		__m128i uv_f16 = _mm_cvtps_ph(uv_f32, 0);
-		this->xyzp.push_back(std::bit_cast<float>(_mm_extract_epi32(uv_f16, 0)));
-		this->nx.push_back(nx);
-		this->ny.push_back(ny);
-		this->nz.push_back(nz);
+		__m128 f32 = _mm_setr_ps(u, v, nx, ny);
+		__m128i f16 = _mm_cvtps_ph(f32, _MM_FROUND_TO_NEAREST_INT);
+		int32_t nx_fp16 = _mm_extract_epi16(f16, 2);
+		int32_t ny_fp16 = _mm_extract_epi16(f16, 3);
+		nx_fp16 &= 0xFFFE; //steal lowest mantissa bit for z sign
+		if (nz < 0) nx_fp16 |= 1;
+		this->xyzp.push_back(std::bit_cast<float>(_mm_extract_epi32(f16, 0)));
+		this->normals.push_back(std::bit_cast<float>(nx_fp16 | (ny_fp16 << 16)));
 		size_t sz = this->xyzp.capacity() / 4;
 		if (sz % 16 != 0) this->reserve(sz + 16 - sz % 16);
 		return ret;
@@ -35,18 +37,14 @@ size_t Rasterizing::VertexStore::size() const
 void Rasterizing::VertexStore::reserve(size_t newSize)
 {
 	this->xyzp.reserve(newSize * 4);
-	this->nx.reserve(newSize);
-	this->ny.reserve(newSize);
-	this->nz.reserve(newSize);
+	this->normals.reserve(newSize);
 }
 
 void Rasterizing::VertexStore::clear()
 {
 	this->dedup.clear();
 	this->xyzp.clear();
-	this->nx.clear();
-	this->ny.clear();
-	this->nz.clear();
+	this->normals.clear();
 }
 
 void Rasterizing::TriangleStore::insert(uint32_t v0, uint32_t v1, uint32_t v2, uint32_t diffuseMapIndex, uint32_t modelIndex, ModelFlags modelFlags)

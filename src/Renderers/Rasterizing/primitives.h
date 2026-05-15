@@ -143,14 +143,17 @@ namespace Rasterizing
 			interleaved_ph_to_ps(packedUv, retU, retV);
 		}*/
 
-		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret, float32x16 src = 0.f) const
+		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret) const
 		{
-			ret.x = _mm512_mask_i32gather_ps(src, mask, ind, this->nx.data(), 4);
-			ret.y = _mm512_mask_i32gather_ps(src, mask, ind, this->ny.data(), 4);
-			ret.z = _mm512_mask_i32gather_ps(src, mask, ind, this->nz.data(), 4);
+			int32x16 f = int32x16::gather(this->normals.data(), ind, mask);
+			int32x16 xy = f & 0xFFFFFFFE; //LSB of x (LSB of mantissa) holds the sign bit of z, so discard it before conversion
+			interleaved_ph_to_ps(xy, ret.x, ret.y);
+			float32x16 zsq = _mm512_max_ps(float32x16(0.f), float32x16(1) - (ret.x * ret.x) - (ret.y * ret.y));
+			float32x16 signless_z = zsq.sqrt();
+			ret.z = _mm512_mask_mov_ps(signless_z, (f & ~0xFFFFFFFE) != 0, -signless_z);
 		}
 	private:
-		std::vector<float> xyzp, nx, ny, nz; //xyzp = world coords + packed uv's
+		std::vector<float> xyzp, normals; //xyzp = world coords + packed uv's
 		//TODO: if gonna make this dynamic, make it cleanable and check
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
 	};
