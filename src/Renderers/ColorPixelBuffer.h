@@ -167,7 +167,7 @@ public:
 	ColorPixelBuffer(ColorPixelBuffer&& dying);
 	ColorPixelBuffer(uint32_t w, uint32_t h); //initializes empty color buffer
 	ColorPixelBuffer(const SDL_Surface* s);
-	Vec4_f32x16 gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask = 0xFFFF) const;
+	Vec4_f32x16 gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
 	//void setPixelLinearIntensityUnsafe(int x, int y, float r, float g, float b, float a);
 	ColorPixelBufferGatherAccessor getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
 	ColorPixelBufferGatherAccessor256 getGatherAccessor(float32x8 u, float32x8 v, float32x8 mask) const;

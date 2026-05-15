@@ -138,9 +138,21 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
     }
 }
 
-Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
+Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask) const
 {
-    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(x, y, sizes.w, sizes.h);
+    /*
+    std::array<float32x16, 4> sx, sy;
+    std::array<int32x16, 4> samples;
+    sx[0] = _mm512_floor_ps(x);
+    sy[0] = _mm512_floor_ps(y);
+    for (int i = 1; i < 4; ++i)
+    {
+        sx[i] = sx[0] + i % 2;
+        sy[i] = sy[0] + i / 2;
+    }*/
+
+
+    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
     int32x16 intX = pixelsX.trunc();
     int32x16 intY = pixelsY.trunc();
     for (int i = 0; i < 16; ++i)
