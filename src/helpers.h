@@ -141,8 +141,6 @@ struct FixedPoint
 
 	static std::array<__m512, 3> decode_3pack(__m512i u64lo, __m512i u64hi)
 	{
-		u64lo = _mm512_and_epi64(u64lo, _mm512_set1_epi64(~0x8000000000000000));
-		u64hi = _mm512_and_epi64(u64hi, _mm512_set1_epi64(~0x8000000000000000));
 		std::array<__m512, 3> ret;
 		for (int i = 0; i < 3; ++i)
 		{
