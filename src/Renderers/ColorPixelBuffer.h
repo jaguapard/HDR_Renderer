@@ -5,7 +5,7 @@
 #include <SDL3/SDL.h>
 #include <array>
 #include "../helpers.h"
-
+#include "../Mappers.h"
 /*
 enum class Channel
 {
@@ -191,6 +191,7 @@ private:
 		float float_maxSafeX, float_maxSafeY, rcp_maxSafeX, rcp_maxSafeY;
 	};
 	Sizes sizes;
+	WrappingMapper mapper;
 
 	friend class TextureManager;
 	friend class ColorPixelBufferGatherAccessor;
