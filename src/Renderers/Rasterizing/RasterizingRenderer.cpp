@@ -918,17 +918,18 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Vec4_f32x16 uv = Vec4_f32x16(untransformedVerts[0].u, untransformedVerts[0].v, 0.f, 0.f) * bary[0] +
 				Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * bary[1] +
 				Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * bary[2];
-			//Vec4_f32x16 normals = Vec4_f32x16(untransformedVerts[0].normal.x, untransformedVerts[0].normal.y, 0.f, 0.f) * alpha +
-			//	Vec4_f32x16(untransformedVerts[1].u, untransformedVerts[1].v, 0.f, 0.f) * beta +
-			//	Vec4_f32x16(untransformedVerts[2].u, untransformedVerts[2].v, 0.f, 0.f) * gamma;
 
 			Vec4_f32x16 texturePixels;
 			if (texturingEnabled)
 			{
-				Mask16 uniqueMask = filledPixels & (int32x16(_mm512_conflict_epi32(_mm512_maskz_mov_epi32(filledPixels, diffuseMapIndices))) == 0);
-				int32x16 uniqueDiffuseMapIndices = _mm512_maskz_compress_epi32(uniqueMask, diffuseMapIndices);
+				//Replace inactive lanes with a guaranteed-invalid handle.
+				//Otherwise inactive garbage values can participate in conflict detection and suppress valid active lanes.
+				int32x16 activeDiffuseMapIndices = _mm512_mask_mov_epi32(int32x16(TextureManager::INVALID_HANDLE), filledPixels, diffuseMapIndices);
+				int32x16 cdResult = _mm512_conflict_epi32(activeDiffuseMapIndices);
+				Mask16 uniqueMask = filledPixels & (cdResult == 0); //and with filledPixels kills off invalid lanes
+				int32x16 uniqueDiffuseMapIndices = _mm512_maskz_compress_epi32(uniqueMask, diffuseMapIndices); //so this compress can fly - now it only has valid and deduplicated texture indices
 				int uniqueCount = _mm_popcnt_u32(uniqueMask);
-				for (int j = 0; j < uniqueCount; ++j)
+				for (int j = 0; j < uniqueCount; ++j) //TODO: can try to make this fixed-size loop so Clang can optimize memory reads to extracts from uniqueDiffuseMapIndices
 				{
 					int currDiffuseMapIndex = uniqueDiffuseMapIndices[j];
 					Mask16 thisTextureMask = filledPixels & (diffuseMapIndices == currDiffuseMapIndex);
