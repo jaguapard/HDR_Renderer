@@ -148,23 +148,16 @@ struct FixedPoint
 		{
 			__m512i lo = _mm512_and_si512(_mm512_srlv_epi64(u64lo, _mm512_set1_epi64(TOTAL_BITS * i)), _mm512_set1_epi64(FULL_MASK));
 			__m512i hi = _mm512_and_si512(_mm512_srlv_epi64(u64hi, _mm512_set1_epi64(TOTAL_BITS * i)), _mm512_set1_epi64(FULL_MASK));
+			__m256i lo32 = _mm512_cvtepi64_epi32(lo);
+			__m256i hi32 = _mm512_cvtepi64_epi32(hi);
+			__m512i united = _mm512_inserti32x8(_mm512_castsi256_si512(lo32), hi32, 1);
+			__m512i sign = _mm512_and_si512(united, _mm512_set1_epi32(SIGN_MASK));
+			__m512i mag = _mm512_and_si512(united, _mm512_set1_epi32(UNSIGNED_PART_MASK));
 
-			//now lo and hi have p values from encode stage
-			__m512i signLo = _mm512_and_si512(lo, _mm512_set1_epi64(SIGN_MASK));
-			__m512i signHi = _mm512_and_si512(hi, _mm512_set1_epi64(SIGN_MASK));
-			__m512i unsignedLo = _mm512_and_si512(lo, _mm512_set1_epi64(UNSIGNED_PART_MASK));
-			__m512i unsignedHi = _mm512_and_si512(hi, _mm512_set1_epi64(UNSIGNED_PART_MASK));
-
-			//if sign bit is set,
-			__m512i composedLo = _mm512_mask_sub_epi64(unsignedLo, _mm512_cmpneq_epi64_mask(signLo, _mm512_setzero_si512()), _mm512_set1_epi64(0), unsignedLo);
-			__m512i composedHi = _mm512_mask_sub_epi64(unsignedHi, _mm512_cmpneq_epi64_mask(signHi, _mm512_setzero_si512()), _mm512_set1_epi64(0), unsignedHi);
-			__m512d dlo = _mm512_cvtepi64_pd(composedLo);
-			__m512d dhi = _mm512_cvtepi64_pd(composedHi);
-			__m512d finLo = _mm512_mul_pd(dlo, _mm512_set1_pd(1.0 / MULT));
-			__m512d finHi = _mm512_mul_pd(dhi, _mm512_set1_pd(1.0 / MULT));
-			__m256 psLo = _mm512_cvtpd_ps(finLo);
-			__m256 psHi = _mm512_cvtpd_ps(finHi);
-			ret[i] = _mm512_insertf32x8(_mm512_castps256_ps512(psLo), psHi, 1);
+			//if sign bit is set, negate magnitude
+			__m512i composed = _mm512_mask_sub_epi32(mag, _mm512_cmpneq_epi32_mask(sign, _mm512_setzero_si512()), _mm512_set1_epi32(0), mag);
+			__m512 ps = _mm512_cvtepi32_ps(composed);
+			ret[i] = _mm512_mul_ps(ps, _mm512_set1_ps(1.0 / MULT));
 		}
 		return ret;
 	}
