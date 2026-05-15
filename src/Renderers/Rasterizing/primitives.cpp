@@ -9,19 +9,24 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 	if (it == this->dedup.end())
 	{
 		this->dedup[t] = ret = this->dedup.size();
-		this->xyzp.push_back(x);
-		this->xyzp.push_back(y);
-		this->xyzp.push_back(z);
+		this->xyz.push_back(FixedPoint::encode_3pack(x, y, z));
 		__m128 f32 = _mm_setr_ps(u, v, nx, ny);
 		__m128i f16 = _mm_cvtps_ph(f32, _MM_FROUND_TO_NEAREST_INT);
 		int32_t nx_fp16 = _mm_extract_epi16(f16, 2);
 		int32_t ny_fp16 = _mm_extract_epi16(f16, 3);
 		nx_fp16 &= 0xFFFE; //steal lowest mantissa bit for z sign
 		if (nz < 0) nx_fp16 |= 1;
-		this->xyzp.push_back(std::bit_cast<float>(_mm_extract_epi32(f16, 0)));
+		this->uvs.push_back(std::bit_cast<float>(_mm_extract_epi32(f16, 0)));
 		this->normals.push_back(std::bit_cast<float>(nx_fp16 | (ny_fp16 << 16)));
-		size_t sz = this->xyzp.capacity() / 4;
-		if (sz % 16 != 0) this->reserve(sz + 16 - sz % 16);
+
+		__m512i bcst = _mm512_set1_epi64(this->xyz.back());
+		std::array<__m512,3> a = FixedPoint::decode_3pack(bcst, bcst);
+		float recoveredX = float32x16(a[0])[0];
+		float recoveredY = float32x16(a[1])[0];
+		float recoveredZ = float32x16(a[2])[0];
+		assert(std::max(x, recoveredX) - std::min(x, recoveredX) <= 1);
+		assert(std::max(y, recoveredY) - std::min(y, recoveredY) <= 1);
+		assert(std::max(z, recoveredZ) - std::min(z, recoveredZ) <= 1);
 		return ret;
 	}
 	return it->second;
@@ -30,20 +35,22 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 
 size_t Rasterizing::VertexStore::size() const
 {
-	assert(xyzp.size() % 4 == 0);
-	return this->xyzp.size() / 4;
+	//assert(xyzp.size() % 4 == 0);
+	return this->xyz.size();
 }
 
 void Rasterizing::VertexStore::reserve(size_t newSize)
 {
-	this->xyzp.reserve(newSize * 4);
+	this->xyz.reserve(newSize);
+	this->uvs.reserve(newSize);
 	this->normals.reserve(newSize);
 }
 
 void Rasterizing::VertexStore::clear()
 {
 	this->dedup.clear();
-	this->xyzp.clear();
+	this->xyz.clear();
+	this->uvs.clear();
 	this->normals.clear();
 }
 

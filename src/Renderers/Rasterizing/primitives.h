@@ -109,10 +109,13 @@ namespace Rasterizing
 
 		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
-			if (!mask) return;
-			std::array<float32x16, 4> a = aos2soa_gather_and_transpose<float32x16, 4>(this->xyzp.data(), ind, mask);
-			for (int i = 0; i < 3; ++i) retXYZ[i] = a[i];
-			interleaved_ph_to_ps(_mm512_castps_si512(a[3]), retU, retV);
+			__m512i xyzLo = _mm512_mask_i32gather_epi64(_mm512_setzero_si512(), mask, _mm512_extracti32x8_epi32(ind, 0), this->xyz.data(), 8);
+			__m512i xyzHi = _mm512_mask_i32gather_epi64(_mm512_setzero_si512(), mask >> 8, _mm512_extracti32x8_epi32(ind, 1), this->xyz.data(), 8);
+			std::array<__m512, 3> unpackedXYZ = FixedPoint::decode_3pack(xyzLo, xyzHi);
+			for (int i = 0; i < 3; ++i) retXYZ[i] = unpackedXYZ[i];
+
+			float32x16 packedUV = float32x16::gather(this->uvs.data(), ind, mask);
+			interleaved_ph_to_ps(_mm512_castps_si512(packedUV), retU, retV);
 			/*
 			for (int i = 0; i < 4; ++i)
 			{
@@ -153,7 +156,8 @@ namespace Rasterizing
 			ret.z = _mm512_mask_mov_ps(signless_z, (f & ~0xFFFFFFFE) != 0, -signless_z);
 		}
 	private:
-		std::vector<float> xyzp, normals; //xyzp = world coords + packed uv's
+		std::vector<uint64_t> xyz;
+		std::vector<float> uvs, normals; //xyzp = world coords + packed uv's
 		//TODO: if gonna make this dynamic, make it cleanable and check
 		std::map<std::tuple<float, float, float, float, float, float, float, float>, uint32_t> dedup;
 	};

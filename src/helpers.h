@@ -107,3 +107,65 @@ __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
 	__m256i a = _mm256_movm_epi16(m);
 	return _mm256_movepi8_mask(a);
 }
+
+struct FixedPoint
+{
+	static inline constexpr int64_t TOTAL_BITS = 21;
+	static inline constexpr int64_t FRAC_BITS = 4;
+	static inline constexpr int64_t INTEGER_BITS = TOTAL_BITS - FRAC_BITS - 1;
+	static inline constexpr int64_t MULT = 1 << FRAC_BITS;
+	static inline constexpr int64_t UNSIGNED_PART_MASK = (1 << (TOTAL_BITS - 1)) - 1;
+	static inline constexpr int64_t SIGN_MASK = (1 << (TOTAL_BITS - 1));
+	static inline constexpr int64_t FULL_MASK = (1 << (TOTAL_BITS)) - 1;
+
+	static uint64_t encode_3pack(double a, double b, double c)
+	{
+		int64_t ua = std::round(a * MULT);
+		int64_t ub = std::round(b * MULT);
+		int64_t uc = std::round(c * MULT);
+
+		int64_t signA = a >= 0 ? 0 : SIGN_MASK;
+		int64_t signB = b >= 0 ? 0 : SIGN_MASK;
+		int64_t signC = c >= 0 ? 0 : SIGN_MASK;
+
+		int64_t magA = abs(ua) & UNSIGNED_PART_MASK;
+		int64_t magB = abs(ub) & UNSIGNED_PART_MASK;
+		int64_t magC = abs(uc) & UNSIGNED_PART_MASK;
+
+		int64_t p1 = magA | signA;
+		int64_t p2 = magB | signB;
+		int64_t p3 = magC | signC;
+
+		return (p1 | (p2 << TOTAL_BITS) | (p3 << (TOTAL_BITS * 2))) & ~0x8000000000000000; //force uppermost bit to 0 to avoid garbage in there
+	}
+
+	static std::array<__m512, 3> decode_3pack(__m512i u64lo, __m512i u64hi)
+	{
+		u64lo = _mm512_and_epi64(u64lo, _mm512_set1_epi64(~0x8000000000000000));
+		u64hi = _mm512_and_epi64(u64hi, _mm512_set1_epi64(~0x8000000000000000));
+		std::array<__m512, 3> ret;
+		for (int i = 0; i < 3; ++i)
+		{
+			__m512i lo = _mm512_and_si512(_mm512_srlv_epi64(u64lo, _mm512_set1_epi64(TOTAL_BITS * i)), _mm512_set1_epi64(FULL_MASK));
+			__m512i hi = _mm512_and_si512(_mm512_srlv_epi64(u64hi, _mm512_set1_epi64(TOTAL_BITS * i)), _mm512_set1_epi64(FULL_MASK));
+
+			//now lo and hi have p values from encode stage
+			__m512i signLo = _mm512_and_si512(lo, _mm512_set1_epi64(SIGN_MASK));
+			__m512i signHi = _mm512_and_si512(hi, _mm512_set1_epi64(SIGN_MASK));
+			__m512i unsignedLo = _mm512_and_si512(lo, _mm512_set1_epi64(UNSIGNED_PART_MASK));
+			__m512i unsignedHi = _mm512_and_si512(hi, _mm512_set1_epi64(UNSIGNED_PART_MASK));
+
+			//if sign bit is set,
+			__m512i composedLo = _mm512_mask_sub_epi64(unsignedLo, _mm512_cmpneq_epi64_mask(signLo, _mm512_setzero_si512()), _mm512_set1_epi64(0), unsignedLo);
+			__m512i composedHi = _mm512_mask_sub_epi64(unsignedHi, _mm512_cmpneq_epi64_mask(signHi, _mm512_setzero_si512()), _mm512_set1_epi64(0), unsignedHi);
+			__m512d dlo = _mm512_cvtepi64_pd(composedLo);
+			__m512d dhi = _mm512_cvtepi64_pd(composedHi);
+			__m512d finLo = _mm512_mul_pd(dlo, _mm512_set1_pd(1.0 / MULT));
+			__m512d finHi = _mm512_mul_pd(dhi, _mm512_set1_pd(1.0 / MULT));
+			__m256 psLo = _mm512_cvtpd_ps(finLo);
+			__m256 psHi = _mm512_cvtpd_ps(finHi);
+			ret[i] = _mm512_insertf32x8(_mm512_castps256_ps512(psLo), psHi, 1);
+		}
+		return ret;
+	}
+};
