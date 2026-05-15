@@ -68,6 +68,8 @@ namespace bob
 
 		const float& operator[](size_t i) const;
 		float& operator[](size_t i);
+		__forceinline static float32x16 gather(const void* base, __m512i ind, Mask16 mask = 0xFFFF, float32x16 src = 0.f);
+		__forceinline void scatter(void* base, __m512i ind, Mask16 mask = 0xFFFF) const;
 	};
 
 	__forceinline float32x16::float32x16(const float x, Mask16 mask, const float32x16& fillerVal)
@@ -296,5 +298,13 @@ namespace bob
 	__forceinline float& float32x16::operator[](size_t i)
 	{
 		return f[i];
+	}
+	inline float32x16 float32x16::gather(const void* base, __m512i ind, Mask16 mask, float32x16 src)
+	{
+		return _mm512_mask_i32gather_ps(src, mask, ind, base, 4);
+	}
+	inline void float32x16::scatter(void* base, __m512i ind, Mask16 mask) const
+	{
+		_mm512_mask_i32scatter_ps(base, mask, ind, zmm, 4);
 	}
 }

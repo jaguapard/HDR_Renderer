@@ -23,7 +23,7 @@
 
 void* operator new(size_t n)
 {
-    if (Statsman::ENABLED && !Statsman::statsmenForThreads.empty()) Statsman::statsmenForThreads.back().allocsByNew++;;
+    if (Statsman::ENABLED && !Statsman::statsmenForThreads.empty()) Statsman::statsmenForThreads.back().allocsByNew++;
     //StatCount(statsman.memory.allocsByNew++);
 #ifdef __AVX512F__
     constexpr size_t alignmentRequirement = 64;
