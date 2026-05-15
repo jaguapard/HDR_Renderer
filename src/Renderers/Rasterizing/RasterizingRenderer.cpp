@@ -925,7 +925,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Vec4_f32x16 texturePixels;
 			if (texturingEnabled)
 			{
-				Mask16 uniqueMask = filledPixels & (int32x16(_mm512_conflict_epi32(diffuseMapIndices)) == 0);
+				Mask16 uniqueMask = filledPixels & (int32x16(_mm512_conflict_epi32(_mm512_maskz_mov_epi32(filledPixels, diffuseMapIndices))) == 0);
 				int32x16 uniqueDiffuseMapIndices = _mm512_maskz_compress_epi32(uniqueMask, diffuseMapIndices);
 				int uniqueCount = _mm_popcnt_u32(uniqueMask);
 				for (int j = 0; j < uniqueCount; ++j)
