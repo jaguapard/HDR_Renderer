@@ -26,7 +26,7 @@ TextureManager::TextureManager()
 	}
 
 	int h = this->addTextureBySurface(sdl.get());
-	if (h != 0) throw std::runtime_error("Unexpected handle for fallback texture: " + std::to_string(h) + ", expected 0.");
+	if (h != FALLBACK_HANDLE) throw std::runtime_error("Unexpected handle for fallback texture: " + std::to_string(h) + ", expected 0.");
 }
 int TextureManager::addTextureBySurface(SDL_Surface* s)
 {
@@ -71,7 +71,7 @@ int TextureManager::addTextureByPath(std::string path)
 	}
 
 	int h = this->addTextureBySurface(initialSurf.get());
-	if (h == 0)
+	if (h == FALLBACK_HANDLE)
 	{
 		std::lock_guard lck(this->mtx);
 		std::cout << "An error occurred while adding texture from " << path << " by surface, using fallback!\n";
@@ -90,7 +90,7 @@ const ColorPixelBuffer& TextureManager::getTextureByHandle(int i) const
 
 bool TextureManager::handleIsValid(int h) const
 {
-	return h >= 0;
+	return h != INVALID_HANDLE;
 }
 
 void TextureManager::clear()

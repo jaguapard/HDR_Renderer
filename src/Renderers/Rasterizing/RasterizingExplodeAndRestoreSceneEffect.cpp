@@ -48,8 +48,8 @@ void Rasterizing::ExplodeAndRestoreSceneEffect::applyToTrianglesInPlace(std::arr
 	std::array<float32x16, 6> unpacked = aos2soa_gather_and_transpose<float32x16, 6>(this->packedShiftAndRotationPerTriangle.data(), triangleInd, mask);
 	for (int i = 0; i < 3; ++i)
 	{
-		triShift[i] = lerp(0.f, unpacked[i * 2], lerpT);
-		triRot[i] = lerp(0.f, unpacked[i * 2 + 1], lerpT);
+		triShift[i] = lerp<float32x16>(0.f, unpacked[i * 2], lerpT);
+		triRot[i] = lerp<float32x16>(0.f, unpacked[i * 2 + 1], lerpT);
 	}
 
 	MatrixPack16_4x4 rotation = MatrixPack16_4x4::fast_rotationXYZ(triRot);

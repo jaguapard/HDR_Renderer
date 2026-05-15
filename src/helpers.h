@@ -3,13 +3,8 @@
 #include <string>
 #include <immintrin.h>
 
-template <typename T>
-__forceinline T lerp(const T& start, const T& end, float amount)
-{
-	return start + (end - start) * amount;
-}
-
-__forceinline float32x16 lerp(const float32x16& start, const float32x16& end, float32x16 amount)
+template <typename InterpolandType, typename InterpolationValueType>
+__forceinline InterpolandType lerp(const InterpolandType& start, const InterpolandType& end, const InterpolationValueType& amount)
 {
 	return start + (end - start) * amount;
 }

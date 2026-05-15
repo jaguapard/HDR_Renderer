@@ -7,7 +7,8 @@ ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
     packedColors(std::move(dying.packedColors)),
     opacityMap(std::move(dying.opacityMap)),
     sizes(dying.sizes),
-    isFullyOpaque(dying.isFullyOpaque)
+    isFullyOpaque(dying.isFullyOpaque),
+    mapper(dying.mapper)
 {
 }
 
@@ -138,23 +139,30 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
     }
 }
 
-Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 x, float32x16 y, Mask16 mask) const
+Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask) const
 {
-    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(x, y, sizes.w, sizes.h);
-    int32x16 intX = pixelsX.trunc();
-    int32x16 intY = pixelsY.trunc();
-    for (int i = 0; i < 16; ++i)
+    auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
+    float32x16 lerpT_x = pixelsX - float32x16(_mm512_floor_ps(pixelsX));
+    float32x16 lerpT_y = pixelsY - float32x16(_mm512_floor_ps(pixelsY));
+    int32x16 startX = pixelsX.trunc();
+    int32x16 startY = pixelsY.trunc();
+    
+    std::array<Vec4_f32x16, 4> linear;
+   // std::array<float32x16, 4> sampleX, sampleY;
+    for (int i = 0; i < 4; ++i)
     {
-        if (mask.mask & (1 << i))
-        {
-            assert(intX[i] >= 0 && intX[i] < sizes.w);
-            assert(intY[i] >= 0 && intY[i] < sizes.h);
-        }
+        int sx = i % 2;
+        int sy = i / 2;
+        int32x16 sampleX = startX + sx, sampleY = startY + sy;
+        this->mapper.wrapInts(sampleX, sampleY);
+
+        int32x16 samples = int32x16::gather(this->packedColors.get(), sampleY * sizes.w + sampleX, mask);
+        linear[i] = Decoder::R10G11B10A1_gamma2_to_linear(samples);
     }
-    int32x16 pixelsIndices = intY * sizes.w + intX;
-    Mask16 gatherMask = mask;
-    int32x16 gathered = _mm512_mask_i32gather_epi32(int32x16(0), gatherMask, pixelsIndices, this->packedColors.get(), 4);
-    return Decoder::R10G11B10A1_gamma2_to_linear(gathered);
+    
+    Vec4_f32x16 lerp1 = lerp(linear[0], linear[1], lerpT_x);
+    Vec4_f32x16 lerp2 = lerp(linear[2], linear[3], lerpT_x);
+    return lerp(lerp1, lerp2, lerpT_y);
 }
 
 ColorPixelBufferGatherAccessor ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
@@ -240,6 +248,7 @@ void ColorPixelBuffer::init(uint32_t w, uint32_t h)
     this->packedColors = std::make_unique<uint32_t[]>(totalPixels);
     this->opacityMap = std::make_unique<uint32_t[]>(totalPixels / 32 + 1);
     this->sizes = { w,h };
+    this->mapper = WrappingMapper(w, h);
 }
 
 void ColorPixelBufferGatherAccessor::gatherLinearRGB(Vec4_f32x16& output) const
