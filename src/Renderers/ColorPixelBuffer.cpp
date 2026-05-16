@@ -85,8 +85,8 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             int32x16 packed1 = _mm512_maskz_loadu_epi32(boundsMask1, this->packedColors.get() + i);
             int32x16 packed2 = _mm512_maskz_loadu_epi32(boundsMask2, this->packedColors.get() + i + 16);
             Vec4_f32x16 p1, p2;
-            p1 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed1);
-            p2 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed2);
+            p1 = Decoder::RGBA8888_to_linear(packed1);
+            p2 = Decoder::RGBA8888_to_linear(packed2);
             Mask16 m1 = p1.a >= 1.f;
             Mask16 m2 = p2.a >= 1.f;
             uint32_t mt = (uint32_t(m2) << 16) | m1;
@@ -123,7 +123,7 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
         throw std::runtime_error("Unsupported pixel format for ColorPixelBuffer import: ");
     }
 }
-[[gnu::target("avx512vbmi")]]
+
 Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
@@ -141,7 +141,7 @@ Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 u, float32x16 v
         this->mapper.wrapInts(sampleX, sampleY);
 
         int32x16 samples = int32x16::gather(this->packedColors.get(), sampleY * sizes.w + sampleX, mask);
-        linear[i] = Decoder::RGBA8888_to_linear_using_FP16_LUT(samples);
+        linear[i] = Decoder::RGBA8888_to_linear(samples);
     }
     
     Vec4_f32x16 lerp1 = lerp(linear[0], linear[1], lerpT_x);
@@ -280,40 +280,16 @@ Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
     return { fr * fr, fg * fg, fb * fb, fa };
 }
 
-[[gnu::target("avx512vbmi")]]
-Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(int32x16 packed)
+Vec4_f32x16 Decoder::RGBA8888_to_linear(int32x16 packed)
 {
-    std::array<__m512i, 8> lut;
-    for (int i = 0; i < 8; ++i) lut[i] = _mm512_load_si512((const int16_t*)LUTMan::rgbToLinear_fp16.data() + i * 32);
     Vec4_f32x16 ret;
     ret.a = float32x16(_mm512_cvtepu32_ps(packed >> 24)) * (1.f / 255); //alpha channel is linear already, not gamma encoded
-    //zero-extend and split channels into halves, i.e. rgba,rgba,rgba,rgba is now r_r_r_r_g_g_g_g_, b and a in other
-    //using setr16 for convinience. Doesn't matter what we put in upper bytes of each 16 byte word, since that will be zeroed out by zero-masking
-    __m512i rg = _mm512_maskz_permutexvar_epi8(0x5555555555555555, _mm512_setr_epi16(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61), packed);
-    __m512i ba = _mm512_maskz_permutexvar_epi8(0x5555555555555555, _mm512_setr_epi16(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), packed);
-
-    __m512i fp16_rg, fp16_ba;
-    fp16_rg = fp16_ba = _mm512_setzero_si512();
-    for (int j = 0; j < 4; ++j)
+    for (int i = 0; i < 3; ++i)
     {
-        //no need to change index, permutex2var already ignores upper bits.
-        __m512i perm_rg = _mm512_permutex2var_epi16(lut[2 * j], rg, lut[2 * j + 1]);
-        __m512i perm_ba = _mm512_permutex2var_epi16(lut[2 * j], ba, lut[2 * j + 1]);
-
-        //only update positions that are part of this LUT slice
-        __mmask32 lb1 = _mm512_cmpge_epu16_mask(rg, _mm512_set1_epi16(j * 64));
-        __mmask32 ub1 = _mm512_cmplt_epu16_mask(rg, _mm512_set1_epi16((j + 1) * 64));
-        __mmask32 m1 = lb1 & ub1;
-        __mmask32 lb2 = _mm512_cmpge_epu16_mask(ba, _mm512_set1_epi16(j * 64));
-        __mmask32 ub2 = _mm512_cmplt_epu16_mask(ba, _mm512_set1_epi16((j + 1) * 64));
-        __mmask32 m2 = lb2 & ub2;
-        fp16_rg = _mm512_mask_mov_epi16(fp16_rg, m1, perm_rg);
-        fp16_ba = _mm512_mask_mov_epi16(fp16_ba, m2, perm_ba);
+        int32x16 chan = (packed >> (i * 8)) & 0xFF;
+        float32x16 f = _mm512_cvtepu32_ps(chan);
+        ret[i] = LUTMan::gamma2p2_toLinear<float32x16, 2>(f * (1.f / 255.f));
     }
-
-    ret.r = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(fp16_rg, 0));
-    ret.g = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(fp16_rg, 1));
-    ret.b = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(fp16_ba, 0));
     return ret;
 }
 
