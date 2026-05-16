@@ -83,8 +83,11 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             Mask16 boundsMask2 = (int32x16::sequence() + i + 16) < totalPixels;
             int32x16 packed1 = _mm512_maskz_loadu_epi32(boundsMask1, this->packedColors.get() + i);
             int32x16 packed2 = _mm512_maskz_loadu_epi32(boundsMask2, this->packedColors.get() + i + 16);
-            Mask16 m1 = (packed1 & int32x16(0x80000000)) != 0;
-            Mask16 m2 = (packed2 & int32x16(0x80000000)) != 0;
+            Vec4_f32x16 p1, p2;
+            p1 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed1, this->toLinearLUT_fp16.get());
+            p2 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed2, this->toLinearLUT_fp16.get());
+            Mask16 m1 = p1.a >= 1.f;
+            Mask16 m2 = p2.a >= 1.f;
             uint32_t mt = (uint32_t(m2) << 16) | m1;
             this->opacityMap[i / 32] = mt;
             if (~mt) this->isFullyOpaque = false;
