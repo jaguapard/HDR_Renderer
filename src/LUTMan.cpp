@@ -2,25 +2,6 @@
 #include "LUTMan.h"
 #include <cmath>
 
-const LUTMan::__LutMan_tables_t LUTMan::tables = []() {
-	LUTMan::__LutMan_tables_t result;
-	for (int i = 0; i < 256; ++i)
-	{
-		float f32 = pow(i / 255.0, 2.2);
-		result.rgbToLinear_fp32[i] = f32;
-		result.rgbToLinear_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(f32), _MM_FROUND_TO_NEAREST_INT), 0);
-	}
-	for (double i = 0; i < result.cos_fp32.size(); ++i) result.cos_fp32[i] = std::cos(2 * M_PI * i / result.cos_fp32.size());
-	for (double i = 0; i < result.sin_fp32.size(); ++i) result.sin_fp32[i] = std::sin(2 * M_PI * i / result.sin_fp32.size());
-	return result;
-	}();
-
-void LUTMan::init()
-{
-	//for (int i = 0; i < sineLUT_fp32.size(); ++i) sineLUT_fp32[i] = std::sin(M_PI)
-	
-}
-
 float32x16 LUTMan::sin(float32x16 x)
 {
 	return LUTMan::cos(x - M_PI / 2);
@@ -76,4 +57,16 @@ float32x16 LUTMan::log2(float32x16 x)
 	__m512 finA = _mm512_fmadd_ps(b, signif, fexp);
 	__m512 finB = _mm512_mul_ps(signif, signif);
 	return _mm512_fmadd_ps(a, finB, finA);
+}
+
+LUTMan::__LutMan_tables_t::__LutMan_tables_t()
+{
+	for (int i = 0; i < 256; ++i)
+	{
+		float f32 = pow(i / 255.0, 2.2);
+		this->rgbToLinear_fp32[i] = f32;
+		this->rgbToLinear_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(f32), _MM_FROUND_TO_NEAREST_INT), 0);
+	}
+	for (double i = 0; i < this->cos_fp32.size(); ++i) this->cos_fp32[i] = std::cos(2 * M_PI * i / this->cos_fp32.size());
+	for (double i = 0; i < this->sin_fp32.size(); ++i) this->sin_fp32[i] = std::sin(2 * M_PI * i / this->sin_fp32.size());
 }

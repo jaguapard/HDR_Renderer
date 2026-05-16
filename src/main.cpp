@@ -114,7 +114,6 @@ Threadpool threadpool;
 
 int main(int argc, char* argv[]) 
 {
-    LUTMan::init();
     SDL_Window* window;
     try
     {

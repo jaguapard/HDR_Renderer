@@ -5,19 +5,19 @@
 class LUTMan
 {
 public:
-	static void init();
 	static float32x16 sin(float32x16 x);
 	static float32x16 cos(float32x16 x);
 	static float32x16 log2(float32x16 x);
 
 	struct __LutMan_tables_t
 	{
-		alignas(64) std::array<int16_t, 256> rgbToLinear_fp16; //unlike other LUTs here, this is exact aside rounding differences
-		alignas(64) std::array<float, 256> rgbToLinear_fp32;  //unlike other LUTs here, this is exact aside rounding differences
+		__LutMan_tables_t();
+		alignas(64) std::array<int16_t, 256> rgbToLinear_fp16; //unlike other LUTs here, this one is exact aside rounding differences
+		alignas(64) std::array<float, 256> rgbToLinear_fp32;  //unlike other LUTs here, this one is exact aside rounding differences
 		alignas(64) std::array<float, 32> sin_fp32, cos_fp32;
 	};
 
-	static const __LutMan_tables_t tables;
+	static inline const __LutMan_tables_t tables = __LutMan_tables_t();
 	//Provides a polynomial approximation of degree PolynomialDegree of function y = x^2.2. Only valid for 0 <= x <= 1
 	template<typename T, int PolynomialDegree>
 	static __forceinline T gamma2p2_toLinear(T x)
