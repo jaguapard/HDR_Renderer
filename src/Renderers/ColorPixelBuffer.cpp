@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include "../Threadpool.h"
 #include "../helpers.h"
+#include "../LUTMan.h"
 
 ColorPixelBuffer::ColorPixelBuffer(ColorPixelBuffer&& dying) :
     packedColors(std::move(dying.packedColors)),
@@ -84,8 +85,8 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             int32x16 packed1 = _mm512_maskz_loadu_epi32(boundsMask1, this->packedColors.get() + i);
             int32x16 packed2 = _mm512_maskz_loadu_epi32(boundsMask2, this->packedColors.get() + i + 16);
             Vec4_f32x16 p1, p2;
-            p1 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed1, this->toLinearLUT_fp16.get());
-            p2 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed2, this->toLinearLUT_fp16.get());
+            p1 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed1);
+            p2 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed2);
             Mask16 m1 = p1.a >= 1.f;
             Mask16 m2 = p2.a >= 1.f;
             uint32_t mt = (uint32_t(m2) << 16) | m1;
@@ -140,7 +141,7 @@ Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 u, float32x16 v
         this->mapper.wrapInts(sampleX, sampleY);
 
         int32x16 samples = int32x16::gather(this->packedColors.get(), sampleY * sizes.w + sampleX, mask);
-        linear[i] = Decoder::RGBA8888_to_linear_using_FP16_LUT(samples, this->toLinearLUT_fp16.get());
+        linear[i] = Decoder::RGBA8888_to_linear_using_FP16_LUT(samples);
     }
     
     Vec4_f32x16 lerp1 = lerp(linear[0], linear[1], lerpT_x);
@@ -292,10 +293,10 @@ Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 }
 
 [[gnu::target("avx512vbmi")]]
-Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(int32x16 packed, const void* pLut)
+Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(int32x16 packed)
 {
     std::array<__m512i, 8> lut;
-    for (int i = 0; i < 8; ++i) lut[i] = _mm512_loadu_epi16((const int16_t*)pLut + i * 32);
+    for (int i = 0; i < 8; ++i) lut[i] = _mm512_load_si512((const int16_t*)LUTMan::rgbToLinear_fp16.data() + i * 32);
     Vec4_f32x16 ret;
     ret.a = float32x16(_mm512_cvtepu32_ps(packed >> 24)) * (1.f / 255); //alpha channel is linear already, not gamma encoded
     //zero-extend and split channels into halves, i.e. rgba,rgba,rgba,rgba is now r_r_r_r_g_g_g_g_, b and a in other
