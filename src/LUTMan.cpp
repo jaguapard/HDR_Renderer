@@ -1,6 +1,7 @@
 #define _USE_MATH_DEFINES
 #include "LUTMan.h"
 #include <cmath>
+
 void LUTMan::init()
 {
 	//for (int i = 0; i < sineLUT_fp32.size(); ++i) sineLUT_fp32[i] = std::sin(M_PI)

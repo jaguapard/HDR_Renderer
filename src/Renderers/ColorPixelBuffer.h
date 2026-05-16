@@ -137,7 +137,7 @@ struct BilinearInterpolationContext
 struct Decoder
 {
 	static Vec4_f32x16 R10G11B10A1_gamma2_to_linear(int32x16 packed);
-	static Vec4_f32x16 RGBA8888_to_linear_using_FP16_LUT(int32x16 packed, const void* pLut);
+	static Vec4_f32x16 RGBA8888_to_linear(int32x16 packed);
 };
 
 struct ColorPixelBufferGatherAccessor
@@ -179,9 +179,6 @@ private:
 	void init(uint32_t w, uint32_t h);
 	std::unique_ptr<uint32_t[]> packedColors, opacityMap;
 	bool isFullyOpaque = true;
-		
-	static inline std::unique_ptr<float[]> toLinearLUT_fp32;
-	static inline std::unique_ptr<int16_t[]> toLinearLUT_fp16;
 	struct Sizes
 	{
 		Sizes() {};
