@@ -179,9 +179,6 @@ private:
 	void init(uint32_t w, uint32_t h);
 	std::unique_ptr<uint32_t[]> packedColors, opacityMap;
 	bool isFullyOpaque = true;
-		
-	static inline std::unique_ptr<float[]> toLinearLUT_fp32;
-	static inline std::unique_ptr<int16_t[]> toLinearLUT_fp16;
 	struct Sizes
 	{
 		Sizes() {};
