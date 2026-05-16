@@ -62,30 +62,11 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                         Mask16 boundsMask = (int32x16::sequence() + x) < w;
                         int32x16 srcUint32 = _mm512_maskz_loadu_epi32(boundsMask, srcRow + x);
 
-                        int32x16 srcR = srcUint32 & 0xFF;
-                        int32x16 srcG = (srcUint32 >> 8) & 0xFF;
-                        int32x16 srcB = (srcUint32 >> 16) & 0xFF;
-                        float32x16 floatR = _mm512_mul_ps(_mm512_cvtepu32_ps(srcR.zmm), float32x16(1.f / 255));
-                        float32x16 floatG = _mm512_mul_ps(_mm512_cvtepu32_ps(srcG.zmm), float32x16(1.f / 255));
-                        float32x16 floatB = _mm512_mul_ps(_mm512_cvtepu32_ps(srcB.zmm), float32x16(1.f / 255));
-                        float32x16 encodedR, encodedG, encodedB;
-                        for (int i = 0; i < 16; ++i)
-                        {
-                            encodedR[i] = powf(floatR[i], 1.1) * 1023;
-                            encodedG[i] = powf(floatG[i], 1.1) * 2047;
-                            encodedB[i] = powf(floatB[i], 1.1) * 1023;
-                        }
-
-                        encodedR = encodedR.clamp(0, 1023);
-                        encodedG = encodedG.clamp(0, 2047);
-                        encodedB = encodedB.clamp(0, 1023);
-
-                        int32x16 dstR = _mm512_cvttps_epi32(encodedR);
-                        int32x16 dstG = _mm512_cvttps_epi32(encodedG);
-                        int32x16 dstB = _mm512_cvttps_epi32(encodedB);
-                        int32x16 dstFull = dstR | (dstG << 10) | (dstB << 21);// | 0x80000000; //storeA = (srcUint32 >> 24) ? 1 : 0;
-                        dstFull = _mm512_mask_or_epi32(dstFull.zmm, _mm512_cmpgt_epu32_mask(srcUint32.zmm, _mm512_set1_epi32(0x00FFFFFF)), dstFull.zmm, int32x16(0x80000000).zmm);
-
+                        int32x16 dstR = srcUint32 & 0xFF;
+                        int32x16 dstG = (srcUint32 >> 8) & 0xFF;
+                        int32x16 dstB = (srcUint32 >> 16) & 0xFF;
+                        int32x16 dstA = (srcUint32 >> 24) & 0xFF;
+                        int32x16 dstFull = dstR | (dstG << 8) | (dstB << 16) | (dstA << 24);
                         //R10G11B10A1
                         _mm512_mask_storeu_epi32(&this->packedColors[y * w + x], boundsMask, dstFull.zmm);
                         //this->packedColors[y * w + x] = storeUint;
@@ -157,7 +138,14 @@ Vec4_f32x16 ColorPixelBuffer::gatherLinearIntensities(float32x16 u, float32x16 v
         this->mapper.wrapInts(sampleX, sampleY);
 
         int32x16 samples = int32x16::gather(this->packedColors.get(), sampleY * sizes.w + sampleX, mask);
-        linear[i] = Decoder::R10G11B10A1_gamma2_to_linear(samples);
+        /*__m256i r = _mm512_cvtepi32_epi16(samples & 0xFF);
+        __m256i g = _mm512_cvtepi32_epi16((samples >> 8) & 0xFF);
+        __m256i b = _mm512_cvtepi32_epi16((samples >> 16) & 0xFF);
+        __m256i a = _mm512_cvtepi32_epi16((samples >> 24) & 0xFF);*/
+        linear[i].r = float32x16::gather(this->toLinearLUT_fp32.get(), samples & 0xFF, mask);
+        linear[i].g = float32x16::gather(this->toLinearLUT_fp32.get(), (samples >> 8) & 0xFF, mask);
+        linear[i].b = float32x16::gather(this->toLinearLUT_fp32.get(), (samples >> 16) & 0xFF, mask);
+        linear[i].a = float32x16::gather(this->toLinearLUT_fp32.get(), (samples >> 24) & 0xFF, mask);
     }
     
     Vec4_f32x16 lerp1 = lerp(linear[0], linear[1], lerpT_x);
