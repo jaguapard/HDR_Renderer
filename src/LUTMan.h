@@ -14,6 +14,7 @@ public:
 	{
 		alignas(64) std::array<int16_t, 256> rgbToLinear_fp16; //unlike other LUTs here, this is exact aside rounding differences
 		alignas(64) std::array<float, 256> rgbToLinear_fp32;  //unlike other LUTs here, this is exact aside rounding differences
+		alignas(64) std::array<float, 32> sin_fp32, cos_fp32;
 	};
 
 	static const __LutMan_tables_t tables;
@@ -40,5 +41,4 @@ public:
 		else static_assert(false, "Unsupported polynomial degree request for LUTMan::rgbToLinear");
 	}
 private:
-	static inline std::array<float, 32> sineLUT_fp32, cosLUT_fp32;
 };

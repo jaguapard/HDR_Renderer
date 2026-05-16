@@ -10,13 +10,15 @@ const LUTMan::__LutMan_tables_t LUTMan::tables = []() {
 		result.rgbToLinear_fp32[i] = f32;
 		result.rgbToLinear_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(f32), _MM_FROUND_TO_NEAREST_INT), 0);
 	}
+	for (double i = 0; i < result.cos_fp32.size(); ++i) result.cos_fp32[i] = std::cos(2 * M_PI * i / result.cos_fp32.size());
+	for (double i = 0; i < result.sin_fp32.size(); ++i) result.sin_fp32[i] = std::sin(2 * M_PI * i / result.sin_fp32.size());
 	return result;
 	}();
 
 void LUTMan::init()
 {
 	//for (int i = 0; i < sineLUT_fp32.size(); ++i) sineLUT_fp32[i] = std::sin(M_PI)
-	for (double i = 0; i < cosLUT_fp32.size(); ++i) cosLUT_fp32[i] = std::cos(2 * M_PI * i / cosLUT_fp32.size());
+	
 }
 
 float32x16 LUTMan::sin(float32x16 x)
@@ -28,13 +30,13 @@ float32x16 LUTMan::cos(float32x16 x)
 	float32x16 periods = x * (1.0 / (2 * M_PI));
 	periods = _mm512_floor_ps(periods);
 	x -= periods * (2 * M_PI); //now x is 0..2_PI range
-	float32x16 lutIndex = x * (cosLUT_fp32.size() / (2 * M_PI));
+	float32x16 lutIndex = x * (tables.cos_fp32.size() / (2 * M_PI));
 	
 	int32x16 lutIndexFirst = lutIndex.trunc();
 	int32x16 lutIndexSecond = lutIndexFirst + 1;
 
-	float32x16 lut0 = _mm512_loadu_ps(&cosLUT_fp32);
-	float32x16 lut1 = _mm512_loadu_ps(&cosLUT_fp32[16]);
+	float32x16 lut0 = _mm512_load_ps(&tables.cos_fp32[0]);
+	float32x16 lut1 = _mm512_load_ps(&tables.cos_fp32[16]);
 	//permutes already cut off MSB's, so we can use them without change
 	float32x16 v1 = _mm512_permutex2var_ps(lut0, lutIndexFirst, lut1);
 	float32x16 v2 = _mm512_permutex2var_ps(lut0, lutIndexSecond, lut1);
