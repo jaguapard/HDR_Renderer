@@ -284,7 +284,7 @@ Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(int32x16 packed)
 {
     std::array<__m512i, 8> lut;
-    for (int i = 0; i < 8; ++i) lut[i] = _mm512_load_si512(&LUTMan::rgbToLinear_fp16[i * 32]);
+    for (int i = 0; i < 8; ++i) lut[i] = _mm512_load_si512(&LUTMan::tables.rgbToLinear_fp16[i * 32]);
     Vec4_f32x16 ret;
     ret.a = float32x16(_mm512_cvtepu32_ps(packed >> 24)) * (1.f / 255); //alpha channel is linear already, not gamma encoded
     //zero-extend and split channels into halves, i.e. rgba,rgba,rgba,rgba is now r_r_r_r_g_g_g_g_, b and a in other
