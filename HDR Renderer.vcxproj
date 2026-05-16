@@ -385,11 +385,11 @@
     <ClCompile Include="src\AssetLoader.cpp" />
     <ClCompile Include="src\BoundingBox.cpp" />
     <ClCompile Include="src\C_Input.cpp" />
+    <ClCompile Include="src\Decoder.cpp" />
     <ClCompile Include="src\LUTMan.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Mappers.cpp" />
     <ClCompile Include="src\OSD.cpp" />
-    <ClCompile Include="src\Renderers\ColorPixelBuffer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\BufferZoneManager.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\primitives.cpp" />
@@ -400,6 +400,7 @@
     <ClCompile Include="src\Renderers\RendererBase.cpp" />
     <ClCompile Include="src\Renderers\TextureManager.cpp" />
     <ClCompile Include="src\Statsman.cpp" />
+    <ClCompile Include="src\Texture.cpp" />
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -419,12 +420,12 @@
     <ClInclude Include="src\BlockStore.h" />
     <ClInclude Include="src\BoundingBox.h" />
     <ClInclude Include="src\C_Input.h" />
+    <ClInclude Include="src\Decoder.h" />
     <ClInclude Include="src\EnumCycler.h" />
     <ClInclude Include="src\GameSettings.h" />
     <ClInclude Include="src\helpers.h" />
     <ClInclude Include="src\Mappers.h" />
     <ClInclude Include="src\OSD.h" />
-    <ClInclude Include="src\Renderers\ColorPixelBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\BufferZoneManager.h" />
     <ClInclude Include="src\Renderers\Rasterizing\CoordinateTransformer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\primitives.h" />
@@ -439,6 +440,7 @@
     <ClInclude Include="src\smart.h" />
     <ClInclude Include="src\Statsman.h" />
     <ClInclude Include="src\LUTMan.h" />
+    <ClInclude Include="src\Texture.h" />
     <ClInclude Include="src\Threadpool.h" />
     <ClInclude Include="src\Vec.h" />
   </ItemGroup>
