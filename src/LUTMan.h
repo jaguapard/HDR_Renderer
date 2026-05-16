@@ -11,6 +11,7 @@ public:
 	static float32x16 log2(float32x16 x);
 
 	static const std::array<int16_t, 256> rgbToLinear_fp16; //unlike other LUTs here, this is exact aside rounding differences
+	static const std::array<float, 256> rgbToLinear_fp32; //unlike other LUTs here, this is exact aside rounding differences
 private:
 	static inline std::array<float, 32> sineLUT_fp32, cosLUT_fp32;
 };

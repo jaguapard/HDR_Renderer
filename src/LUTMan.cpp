@@ -11,6 +11,17 @@ alignas(64) const std::array<int16_t, 256> LUTMan::rgbToLinear_fp16 = []() {
 	}
 	return result;
 	}();
+
+alignas(64) const std::array<float, 256> LUTMan::rgbToLinear_fp32 = []() {
+	std::array<float, 256> result;
+	for (int i = 0; i < 256; ++i)
+	{
+		float f32 = pow(i / 255.0, 2.2);
+		result[i] = f32;
+	}
+	return result;
+	}();
+
 void LUTMan::init()
 {
 	//for (int i = 0; i < sineLUT_fp32.size(); ++i) sineLUT_fp32[i] = std::sin(M_PI)
