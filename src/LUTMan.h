@@ -10,6 +10,13 @@ public:
 	static float32x16 cos(float32x16 x);
 	static float32x16 log2(float32x16 x);
 
+	struct __LutMan_tables_t
+	{
+		alignas(64) std::array<int16_t, 256> rgbToLinear_fp16; //unlike other LUTs here, this is exact aside rounding differences
+		alignas(64) std::array<float, 256> rgbToLinear_fp32;  //unlike other LUTs here, this is exact aside rounding differences
+	};
+
+	static const __LutMan_tables_t tables;
 	//Provides a polynomial approximation of degree PolynomialDegree of function y = x^2.2. Only valid for 0 <= x <= 1
 	template<typename T, int PolynomialDegree>
 	static __forceinline T gamma2p2_toLinear(T x)
@@ -32,8 +39,6 @@ public:
 		}
 		else static_assert(false, "Unsupported polynomial degree request for LUTMan::rgbToLinear");
 	}
-	static const std::array<int16_t, 256> rgbToLinear_fp16; //unlike other LUTs here, this is exact aside rounding differences
-	static const std::array<float, 256> rgbToLinear_fp32; //unlike other LUTs here, this is exact aside rounding differences
 private:
 	static inline std::array<float, 32> sineLUT_fp32, cosLUT_fp32;
 };

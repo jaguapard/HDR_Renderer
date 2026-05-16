@@ -2,22 +2,13 @@
 #include "LUTMan.h"
 #include <cmath>
 
-alignas(64) const std::array<int16_t, 256> LUTMan::rgbToLinear_fp16 = []() {
-	std::array<int16_t, 256> result;
+const LUTMan::__LutMan_tables_t LUTMan::tables = []() {
+	LUTMan::__LutMan_tables_t result;
 	for (int i = 0; i < 256; ++i)
 	{
 		float f32 = pow(i / 255.0, 2.2);
-		result[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(f32), _MM_FROUND_TO_NEAREST_INT), 0);
-	}
-	return result;
-	}();
-
-alignas(64) const std::array<float, 256> LUTMan::rgbToLinear_fp32 = []() {
-	std::array<float, 256> result;
-	for (int i = 0; i < 256; ++i)
-	{
-		float f32 = pow(i / 255.0, 2.2);
-		result[i] = f32;
+		result.rgbToLinear_fp32[i] = f32;
+		result.rgbToLinear_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(f32), _MM_FROUND_TO_NEAREST_INT), 0);
 	}
 	return result;
 	}();
