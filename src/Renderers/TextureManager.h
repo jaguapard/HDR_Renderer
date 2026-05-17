@@ -17,6 +17,8 @@ public:
 
 	static inline constexpr int INVALID_HANDLE = -1;
 	static inline constexpr int FALLBACK_HANDLE = 0;
+
+	Vec4_f32x16 gatherLinearIntesitiesFromMultipleTextures(int32x16 textureInd, float32x16 u, float32x16 v, Mask16 mask) const;
 private:
 	std::vector<Texture> textures;
 	//std::vector<uint32_t*> bufferForTexture;
