@@ -17,7 +17,14 @@ public:
 	const SwizzlerParams& getParams() const;
 
 	template<typename T>
-	__forceinline T getIndicesForXY(T x, T y) const
+	struct SwizzlerLocations
+	{
+		T tileIndexX, tileIndexY, insideTileX, insideTileY;
+	};
+
+	//Gets indices in memory for integer positions X and Y. If locationsOutput is not nullptr, tile index and inside tile index data will be stored there
+	template<typename T>
+	__forceinline T getIndicesForXY(T x, T y, SwizzlerLocations<T>* locationsOutput = nullptr) const
 		requires (std::is_integral_v<T> || std::is_same_v<T, int32x16>)
 	{
 		T tileIndexX = x >> this->params.tileBitShift;
@@ -25,6 +32,13 @@ public:
 		T insideTileX = x & this->params.tileBitwiseAndMask;
 		T insideTileY = y & this->params.tileBitwiseAndMask;
 		T ret = (tileIndexY * params.tileCountX + tileIndexX) * params.tileArea + ((insideTileY << params.tileBitShift) + insideTileX);
+		if (locationsOutput)
+		{
+			locationsOutput->insideTileX = insideTileX;
+			locationsOutput->insideTileY = insideTileY;
+			locationsOutput->tileIndexX = tileIndexX;
+			locationsOutput->tileIndexY = tileIndexY;
+		}
 		return ret;
 	}
 private:
