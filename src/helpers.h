@@ -107,3 +107,33 @@ __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
 	__m256i a = _mm256_movm_epi16(m);
 	return _mm256_movepi8_mask(a);
 }
+
+/**
+ * Removes duplicate active values from a 16-lane vector and packs the unique values contiguously.
+ *
+ * Only lanes enabled by `activeMask` participate in deduplication. Inactive lanes are replaced
+ * with `invalidValue` before conflict detection so that undefined data in masked-off lanes cannot
+ * suppress valid entries.
+ *
+ * The output vector contains only the first occurrence of each active value, compressed toward
+ * the lower lanes. Only the first `outUniqueCount` lanes are defined; remaining lanes are undefined.
+ *
+ * @param inputValues     Source values to deduplicate.
+ * @param invalidValue    Value guaranteed not to appear in active lanes. Used to sanitize inactive lanes.
+ * @param activeMask      Mask identifying which input lanes are valid.
+ * @param outUniqueValues Receives the compressed unique values.
+ * @param outUniqueCount  Optional. Receives the number of unique active values.
+ * @param outUniqueMask   Optional. Receives a mask of lanes corresponding to first occurrences.
+ */
+__forceinline void deduplicate_dwords(int32x16 inputValues, int32_t invalidValue, Mask16 activeMask, int32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, Mask16* outUniqueMask = nullptr)
+{
+	//Replace inactive lanes with guaranteed-invalid values so masked-off garbage
+	//cannot participate in conflict detection.
+	int32x16 cleaned = _mm512_mask_mov_epi32(_mm512_set1_epi32(invalidValue), activeMask, inputValues);
+	int32x16 conflicts = _mm512_conflict_epi32(cleaned);
+	Mask16 uniqueMask = activeMask & (conflicts == 0); 	//Keep only active lanes that have no prior occurrence.
+
+	outUniqueValues = _mm512_maskz_compress_epi32(uniqueMask, cleaned);
+	if (outUniqueCount) *outUniqueCount = _mm_popcnt_u32(uniqueMask);
+	if (outUniqueMask) *outUniqueMask = uniqueMask;
+}
