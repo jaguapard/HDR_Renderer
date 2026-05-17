@@ -103,3 +103,29 @@ void TextureManager::clear()
 	while (this->bufferForTexture.size() > 1) this->bufferForTexture.pop_back();
 	while (this->sizesForTexture.size() > 1) this->sizesForTexture.pop_back();*/
 }
+
+Vec4_f32x16 TextureManager::gatherLinearIntesitiesFromMultipleTextures(int32x16 textureInd, float32x16 u, float32x16 v, Mask16 mask) const
+{
+	Vec4_f32x16 texturePixels = 0.f;
+	//Replace inactive lanes with a guaranteed-invalid handle.
+	//Otherwise inactive garbage values can participate in conflict detection and suppress valid active lanes.
+	int32x16 activeDiffuseMapIndices = _mm512_mask_mov_epi32(int32x16(TextureManager::INVALID_HANDLE), mask, textureInd);
+	int32x16 cdResult = _mm512_conflict_epi32(activeDiffuseMapIndices);
+	Mask16 uniqueMask = mask & (cdResult == 0); //and with mask kills off invalid lanes
+	int32x16 uniqueDiffuseMapIndices = _mm512_maskz_compress_epi32(uniqueMask, textureInd); //so this compress can fly - now it only has valid and deduplicated texture indices
+	int uniqueCount = _mm_popcnt_u32(uniqueMask);
+	for (int j = 0; j < uniqueCount; ++j) //TODO: can try to make this fixed-size loop so Clang can optimize memory reads to extracts from uniqueDiffuseMapIndices
+	{
+		int currDiffuseMapIndex = uniqueDiffuseMapIndices[j];
+		Mask16 thisTextureMask = mask & (textureInd == currDiffuseMapIndex);
+		Vec4_f32x16 gathered = this->getTextureByHandle(currDiffuseMapIndex).gatherLinearIntensities(u, v, thisTextureMask);
+		for (int k = 0; k < 4; ++k) texturePixels[k] = _mm512_mask_mov_ps(texturePixels[k], thisTextureMask, gathered[k]);
+		/*
+		if (Statsman::ENABLED)
+		{
+			MyStatsman.rasterizing.textureGatheredLanes += 16;
+			MyStatsman.rasterizing.textureGatherAliveLanes += _mm_popcnt_u32(thisTextureMask);
+		}*/
+	}
+	return texturePixels;
+}
