@@ -3,6 +3,7 @@
 #include <SDL3\SDL_image.h>
 #include "../smart.h"
 #include <iostream>
+#include "../helpers.h"
 
 TextureManager::TextureManager()
 {
@@ -107,14 +108,10 @@ void TextureManager::clear()
 Vec4_f32x16 TextureManager::gatherLinearIntesitiesFromMultipleTextures(const int32x16& textureInd, const float32x16& u, const float32x16& v, const Mask16& mask) const
 {
 	Vec4_f32x16 texturePixels = 0.f;
-	//Replace inactive lanes with a guaranteed-invalid handle.
-	//Otherwise inactive garbage values can participate in conflict detection and suppress valid active lanes.
-	int32x16 activeDiffuseMapIndices = _mm512_mask_mov_epi32(int32x16(TextureManager::INVALID_HANDLE), mask, textureInd);
-	int32x16 cdResult = _mm512_conflict_epi32(activeDiffuseMapIndices);
-	Mask16 uniqueMask = mask & (cdResult == 0); //and with mask kills off invalid lanes
-	int32x16 uniqueDiffuseMapIndices = _mm512_maskz_compress_epi32(uniqueMask, textureInd); //so this compress can fly - now it only has valid and deduplicated texture indices
-	int uniqueCount = _mm_popcnt_u32(uniqueMask);
-	for (int j = 0; j < uniqueCount; ++j) //TODO: can try to make this fixed-size loop so Clang can optimize memory reads to extracts from uniqueDiffuseMapIndices
+	int32x16 uniqueDiffuseMapIndices;
+	uint32_t uniqueCount;
+	deduplicate_dwords(textureInd, TextureManager::INVALID_HANDLE, mask, uniqueDiffuseMapIndices, &uniqueCount);
+	for (uint32_t j = 0; j < uniqueCount; ++j) //TODO: can try to make this fixed-size loop so Clang can optimize memory reads to extracts from uniqueDiffuseMapIndices
 	{
 		int currDiffuseMapIndex = uniqueDiffuseMapIndices[j];
 		Mask16 thisTextureMask = mask & (textureInd == currDiffuseMapIndex);
