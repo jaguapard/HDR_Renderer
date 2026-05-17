@@ -25,7 +25,7 @@ public:
 	void wrapInts(int32x16& x, int32x16& y) const;
 
 	template<typename T>
-	__forceinline std::pair<T, T> UV_to_XY(T u, T v) const
+	__forceinline std::pair<T, T> UV_to_XY(const T& u, const T& v) const
 	{
 		auto [wu, wv] = wrapUV(u, v);
 		return { wu * params.fw, wv * params.fh };

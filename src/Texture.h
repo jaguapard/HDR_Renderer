@@ -11,16 +11,16 @@ struct MipLevel
 	std::vector<uint32_t> colors, opacityMap;
 	WrappingMapper mapper;
 
-	Vec4_f32x16 gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
-	float32x16 gatherA(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
+	Vec4_f32x16 gatherLinearIntensities(const float32x16& u, const float32x16& v, Mask16 mask = 0xFFFF) const;
+	float32x16 gatherA(const float32x16& u, const float32x16& v, Mask16 mask = 0xFFFF) const;
 };
 
 class Texture
 {
 public:
 	Texture(const SDL_Surface* s);
-	Vec4_f32x16 gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
-	float32x16 gatherA(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
+	Vec4_f32x16 gatherLinearIntensities(const float32x16& u, const float32x16& v, const Mask16& mask = 0xFFFF) const;
+	float32x16 gatherA(const float32x16& u, const float32x16& v, const Mask16& mask = 0xFFFF) const;
 private:
 	std::vector<MipLevel> mipLevels;
 };
