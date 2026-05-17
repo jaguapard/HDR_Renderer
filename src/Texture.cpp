@@ -139,3 +139,8 @@ Vec4_f32x16 Texture::gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 
 {
     return this->mipLevels[0].gatherLinearIntensities(u, v, mask);
 }
+
+float32x16 Texture::gatherA(float32x16 u, float32x16 v, Mask16 mask) const
+{
+    return this->mipLevels[0].gatherA(u, v, mask);
+}

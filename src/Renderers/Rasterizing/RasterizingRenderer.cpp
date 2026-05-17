@@ -115,7 +115,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		{
 			auto& currModel = this->sceneModels[firstModelInd + i];
 			//triangleStore.diffuseMapIndex.resize()
-			bool noBackfaceCulling = !this->textureManager.getTextureByHandle(diffuseMapIndices[i]).areAllPixelsOpaque();
+			bool noBackfaceCulling = false;//!this->textureManager.getTextureByHandle(diffuseMapIndices[i]).areAllPixelsOpaque();
 			ModelFlags flags = noBackfaceCulling ? NO_BACKFACE_CULLING : NONE;
 			for (int j = currModel.globalTriangleRange.min; j <= currModel.globalTriangleRange.max; ++j)
 			{
@@ -753,13 +753,12 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 						Vec4_f32x16 texturePixels;
 						if (depthOnly)
 						{
-							auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-							texturePixels.a = accessor.gatherA();
+							texturePixels.a = texture.gatherA(uvCorrected.x, uvCorrected.y, notOccludedPoints);
 							if (Statsman::ENABLED) 
 							{
 								MyStatsman.rasterizing.opacityMapGatherLanes += 16;
-								MyStatsman.rasterizing.opacityMapGatherLanesLive += _mm_popcnt_u32(accessor.gatherMask);
-								MyStatsman.rasterizing.opacityMapGatherLanesUnique += _mm_popcnt_u32(accessor.gatherMask & (int32x16(_mm512_conflict_epi32(accessor.gatherInd)) == 0));
+								MyStatsman.rasterizing.opacityMapGatherLanesLive += _mm_popcnt_u32(notOccludedPoints);
+								//MyStatsman.rasterizing.opacityMapGatherLanesUnique += _mm_popcnt_u32(accessor.gatherMask & (int32x16(_mm512_conflict_epi32(accessor.gatherInd)) == 0));
 							}
 						}
 

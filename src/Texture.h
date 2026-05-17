@@ -20,6 +20,7 @@ class Texture
 public:
 	Texture(const SDL_Surface* s);
 	Vec4_f32x16 gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
+	float32x16 gatherA(float32x16 u, float32x16 v, Mask16 mask = 0xFFFF) const;
 private:
 	std::vector<MipLevel> mipLevels;
 };

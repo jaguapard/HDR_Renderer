@@ -288,6 +288,8 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
 				if (hits.raysHit)
 				{
+					/*
+					* //TODO: reenable this!
 					for (int i = 0; i < 16; ++i)
 					{
 						if (!(hits.raysHit.mask & (1 << i))) continue;
@@ -297,7 +299,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 						textureColors.y[i] = texturePixel.y;
 						textureColors.z[i] = texturePixel.z;
 						textureColors.w[i] = texturePixel.w;
-					}
+					}*/
 					
 					float32x16 normalShadingMult = _mm512_max_ps(_mm512_setzero_ps(), hits.normals.dot3d(lightDir));
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
@@ -367,8 +369,8 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
 
 			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex].textureIndex);
-			auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle); //todo: add t < ret.t?
-			float32x16 textureAlpha = accessor.gatherA();
+			//auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle); //todo: add t < ret.t?
+			float32x16 textureAlpha = texture.gatherA(uv.x, uv.y, raysHittingThisTriangle);
 
 			Mask16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
 			ret.raysHit |= toOverride;
