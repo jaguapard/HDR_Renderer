@@ -14,11 +14,6 @@ WrappingMapper::WrappingMapper(uint32_t w, uint32_t h)
 	this->params.f64_h = h;
 }
 
-const WrappingMapper::Params& WrappingMapper::getParams() const
-{
-	return params;
-}
-
 void WrappingMapper::wrapInts(int32x16& x, int32x16& y) const
 {
 	x = this->wrapIntWithRcp(x, this->params.u64_rcpW, this->params.w);
