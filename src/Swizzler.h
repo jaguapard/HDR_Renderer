@@ -4,7 +4,7 @@
 
 struct SwizzlerParams
 {
-	uint32_t w, h, paddedW, paddedH, tileSizePerAxis, tileArea, tileBitShift, tileBitwiseAndMask, tileCountX, tileCountY;
+	uint32_t w, h, paddedW, paddedH, tileSizePerAxis, tileArea, log2_perAxisSize, tileBitwiseAndMask, tileCountX, tileCountY;
 };
 
 template<typename T>
@@ -19,7 +19,7 @@ class Swizzler
 {
 public:
 	Swizzler() = default;
-	Swizzler(uint32_t w, uint32_t h, uint32_t tileBitShift);
+	Swizzler(uint32_t w, uint32_t h, uint32_t log2_perAxisSize);
 	const SwizzlerParams& getParams() const;
 
 	//Gets indices in memory for integer positions X and Y. If locationsOutput is not nullptr, tile index and inside tile index data will be stored there
@@ -27,11 +27,11 @@ public:
 	__forceinline T getIndicesForXY(T x, T y, SwizzlerLocations<T>* locationsOutput = nullptr) const
 		requires (std::is_integral_v<T> || std::is_same_v<T, int32x16>)
 	{
-		T tileIndexX = x >> this->params.tileBitShift;
-		T tileIndexY = y >> this->params.tileBitShift;
+		T tileIndexX = x >> this->params.log2_perAxisSize;
+		T tileIndexY = y >> this->params.log2_perAxisSize;
 		T insideTileX = x & this->params.tileBitwiseAndMask;
 		T insideTileY = y & this->params.tileBitwiseAndMask;
-		T ret = (tileIndexY * params.tileCountX + tileIndexX) * params.tileArea + ((insideTileY << params.tileBitShift) + insideTileX);
+		T ret = (tileIndexY * params.tileCountX + tileIndexX) * params.tileArea + ((insideTileY << params.log2_perAxisSize) + insideTileX);
 		if (locationsOutput)
 		{
 			locationsOutput->insideTileX = insideTileX;
