@@ -385,6 +385,7 @@
     <ClCompile Include="src\AssetLoader.cpp" />
     <ClCompile Include="src\BoundingBox.cpp" />
     <ClCompile Include="src\C_Input.cpp" />
+    <ClCompile Include="src\Decoder.cpp" />
     <ClCompile Include="src\LUTMan.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Mappers.cpp" />
@@ -420,6 +421,7 @@
     <ClInclude Include="src\BlockStore.h" />
     <ClInclude Include="src\BoundingBox.h" />
     <ClInclude Include="src\C_Input.h" />
+    <ClInclude Include="src\Decoder.h" />
     <ClInclude Include="src\EnumCycler.h" />
     <ClInclude Include="src\GameSettings.h" />
     <ClInclude Include="src\helpers.h" />

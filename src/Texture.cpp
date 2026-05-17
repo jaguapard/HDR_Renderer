@@ -1,5 +1,7 @@
 #include "Texture.h"
 #include "helpers.h"
+#include "Decoder.h"
+
 MipLevel::MipLevel(uint32_t w, uint32_t h)
 {
 	this->mapper = { w,h };
@@ -23,7 +25,6 @@ Vec4_f32x16 MipLevel::gatherLinearIntensities(float32x16 u, float32x16 v, Mask16
         int sy = i / 2;
         int32x16 sampleX = startX + sx, sampleY = startY + sy;
         this->mapper.wrapInts(sampleX, sampleY);
-
         
         int32x16 samples = int32x16::gather(this->colors.data(), sampleY * p.w + sampleX, mask);
         linear[i] = Decoder::RGBA8888_to_linear_using_FP16_LUT(samples);

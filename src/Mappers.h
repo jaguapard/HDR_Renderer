@@ -25,7 +25,7 @@ public:
 	std::pair<T, T> UV_to_XY(T u, T v) const
 	{
 		auto [wu, wv] = wrapUV(u, v);
-		return { wu * fw, wv * fh };
+		return { wu * params.fw, wv * params.fh };
 	}
 	/**
 	@param x: value to be wrapped around
