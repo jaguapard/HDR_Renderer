@@ -19,22 +19,6 @@ ColorPixelBuffer::ColorPixelBuffer(uint32_t w, uint32_t h)
 }
 
 
-int32x16 morton_half(int32x16 v)
-{
-    v = (v | (v << 8)) & 0x00FF00FF;
-    v = (v | (v << 4)) & 0x0F0F0F0F;
-    v = (v | (v << 2)) & 0x33333333;
-    v = (v | (v << 1)) & 0x55555555;
-    return v;
-}
-
-//only works for 16 bit x and y!!!
-int32x16 morton(int32x16 x, int32x16 y)
-{
-    return morton_half(x) | (morton_half(y) << 1);
-}
-
-
 ColorPixelBufferGatherAccessor ColorPixelBuffer::getGatherAccessor(float32x16 u, float32x16 v, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = Mapper::UV_to_XY<MappingType::WRAP>(u, v, sizes.w, sizes.h);
