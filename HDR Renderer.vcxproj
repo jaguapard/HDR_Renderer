@@ -400,6 +400,7 @@
     <ClCompile Include="src\Renderers\RendererBase.cpp" />
     <ClCompile Include="src\Renderers\TextureManager.cpp" />
     <ClCompile Include="src\Statsman.cpp" />
+    <ClCompile Include="src\Swizzler.cpp" />
     <ClCompile Include="src\Texture.cpp" />
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
@@ -440,6 +441,7 @@
     <ClInclude Include="src\smart.h" />
     <ClInclude Include="src\Statsman.h" />
     <ClInclude Include="src\LUTMan.h" />
+    <ClInclude Include="src\Swizzler.h" />
     <ClInclude Include="src\Texture.h" />
     <ClInclude Include="src\Threadpool.h" />
     <ClInclude Include="src\Vec.h" />
