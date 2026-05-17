@@ -2,22 +2,27 @@
 
 WrappingMapper::WrappingMapper(uint32_t w, uint32_t h)
 {
-	this->w = w;
-	this->h = h;
-	this->fw = w;
-	this->fh = h;
-	this->u64_rcpW = uint64_t(1ull << 32) / w;
-	this->u64_rcpH = uint64_t(1ull << 32) / h;
-	this->f64_rcpW = 1.0 / w;
-	this->f64_rcpH = 1.0 / h;
-	this->f64_w = w;
-	this->f64_h = h;
+	this->params.w = w;
+	this->params.h = h;
+	this->params.fw = w;
+	this->params.fh = h;
+	this->params.u64_rcpW = uint64_t(1ull << 32) / w;
+	this->params.u64_rcpH = uint64_t(1ull << 32) / h;
+	this->params.f64_rcpW = 1.0 / w;
+	this->params.f64_rcpH = 1.0 / h;
+	this->params.f64_w = w;
+	this->params.f64_h = h;
+}
+
+const WrappingMapper::Params& WrappingMapper::getParams() const
+{
+	return params;
 }
 
 void WrappingMapper::wrapInts(int32x16& x, int32x16& y) const
 {
-	x = this->wrapIntWithRcp(x, u64_rcpW, w);
-	y = this->wrapIntWithRcp(y, u64_rcpH, h);
+	x = this->wrapIntWithRcp(x, this->params.u64_rcpW, this->params.w);
+	y = this->wrapIntWithRcp(y, this->params.u64_rcpH, this->params.h);
 }
 
 int32x16 WrappingMapper::wrapIntWithRcp(int32x16 x, uint64_t rcp, uint32_t v)
@@ -49,4 +54,31 @@ int32x16 WrappingMapper::wrapPositiveIntWithRcp(int32x16 x, uint64_t rcp, uint32
 	__m256i reml = _mm512_cvtepi64_epi32(remLo);
 	__m256i remh = _mm512_cvtepi64_epi32(remHi);
 	return _mm512_inserti32x8(_mm512_castsi256_si512(reml), remh, 1);
+}
+
+std::pair<float, float> WrappingMapper::wrapUV(float u, float v)
+{
+	u -= std::floor(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+	u -= std::floor(u);
+	v -= std::floor(v);
+	v -= std::floor(v);
+	return { u,v };
+}
+
+std::pair<float32x8, float32x8> WrappingMapper::wrapUV(float32x8 u, float32x8 v)
+{
+	u -= _mm256_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+	u -= _mm256_floor_ps(u);
+	v -= _mm256_floor_ps(v);
+	v -= _mm256_floor_ps(v);
+	return { u,v };
+}
+
+std::pair<float32x16, float32x16> WrappingMapper::wrapUV(float32x16 u, float32x16 v)
+{
+	u -= _mm512_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+	u -= _mm512_floor_ps(u);
+	v -= _mm512_floor_ps(v);
+	v -= _mm512_floor_ps(v);
+	return { u,v };
 }

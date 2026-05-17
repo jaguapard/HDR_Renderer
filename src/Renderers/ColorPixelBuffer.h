@@ -30,9 +30,6 @@ enum class MappingType
 
 struct Mapper
 {
-	static std::pair<float, float> wrapUV(float u, float v);
-	static std::pair<float32x8, float32x8> wrapUV(float32x8 u, float32x8 v);
-	static std::pair<float32x16, float32x16> wrapUV(float32x16 u, float32x16 v);
 
 	//wraps integers a and b into range 0 <= a < amax, 0 <= b < bmax
 	static std::pair<uint32_t, uint32_t> wrapIntsWithRcp(int a, int b, uint32_t amax, uint64_t rcp_aMax, uint32_t bmax, uint64_t rcp_bMax);
@@ -45,35 +42,6 @@ struct Mapper
 
 	//uses special value provided to replace division with multiplication and shift
 	static uint32_t wrapIntWithRcp(int a, uint32_t amax, uint64_t rcp_aMax);
-
-	template <MappingType M, typename T>
-	static std::pair<T, T> UV_to_XY(T u, T v, float w, float h)
-	{
-		if constexpr (M == MappingType::WRAP)
-		{
-			auto [wu, wv] = wrapUV(u, v);
-			return { wu * w, wv * h };
-		}
-
-		if constexpr (M == MappingType::CLAMP)
-		{
-			T x = u * w;
-			T y = v * h;
-			if constexpr (std::is_same_v<T, float32x16>)
-			{
-				return { x.clamp(0,w - 1), y.clamp(0,h - 1) };
-			}
-			if constexpr (std::is_same_v<T, float>)
-			{
-				return { std::clamp(x,0,w - 1), std::clamp(y,0,h - 1) };
-			}
-		}
-
-		if constexpr (M == MappingType::PLAIN)
-		{
-			return { u * w, v * h };
-		}
-	}
 };
 
 struct Swizzler

@@ -400,6 +400,7 @@
     <ClCompile Include="src\Renderers\RendererBase.cpp" />
     <ClCompile Include="src\Renderers\TextureManager.cpp" />
     <ClCompile Include="src\Statsman.cpp" />
+    <ClCompile Include="src\Texture.cpp" />
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -289,33 +289,6 @@ Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(int32x16 packed)
     return ret;
 }
 
-std::pair<float, float> Mapper::wrapUV(float u, float v)
-{
-    u -= std::floor(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
-    u -= std::floor(u);
-    v -= std::floor(v);
-    v -= std::floor(v);
-    return { u,v };
-}
-
-std::pair<float32x8, float32x8> Mapper::wrapUV(float32x8 u, float32x8 v)
-{
-    u -= _mm256_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
-    u -= _mm256_floor_ps(u);
-    v -= _mm256_floor_ps(v);
-    v -= _mm256_floor_ps(v);
-    return { u,v };
-}
-
-std::pair<float32x16, float32x16> Mapper::wrapUV(float32x16 u, float32x16 v)
-{
-    u -= _mm512_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
-    u -= _mm512_floor_ps(u);
-    v -= _mm512_floor_ps(v);
-    v -= _mm512_floor_ps(v);
-    return { u,v };
-}
-
 std::pair<uint32_t, uint32_t> Mapper::wrapIntsWithRcp(int a, int b, uint32_t amax, uint64_t rcp_aMax, uint32_t bmax, uint64_t rcp_bMax)
 {
     return { wrapIntWithRcp(a,amax,rcp_aMax), wrapIntWithRcp(b,bmax,rcp_bMax) };
