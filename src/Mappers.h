@@ -15,14 +15,17 @@ public:
 		uint64_t u64_rcpW, u64_rcpH;
 		double f64_rcpW, f64_rcpH, f64_w, f64_h;
 	};
-	const Params& getParams() const;
+	__forceinline const Params& getParams() const
+	{
+		return params;
+	}
 	//Wraps x around w and y around h in-place using this instance's values.
 	//It is guaranteed than returned x >= 0 && x < w && y >= 0 && y < h
 	//Negative values are not mirrored, x == -1 wraps to w-1, not to 1, x == -w wraps to 0, x == -w-1 wraps to 1, etc.
 	void wrapInts(int32x16& x, int32x16& y) const;
 
 	template<typename T>
-	std::pair<T, T> UV_to_XY(T u, T v) const
+	__forceinline std::pair<T, T> UV_to_XY(T u, T v) const
 	{
 		auto [wu, wv] = wrapUV(u, v);
 		return { wu * params.fw, wv * params.fh };
