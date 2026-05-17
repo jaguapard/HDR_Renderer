@@ -57,8 +57,6 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                     const uint32_t* srcRow = std::bit_cast<const uint32_t*>(size_t(srcPixels) + s->pitch * y);
                     for (int x = 0; x < w; x += 16)
                     {
-                        //reencode gamma 2.2 texture into gamma 2 with expanded precision for internal use. Gamma 2 greatly simplifies texture->linear conversion (x*x instead of x^2.2),
-                        //meaning you can just use multiplication instead of power, much faster, and error is >1% mostly, more on very dark shades.
                         //alpha is binary, all values above 0 considered fully opaque. TODO: when implementing transparency, change this
                         Mask16 boundsMask = (int32x16::sequence() + x) < w;
                         int32x16 srcUint32 = _mm512_maskz_loadu_epi32(boundsMask, srcRow + x);
@@ -68,9 +66,7 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
                         int32x16 dstB = (srcUint32 >> 16) & 0xFF;
                         int32x16 dstA = (srcUint32 >> 24) & 0xFF;
                         int32x16 dstFull = dstR | (dstG << 8) | (dstB << 16) | (dstA << 24);
-                        //R10G11B10A1
                         _mm512_mask_storeu_epi32(&this->packedColors[y * w + x], boundsMask, dstFull.zmm);
-                        //this->packedColors[y * w + x] = storeUint;
                     }
                 }
             }
@@ -94,30 +90,6 @@ ColorPixelBuffer::ColorPixelBuffer(const SDL_Surface* s)
             if (~mt) this->isFullyOpaque = false;
         }
     }
-
-    /*
-    * This format supplies linear intensities. Alpha uncertain. Don't use for now
-    if (s->format == SDL_PIXELFORMAT_RGBA128_FLOAT)
-    {
-        //if (s->pitch % sizeof(Vec4f) != 0) throw std::runtime_error("ABGR128 input pitch not divisible by sizeof float!");
-        const Vec4f* srcPixels = (Vec4f*)(s->pixels);
-        this->init(w, h);
-        for (int y = 0; y < h; ++y)
-        {
-            const Vec4f* srcRow = std::bit_cast<const Vec4f*>(size_t(srcPixels) + s->pitch * y);
-            for (int x = 0; x < w; ++x)
-            {
-                Vec4f linear = srcRow[x];
-                Vec4f gammaEncoded = _mm_pow_ps(linear, _mm_set1_ps(1/2.2));
-                gammaEncoded *= 255;
-                uint32_t dstR = gammaEncoded.x, dstG = gammaEncoded.y, dstB = gammaEncoded.z, dstA = linear.w*255;
-
-                //TODO: gamma 2 and expansion to R/G/B 11/11/10 bits and 1 bit alpha. For now, just save back
-                //TODO: seems a bit bright?
-                this->packedColors[y * w + x] = dstR | (dstG << 8) | (dstB << 16) | (dstA << 24);
-            }
-        }
-    }*/
     else
     {
         throw std::runtime_error("Unsupported pixel format for ColorPixelBuffer import: ");
