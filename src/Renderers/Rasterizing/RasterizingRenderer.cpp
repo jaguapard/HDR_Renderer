@@ -115,7 +115,7 @@ void RasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		{
 			auto& currModel = this->sceneModels[firstModelInd + i];
 			//triangleStore.diffuseMapIndex.resize()
-			bool noBackfaceCulling = !this->textureManager.getTextureByHandle(diffuseMapIndices[i]).areAllPixelsOpaque();
+			bool noBackfaceCulling = false;//!this->textureManager.getTextureByHandle(diffuseMapIndices[i]).areAllPixelsOpaque();
 			ModelFlags flags = noBackfaceCulling ? NO_BACKFACE_CULLING : NONE;
 			for (int j = currModel.globalTriangleRange.min; j <= currModel.globalTriangleRange.max; ++j)
 			{
@@ -753,13 +753,12 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 						Vec4_f32x16 texturePixels;
 						if (depthOnly)
 						{
-							auto accessor = texture.getGatherAccessor(uvCorrected.x, uvCorrected.y, notOccludedPoints);
-							texturePixels.a = accessor.gatherA();
+							texturePixels.a = texture.gatherA(uvCorrected.x, uvCorrected.y, notOccludedPoints);
 							if (Statsman::ENABLED) 
 							{
 								MyStatsman.rasterizing.opacityMapGatherLanes += 16;
-								MyStatsman.rasterizing.opacityMapGatherLanesLive += _mm_popcnt_u32(accessor.gatherMask);
-								MyStatsman.rasterizing.opacityMapGatherLanesUnique += _mm_popcnt_u32(accessor.gatherMask & (int32x16(_mm512_conflict_epi32(accessor.gatherInd)) == 0));
+								MyStatsman.rasterizing.opacityMapGatherLanesLive += _mm_popcnt_u32(notOccludedPoints);
+								//MyStatsman.rasterizing.opacityMapGatherLanesUnique += _mm_popcnt_u32(accessor.gatherMask & (int32x16(_mm512_conflict_epi32(accessor.gatherInd)) == 0));
 							}
 						}
 
@@ -922,25 +921,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			Vec4_f32x16 texturePixels;
 			if (texturingEnabled)
 			{
-				//Replace inactive lanes with a guaranteed-invalid handle.
-				//Otherwise inactive garbage values can participate in conflict detection and suppress valid active lanes.
-				int32x16 activeDiffuseMapIndices = _mm512_mask_mov_epi32(int32x16(TextureManager::INVALID_HANDLE), filledPixels, diffuseMapIndices);
-				int32x16 cdResult = _mm512_conflict_epi32(activeDiffuseMapIndices);
-				Mask16 uniqueMask = filledPixels & (cdResult == 0); //and with filledPixels kills off invalid lanes
-				int32x16 uniqueDiffuseMapIndices = _mm512_maskz_compress_epi32(uniqueMask, diffuseMapIndices); //so this compress can fly - now it only has valid and deduplicated texture indices
-				int uniqueCount = _mm_popcnt_u32(uniqueMask);
-				for (int j = 0; j < uniqueCount; ++j) //TODO: can try to make this fixed-size loop so Clang can optimize memory reads to extracts from uniqueDiffuseMapIndices
-				{
-					int currDiffuseMapIndex = uniqueDiffuseMapIndices[j];
-					Mask16 thisTextureMask = filledPixels & (diffuseMapIndices == currDiffuseMapIndex);
-					Vec4_f32x16 gathered = this->textureManager.getTextureByHandle(currDiffuseMapIndex).gatherLinearIntensities(uv.x, uv.y, thisTextureMask);
-					for (int k = 0; k < 4; ++k) texturePixels[k] = _mm512_mask_mov_ps(texturePixels[k], thisTextureMask, gathered[k]);
-					if (Statsman::ENABLED)
-					{
-						MyStatsman.rasterizing.textureGatheredLanes += 16;
-						MyStatsman.rasterizing.textureGatherAliveLanes += _mm_popcnt_u32(thisTextureMask);
-					}
-				}
+				texturePixels = this->textureManager.gatherLinearIntesitiesFromMultipleTextures(diffuseMapIndices, uv.x, uv.y, filledPixels);
 			}
 			else
 			{

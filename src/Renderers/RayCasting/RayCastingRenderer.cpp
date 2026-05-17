@@ -288,16 +288,9 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				Vec4_f32x16 textureColors(0.f, 0.f, 0.f, 1.f);
 				if (hits.raysHit)
 				{
-					for (int i = 0; i < 16; ++i)
-					{
-						if (!(hits.raysHit.mask & (1 << i))) continue;
-						int diffuseMapIndex = this->sceneModels[hits.modelIndices[i]].textureIndex;
-						Vec4f texturePixel = this->textureManager.getTextureByHandle(diffuseMapIndex).getLinearIntensity(hits.textureCoords[0][i], hits.textureCoords[1][i]);
-						textureColors.x[i] = texturePixel.x;
-						textureColors.y[i] = texturePixel.y;
-						textureColors.z[i] = texturePixel.z;
-						textureColors.w[i] = texturePixel.w;
-					}
+					int32x16 modelTextureIndOffset = hits.modelIndices * sizeof(RayCasting::Model) + offsetof(RayCasting::Model, textureIndex);
+					int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(int32x16(0), hits.raysHit, modelTextureIndOffset, this->sceneModels.data(), 1);
+					textureColors = this->textureManager.gatherLinearIntesitiesFromMultipleTextures(diffuseMapIndices, hits.textureCoords[0], hits.textureCoords[1], hits.raysHit);
 					
 					float32x16 normalShadingMult = _mm512_max_ps(_mm512_setzero_ps(), hits.normals.dot3d(lightDir));
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
@@ -367,8 +360,8 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
 
 			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex].textureIndex);
-			auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle); //todo: add t < ret.t?
-			float32x16 textureAlpha = accessor.gatherA();
+			//auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle); //todo: add t < ret.t?
+			float32x16 textureAlpha = texture.gatherA(uv.x, uv.y, raysHittingThisTriangle);
 
 			Mask16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
 			ret.raysHit |= toOverride;
