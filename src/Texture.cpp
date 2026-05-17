@@ -30,7 +30,7 @@ MipLevel::MipLevel(uint32_t w, uint32_t h)
 }
 
 [[gnu::target("avx512vbmi")]]
-Vec4_f32x16 MipLevel::gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask) const
+Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32x16& v, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
     float32x16 lerpT_x = pixelsX - float32x16(_mm512_floor_ps(pixelsX));
@@ -56,7 +56,7 @@ Vec4_f32x16 MipLevel::gatherLinearIntensities(float32x16 u, float32x16 v, Mask16
     return lerp(lerp1, lerp2, lerpT_y);
 }
 
-float32x16 MipLevel::gatherA(float32x16 u, float32x16 v, Mask16 mask) const
+float32x16 MipLevel::gatherA(const float32x16& u, const float32x16& v, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
     //TODO: same filtering for opacity maps as textures, else it creates disagreement between stages
@@ -135,12 +135,12 @@ Texture::Texture(const SDL_Surface* s)
     }
 }
 
-Vec4_f32x16 Texture::gatherLinearIntensities(float32x16 u, float32x16 v, Mask16 mask) const
+Vec4_f32x16 Texture::gatherLinearIntensities(const float32x16& u, const float32x16& v, const Mask16& mask) const
 {
     return this->mipLevels[0].gatherLinearIntensities(u, v, mask);
 }
 
-float32x16 Texture::gatherA(float32x16 u, float32x16 v, Mask16 mask) const
+float32x16 Texture::gatherA(const float32x16& u, const float32x16& v, const Mask16& mask) const
 {
     return this->mipLevels[0].gatherA(u, v, mask);
 }

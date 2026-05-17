@@ -104,7 +104,7 @@ void TextureManager::clear()
 	while (this->sizesForTexture.size() > 1) this->sizesForTexture.pop_back();*/
 }
 
-Vec4_f32x16 TextureManager::gatherLinearIntesitiesFromMultipleTextures(int32x16 textureInd, float32x16 u, float32x16 v, Mask16 mask) const
+Vec4_f32x16 TextureManager::gatherLinearIntesitiesFromMultipleTextures(const int32x16& textureInd, const float32x16& u, const float32x16& v, const Mask16& mask) const
 {
 	Vec4_f32x16 texturePixels = 0.f;
 	//Replace inactive lanes with a guaranteed-invalid handle.
