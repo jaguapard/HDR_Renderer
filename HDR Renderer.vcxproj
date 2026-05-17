@@ -390,7 +390,6 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Mappers.cpp" />
     <ClCompile Include="src\OSD.cpp" />
-    <ClCompile Include="src\Renderers\ColorPixelBuffer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\BufferZoneManager.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp" />
     <ClCompile Include="src\Renderers\Rasterizing\primitives.cpp" />
@@ -427,7 +426,6 @@
     <ClInclude Include="src\helpers.h" />
     <ClInclude Include="src\Mappers.h" />
     <ClInclude Include="src\OSD.h" />
-    <ClInclude Include="src\Renderers\ColorPixelBuffer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\BufferZoneManager.h" />
     <ClInclude Include="src\Renderers\Rasterizing\CoordinateTransformer.h" />
     <ClInclude Include="src\Renderers\Rasterizing\primitives.h" />
