@@ -125,7 +125,7 @@ __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
  * @param outUniqueCount  Optional. Receives the number of unique active values.
  * @param outUniqueMask   Optional. Receives a mask of lanes corresponding to first occurrences.
  */
-__forceinline void deduplicate_dwords(int32x16 inputValues, int32_t invalidValue, Mask16 activeMask, int32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, Mask16* outUniqueMask = nullptr)
+__forceinline void deduplicate_epi32x16(int32x16 inputValues, int32_t invalidValue, Mask16 activeMask, int32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, Mask16* outUniqueMask = nullptr)
 {
 	//Replace inactive lanes with guaranteed-invalid values so masked-off garbage
 	//cannot participate in conflict detection.
@@ -136,4 +136,16 @@ __forceinline void deduplicate_dwords(int32x16 inputValues, int32_t invalidValue
 	outUniqueValues = _mm512_maskz_compress_epi32(uniqueMask, cleaned);
 	if (outUniqueCount) *outUniqueCount = _mm_popcnt_u32(uniqueMask);
 	if (outUniqueMask) *outUniqueMask = uniqueMask;
+}
+
+/**
+Removes duplicate active values from a 16-lane vector and packs the unique values contiguously.
+Does NOT check for NANs or infinities, operates only on bitwise representations!
+Check deduplicate_epi32x16 for more details
+*/
+__forceinline void deduplicate_ps512(float32x16 inputValues, float invalidValue, Mask16 activeMask, float32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, Mask16* outUniqueMask = nullptr)
+{
+	int32x16 unique;
+	deduplicate_epi32x16(_mm512_castps_si512(inputValues), std::bit_cast<int32_t>(invalidValue), activeMask, unique, outUniqueCount, outUniqueMask);
+	outUniqueValues = _mm512_castsi512_ps(unique);
 }

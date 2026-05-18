@@ -110,7 +110,7 @@ Vec4_f32x16 TextureManager::gatherLinearIntesitiesFromMultipleTextures(const int
 	Vec4_f32x16 texturePixels = 0.f;
 	int32x16 uniqueDiffuseMapIndices;
 	uint32_t uniqueCount;
-	deduplicate_dwords(textureInd, TextureManager::INVALID_HANDLE, mask, uniqueDiffuseMapIndices, &uniqueCount);
+	deduplicate_epi32x16(textureInd, TextureManager::INVALID_HANDLE, mask, uniqueDiffuseMapIndices, &uniqueCount);
 	for (uint32_t j = 0; j < uniqueCount; ++j) //TODO: can try to make this fixed-size loop so Clang can optimize memory reads to extracts from uniqueDiffuseMapIndices
 	{
 		int currDiffuseMapIndex = uniqueDiffuseMapIndices[j];
