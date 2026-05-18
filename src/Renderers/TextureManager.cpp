@@ -126,3 +126,25 @@ Vec4_f32x16 TextureManager::gatherLinearIntesitiesFromMultipleTextures(const int
 	}
 	return texturePixels;
 }
+
+float32x16 TextureManager::gatherAlphaFromMultipleTextures(const int32x16& textureInd, const float32x16& u, const float32x16& v, const Mask16& mask) const
+{
+	float32x16 ret = 0.f;
+	int32x16 uniqueDiffuseMapIndices;
+	uint32_t uniqueCount;
+	deduplicate_epi32x16(textureInd, TextureManager::INVALID_HANDLE, mask, uniqueDiffuseMapIndices, &uniqueCount);
+	for (uint32_t j = 0; j < uniqueCount; ++j) //TODO: can try to make this fixed-size loop so Clang can optimize memory reads to extracts from uniqueDiffuseMapIndices
+	{
+		int currDiffuseMapIndex = uniqueDiffuseMapIndices[j];
+		Mask16 thisTextureMask = mask & (textureInd == currDiffuseMapIndex);
+		float32x16 gathered = this->getTextureByHandle(currDiffuseMapIndex).gatherA(u, v, thisTextureMask);
+		ret =_mm512_mask_mov_ps(ret, thisTextureMask, gathered);
+		/*
+		if (Statsman::ENABLED)
+		{
+			MyStatsman.rasterizing.textureGatheredLanes += 16;
+			MyStatsman.rasterizing.textureGatherAliveLanes += _mm_popcnt_u32(thisTextureMask);
+		}*/
+	}
+	return ret;
+}
