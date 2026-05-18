@@ -11,7 +11,7 @@ struct SwizzlerParams
 template<typename T>
 struct SwizzlerLocations
 {
-	T tileIndexX, tileIndexY, insideTileX, insideTileY;
+	T tileIndex, tileIndexX, tileIndexY, insideTileIndex, insideTileX, insideTileY;
 };
 
 //Class that performs remapping of integer coordinates (X,Y) to memory indices that the elements reside in based on parameters supplied at class instance's creation
@@ -58,6 +58,8 @@ public:
 			locationsOutput->insideTileY = insideTileY;
 			locationsOutput->tileIndexX = tileIndexX;
 			locationsOutput->tileIndexY = tileIndexY;
+			locationsOutput->tileIndex = tileIndexY * params.tileCountX + tileIndexX;
+			locationsOutput->insideTileIndex = insideTileY * TileSizePerAxis + insideTileX;
 		}
 		return ret;
 	}
