@@ -638,7 +638,9 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 struct PixelScavenger
 {
 	static inline constexpr uint32_t MAX_SIZE = 256;
-	std::array<float, MAX_SIZE+16> x, y;
+	static inline constexpr uint32_t ALLOC_SIZE = MAX_SIZE+16;
+	std::array<float, ALLOC_SIZE> x, y; //TODO: change this to 16-bit integer indices?
+	std::array<int, ALLOC_SIZE> inBatchInd; //TODO: change this to 8-bit indices?
 	uint32_t size = 0;
 };
 void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const int threadIndex)
@@ -706,8 +708,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 
 					float32x16 cx = _mm512_maskz_compress_ps(pointsInsideTriangleMask, x);
 					float32x16 cy = _mm512_maskz_compress_ps(pointsInsideTriangleMask, y);
+					int32x16 ci = _mm512_maskz_compress_epi32(pointsInsideTriangleMask, _mm512_set1_epi32(i));
 					_mm512_storeu_ps(&scavenger.x[scavenger.size], cx);
 					_mm512_storeu_ps(&scavenger.y[scavenger.size], cy);
+					_mm512_storeu_epi32(&scavenger.inBatchInd[scavenger.size], ci);
 					scavenger.size += _mm_popcnt_u32(pointsInsideTriangleMask);
 					if (scavenger.size < scavenger.MAX_SIZE) continue;
 
