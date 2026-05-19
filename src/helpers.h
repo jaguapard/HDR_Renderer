@@ -9,12 +9,8 @@ __forceinline InterpolandType lerp(const InterpolandType& start, const Interpola
 	return start + (end - start) * amount;
 }
 
-__forceinline float inverse_lerp(float from, float to, float value)
-{
-	return (value - from) / (to - from);
-}
-
-__forceinline float32x16 inverse_lerp(float32x16 from, float32x16 to, float32x16 value)
+template <typename InterpolandType>
+__forceinline float inverse_lerp(const InterpolandType& from, const InterpolandType& to, const InterpolandType& value)
 {
 	return (value - from) / (to - from);
 }
