@@ -44,6 +44,5 @@ public:
 
 private:
 	Params params;
-	void wrapIntsPositive(int32x16& x, int32x16& y) const;
 	static int32x16 wrapPositiveIntWithRcp(int32x16 x, uint64_t rcp, uint32_t v);
 };

@@ -31,11 +31,6 @@ int32x16 WrappingMapper::wrapIntWithRcp(int32x16 x, uint64_t rcp, uint32_t v)
 	return rem;
 }
 
-void WrappingMapper::wrapIntsPositive(int32x16& x, int32x16& y) const
-{
-	for (int i = 0; i < 16; ++i) assert(x[i] >= 0 && y[i] >= 0);
-}
-
 int32x16 WrappingMapper::wrapPositiveIntWithRcp(int32x16 x, uint64_t rcp, uint32_t v)
 {
 	for (int i = 0; i < 16; ++i) assert(x[i] >= 0);
