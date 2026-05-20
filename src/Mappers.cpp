@@ -46,9 +46,7 @@ int32x16 WrappingMapper::wrapPositiveIntWithRcp(int32x16 x, uint64_t rcp, uint32
 	__m512i divHi = _mm512_srli_epi64(_mm512_mullo_epi64(hi64, _mm512_set1_epi64(rcp)), 32);
 	__m512i remLo = _mm512_sub_epi64(lo64, _mm512_mullo_epi64(divLo, _mm512_set1_epi64(v)));
 	__m512i remHi = _mm512_sub_epi64(hi64, _mm512_mullo_epi64(divHi, _mm512_set1_epi64(v)));
-	__m256i reml = _mm512_cvtepi64_epi32(remLo);
-	__m256i remh = _mm512_cvtepi64_epi32(remHi);
-	return _mm512_inserti32x8(_mm512_castsi256_si512(reml), remh, 1);
+	return _mm512_permutex2var_epi32(remLo, _mm512_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30), remHi);
 }
 
 std::pair<float, float> WrappingMapper::wrapUV(float u, float v)
