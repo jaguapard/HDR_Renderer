@@ -100,7 +100,9 @@ void TextureManager::clear()
 	std::lock_guard lck(this->mtx);
 	//since buffers are annoying with unique pointers, resize is not possible. We also have to keep fallback texture untouched. 
 	//Thus, just pop until there's only fallback remaining
-	while (this->textures.size() > 1) this->textures.pop_back();/*
+	while (this->textures.size() > 1) this->textures.pop_back();
+	this->pathToIndexMap.clear(); //no path mapping for fallback texture, can clean completely
+	/*
 	while (this->bufferForTexture.size() > 1) this->bufferForTexture.pop_back();
 	while (this->sizesForTexture.size() > 1) this->sizesForTexture.pop_back();*/
 }
