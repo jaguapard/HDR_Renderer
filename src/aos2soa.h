@@ -194,3 +194,42 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	}
 	return ret;
 }
+
+/**
+@brief Gathers structs of fieldCount elements of DataType in AoS layout, transposes them into SoA layout and stores the result in output. 
+Masked out structs are set to fallback data if is provided, or default constructed DataType broadcasted to all fields of the struct if it is not
+@param input input data. Must be at least fieldCount*structCount*sizeof(DataType) bytes big. This data is reinterpreted as DataType array before usage
+@param indices indices of structs to be loaded. Must have at least fieldCount*structCount*sizeof(IndexType) bytes big. The data is reinterpreted as IndexType array before usage
+@param output output buffer to be written to. Must be at least fieldCount*structCount*sizeof(DataType) big. This data is reinterpreted as DataType array before usage
+@param fieldCount field count of the structs to be gathered. Each struct is considered array of fieldCount DataType elements
+@param structCount struct count of the elements to be gathered.
+@param maskBits Optional: bitwise mask with bits set for structs that should be gathered and bits cleared for structs that should be filled with fallback values
+@param fallbackData: Optional. Array of at least FieldCount DataType values to be used as fallback data.
+*/
+template<typename DataType, typename IndexType>
+__forceinline void aos2soa_gather_and_transpose_dwords_generic(const void* input, const void* indices, void* output, size_t fieldCount, size_t structCount, const void* maskBits = nullptr, const void* fallbackData = nullptr)
+{
+	static_assert(std::is_integral_v<IndexType>, "aos2soa_gather_and_transpose requires integral index type");
+	const uint8_t* maskBytes = (const uint8_t*)maskBits;
+	const DataType* inp = (const DataType*)input;
+	const IndexType* ind = (const IndexType*)indices;
+	const DataType* fbck = (const DataType*)fallbackData;
+	DataType* out = (DataType*)output;
+	for (size_t structIndex = 0; structIndex < structCount; ++structIndex)
+	{
+		bool structIsMaskedOut = false;
+		if (maskBits)
+		{
+			uint8_t andmsk = maskBytes[structIndex / 8] & (1 << (structIndex % 8));
+			if (!andmsk)
+			{
+				structIsMaskedOut = true;
+			}
+		}
+
+		for (size_t fieldIndex = 0; fieldIndex < fieldCount; ++fieldIndex)
+		{
+			out[fieldIndex * structCount + structIndex] = structIsMaskedOut ? (fbck ? fbck[fieldIndex] : DataType()) : inp[ind[structIndex] * fieldCount + fieldIndex];
+		}
+	}
+}
