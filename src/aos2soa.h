@@ -173,36 +173,36 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	{
 		for (int i = 0; i < 16; i += 4)
 		{
-			__m512 v0 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i]));      //|abcd|efgh|ijkl|mnoq|_0/4/8/12
-			__m512 v1 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 1]));  //|abcd|efgh|ijkl|mnoq|_1/5/9/13
-			__m512 v2 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 2]));  //|abcd|efgh|ijkl|mnoq|_2/6/10/14
-			__m512 v3 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 3]));  //|abcd|efgh|ijkl|mnoq|_3/7/11/15
+			__m512 v0 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i]));      //|abcd|efgh|ijkl|mnop|_0/4/8/12
+			__m512 v1 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 1]));  //|abcd|efgh|ijkl|mnop|_1/5/9/13
+			__m512 v2 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 2]));  //|abcd|efgh|ijkl|mnop|_2/6/10/14
+			__m512 v3 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 3]));  //|abcd|efgh|ijkl|mnop|_3/7/11/15
 
 			__m512d tmp0 = _mm512_castps_pd(_mm512_unpacklo_ps(v0, v1)); //|a0,a1,b0,b1|e0,e1,f0,f1|i0,i1,j0,j1|m0,m1,n0,n1|
 			__m512d tmp1 = _mm512_castps_pd(_mm512_unpacklo_ps(v2, v3)); //|a2,a3,b2,b3|e2,e3,f2,f3|i2,i3,j2,j3|m2,m3,n2,n3|
-			__m512d tmp2 = _mm512_castps_pd(_mm512_unpackhi_ps(v0, v1)); //|c0,c1,d0,d1|g0,g1,h0,h1|k0,k1,l0,l1|o0,o1,q0,q1|
-			__m512d tmp3 = _mm512_castps_pd(_mm512_unpackhi_ps(v2, v3)); //|c2,c3,d2,d3|g2,g3,h2,h3|k2,k3,l2,l3|o2,o3,q2,q3|
+			__m512d tmp2 = _mm512_castps_pd(_mm512_unpackhi_ps(v0, v1)); //|c0,c1,d0,d1|g0,g1,h0,h1|k0,k1,l0,l1|o0,o1,p0,p1|
+			__m512d tmp3 = _mm512_castps_pd(_mm512_unpackhi_ps(v2, v3)); //|c2,c3,d2,d3|g2,g3,h2,h3|k2,k3,l2,l3|o2,o3,p2,p3|
 			__m512 aeim = _mm512_castpd_ps(_mm512_unpacklo_pd(tmp0, tmp1)); //|a0,a1,a2,a3|e0,e1,e2,e3|i0,i1,i2,i3|m0,m1,m2,m3|
 			__m512 bfjn = _mm512_castpd_ps(_mm512_unpackhi_pd(tmp0, tmp1)); //|b0,b1,b2,b3|f0,f1,f2,f3|j0,j1,j2,j3|n0,n1,n2,n3|
 			__m512 cgko = _mm512_castpd_ps(_mm512_unpacklo_pd(tmp2, tmp3)); //|c0,c1,c2,c3|g0,g1,g2,g3|k0,k1,k2,k3|o0,o1,o2,o3|
-			__m512 dhlq = _mm512_castpd_ps(_mm512_unpackhi_pd(tmp2, tmp3)); //|d0,d1,d2,d3|h0,h1,h2,h3|l0,l1,l2,l3|q0,q1,q2,q3|
+			__m512 dhlp = _mm512_castpd_ps(_mm512_unpackhi_pd(tmp2, tmp3)); //|d0,d1,d2,d3|h0,h1,h2,h3|l0,l1,l2,l3|p0,p1,p2,p3|
 
 			if constexpr (FieldCount > 0) _mm_storeu_ps((float*)&ret[0] + i, _mm512_extractf32x4_ps(aeim, 0)); //a
 			if constexpr (FieldCount > 1) _mm_storeu_ps((float*)&ret[1] + i, _mm512_extractf32x4_ps(bfjn, 0)); //b
 			if constexpr (FieldCount > 2) _mm_storeu_ps((float*)&ret[2] + i, _mm512_extractf32x4_ps(cgko, 0)); //c
-			if constexpr (FieldCount > 3) _mm_storeu_ps((float*)&ret[3] + i, _mm512_extractf32x4_ps(dhlq, 0)); //d
+			if constexpr (FieldCount > 3) _mm_storeu_ps((float*)&ret[3] + i, _mm512_extractf32x4_ps(dhlp, 0)); //d
 			if constexpr (FieldCount > 4) _mm_storeu_ps((float*)&ret[4] + i, _mm512_extractf32x4_ps(aeim, 1)); //e
 			if constexpr (FieldCount > 5) _mm_storeu_ps((float*)&ret[5] + i, _mm512_extractf32x4_ps(bfjn, 1)); //f
 			if constexpr (FieldCount > 6) _mm_storeu_ps((float*)&ret[6] + i, _mm512_extractf32x4_ps(cgko, 1)); //g
-			if constexpr (FieldCount > 7) _mm_storeu_ps((float*)&ret[7] + i, _mm512_extractf32x4_ps(dhlq, 1)); //h
+			if constexpr (FieldCount > 7) _mm_storeu_ps((float*)&ret[7] + i, _mm512_extractf32x4_ps(dhlp, 1)); //h
 			if constexpr (FieldCount > 8) _mm_storeu_ps((float*)&ret[8] + i, _mm512_extractf32x4_ps(aeim, 2)); //i
 			if constexpr (FieldCount > 9) _mm_storeu_ps((float*)&ret[9] + i, _mm512_extractf32x4_ps(bfjn, 2)); //j
 			if constexpr (FieldCount > 10) _mm_storeu_ps((float*)&ret[10] + i, _mm512_extractf32x4_ps(cgko, 2)); //k
-			if constexpr (FieldCount > 11) _mm_storeu_ps((float*)&ret[11] + i, _mm512_extractf32x4_ps(dhlq, 2)); //l
+			if constexpr (FieldCount > 11) _mm_storeu_ps((float*)&ret[11] + i, _mm512_extractf32x4_ps(dhlp, 2)); //l
 			if constexpr (FieldCount > 12) _mm_storeu_ps((float*)&ret[12] + i, _mm512_extractf32x4_ps(aeim, 3)); //m
 			if constexpr (FieldCount > 13) _mm_storeu_ps((float*)&ret[13] + i, _mm512_extractf32x4_ps(bfjn, 3)); //n
 			if constexpr (FieldCount > 14) _mm_storeu_ps((float*)&ret[14] + i, _mm512_extractf32x4_ps(cgko, 3)); //o
-			if constexpr (FieldCount > 15) _mm_storeu_ps((float*)&ret[15] + i, _mm512_extractf32x4_ps(dhlq, 3)); //q
+			if constexpr (FieldCount > 15) _mm_storeu_ps((float*)&ret[15] + i, _mm512_extractf32x4_ps(dhlp, 3)); //p
 		}
 		return ret;
 	}
