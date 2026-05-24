@@ -21,7 +21,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	requires (sizeof(ReturnType) == 64 && FieldCount >= 1)
 {
 	std::array<ReturnType, FieldCount> ret;
-	if (!mask) return ret;
+	if (!mask) [[unlikely]] return ret;
 	__m512i compressedInd = _mm512_maskz_compress_epi32(mask, ind);
 	ind = _mm512_mask_mov_epi32(_mm512_broadcastd_epi32(_mm512_castsi512_si128(compressedInd)), mask, ind); //unmasked elements will use safe index for dummy load (first found valid ind)
 
