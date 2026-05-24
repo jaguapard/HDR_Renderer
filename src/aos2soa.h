@@ -212,16 +212,57 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 }
 
 /**
-@brief Gathers structs of fieldCount elements of DataType in AoS layout, transposes them into SoA layout and stores the result in output. 
-Masked out structs are set to fallback data if is provided, or default constructed DataType broadcasted to all fields of the struct if it is not
-@param input input data. Must be at least fieldCount*structCount*sizeof(DataType) bytes big. This data is reinterpreted as DataType array before usage
-@param indices indices of structs to be loaded. Must have at least fieldCount*structCount*sizeof(IndexType) bytes big. The data is reinterpreted as IndexType array before usage
-@param output output buffer to be written to. Must be at least fieldCount*structCount*sizeof(DataType) big. This data is reinterpreted as DataType array before usage
-@param fieldCount field count of the structs to be gathered. Each struct is considered array of fieldCount DataType elements
-@param structCount struct count of the elements to be gathered.
-@param maskBits Optional: bitwise mask with bits set for structs that should be gathered and bits cleared for structs that should be filled with fallback values
-@param fallbackData: Optional. Array of at least FieldCount DataType values to be used as fallback data.
-*/
+ * @brief Gathers AoS-encoded structures, transposes them into SoA layout, and writes the result to the output buffer.
+ *
+ * Each source structure consists of `fieldCount` consecutive `DataType` elements.
+ * The function gathers `structCount` structures from `input` using indices from `indices`,
+ * converts the data from Array-of-Structures (AoS) layout into Structure-of-Arrays (SoA) layout,
+ * and stores the transposed result in `output`.
+ *
+ * If `maskBits` is provided, structures with a cleared mask bit are not gathered.
+ * Instead, their output fields are filled from `fallbackData` if supplied, or with
+ * value-initialized `DataType{}` otherwise.
+ *
+ * Output layout:
+ *   output[fieldIndex * structCount + structIndex]
+ *
+ * @tparam DataType  Element type of structure fields.
+ * @tparam IndexType Integral type used for gather indices.
+ *
+ * @param input
+ *   Pointer to the source AoS data buffer that indices are defined relative to.
+ *   Interpreted as an array of `DataType`.
+ *   Must be least `fieldCount * max(indices for structs with mask bits set) + fieldCount` elements large.
+ *
+ * @param indices
+ *   Pointer to an array of structure indices to gather.
+ *   Interpreted as an array of `IndexType` with `structCount` `DataType` elements.
+ *   Must be at least `structCount` elements large
+ *
+ * @param output
+ *   Pointer to the destination SoA buffer.
+ *   Interpreted as an array of `DataType`.
+ *   Must have space to hold at least `fieldCount * structCount` `DataType` elements.
+ *
+ * @param fieldCount
+ *   Number of fields in each source structure.
+ *
+ * @param structCount
+ *   Number of structures to gather and transpose.
+ *
+ * @param maskBits
+ *   Optional pointer to a bit mask array containing at least
+ *   `ceil(structCount / 8)` bytes.
+ *   Bit `i` controls whether structure `i` is gathered:
+ *     - set bit   -> gather from input
+ *     - cleared bit -> use fallback/default value
+ *   If null, all structures are gathered unconditionally (same as having all mask bits set).
+ *
+ * @param fallbackData
+ *   Optional pointer to `fieldCount` fallback field values.
+ *   Used for masked-out structures.
+ *   If null, masked-out fields are filled with `DataType{}`.
+ */
 template<typename DataType, typename IndexType>
 __forceinline void aos2soa_gather_and_transpose_dwords_generic(const void* input, const void* indices, void* output, size_t fieldCount, size_t structCount, const void* maskBits = nullptr, const void* fallbackData = nullptr)
 {
