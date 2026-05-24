@@ -145,3 +145,26 @@ __forceinline void deduplicate_ps512(float32x16 inputValues, float invalidValue,
 	deduplicate_epi32x16(_mm512_castps_si512(inputValues), std::bit_cast<int32_t>(invalidValue), activeMask, unique, outUniqueCount, outUniqueMask);
 	outUniqueValues = _mm512_castsi512_ps(unique);
 }
+
+/*
+Builds 512-bit vector from 128-bit chunks.
+ret[0..127] = xmm0
+ret[128..255] = xmm1
+ret[256..383] = xmm2
+ret[384..511] = xmm3
+*/
+__forceinline __m512 xmm_x4_to_zmm(__m128 xmm0, __m128 xmm1, __m128 xmm2, __m128 xmm3)
+{
+	__m256 ymm0 = _mm256_insertf128_ps(_mm256_castps128_ps256(xmm0), xmm1, 1);
+	__m256 ymm1 = _mm256_insertf128_ps(_mm256_castps128_ps256(xmm2), xmm3, 1);
+	return _mm512_insertf32x8(_mm512_castps256_ps512(ymm0), ymm1, 1);
+}
+/*
+Builds 512-bit vector from 256-bit chunks.
+ret[0..255] = ymm0
+ret[256..511] = ymm1
+*/
+__forceinline __m512 ymm_x2_to_zmm(__m256 ymm0, __m256 ymm1)
+{
+	return _mm512_insertf32x8(_mm512_castps256_ps512(ymm0), ymm1, 1);
+}
