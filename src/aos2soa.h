@@ -46,7 +46,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	if constexpr (FieldCount > 2 && FieldCount <= 4)
 	{
 		//r0 = abcd0,abcd4,abcd8,abcd12
-		__m512 r0 = xmm_x4_to_zmm( 
+		__m512 r0 = xmm_x4_to_zmm(
 			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0])),
 			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[4])),
 			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[8])),
@@ -103,7 +103,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m256 struct13 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[13]));
 		__m256 struct14 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[14]));
 		__m256 struct15 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[15]));
-		
+
 		//64-bit packs are brought into proper order by these unpacks
 		__m256d tmp0 = _mm256_castps_pd(_mm256_unpacklo_ps(struct0, struct1)); //|a0,a1,b0,b1|e0,e1,f0,f1|
 		__m256d tmp1 = _mm256_castps_pd(_mm256_unpacklo_ps(struct2, struct3)); //|a2,a3,b2,b3|e2,e3,f2,f3|
@@ -168,45 +168,99 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		if constexpr (FieldCount > 7) _mm512_storeu_pd(&ret[7], ymm_x2_to_zmm(h0_7, h8_15));
 		return ret;
 	}
-#ifdef VS_CLANG //Specialized versions below rely very heavily on Clang optimizations, and if they fail, that will become horrible garbage code, probably slower than gathers anyway.
-	if constexpr (FieldCount > 8 && FieldCount <= 16) //TODO: this version is untested
+
+	if constexpr (FieldCount > 8 && FieldCount <= 16)
 	{
-		for (int i = 0; i < 16; i += 4)
-		{
-			__m512 v0 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i]));      //|abcd|efgh|ijkl|mnop|_0/4/8/12
-			__m512 v1 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 1]));  //|abcd|efgh|ijkl|mnop|_1/5/9/13
-			__m512 v2 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 2]));  //|abcd|efgh|ijkl|mnop|_2/6/10/14
-			__m512 v3 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 3]));  //|abcd|efgh|ijkl|mnop|_3/7/11/15
+		__m512 struct0 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0])); //|a0,b0,c0,d0|e0,f0,g0,h0|i0,j0,k0,l0|m0,n0,o0,p0|
+		__m512 struct1 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[1])); //|a1,b1,c1,d1|e1,f1,g1,h1|i1,j1,k1,l1|m1,n1,o1,p1|
+		__m512 struct2 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[2])); //|a2,b2,c2,d2|e2,f2,g2,h2|i2,j2,k2,l2|m2,n2,o2,p2|
+		__m512 struct3 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[3])); //|a3,b3,c3,d3|e3,f3,g3,h3|i3,j3,k3,l3|m3,n3,o3,p3|
+		__m512 struct4 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[4])); //|a4,b4,c4,d4|e4,f4,g4,h4|i4,j4,k4,l4|m4,n4,o4,p4|
+		__m512 struct5 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[5])); //|a5,b5,c5,d5|e5,f5,g5,h5|i5,j5,k5,l5|m5,n5,o5,p5|
+		__m512 struct6 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[6])); //|a6,b6,c6,d6|e6,f6,g6,h6|i6,j6,k6,l6|m6,n6,o6,p6|
+		__m512 struct7 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[7])); //|a7,b7,c7,d7|e7,f7,g7,h7|i7,j7,k7,l7|m7,n7,o7,p7|
+		__m512 struct8 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[8])); //|a8,b8,c8,d8|e8,f8,g8,h8|i8,j8,k8,l8|m8,n8,o8,p8|
+		__m512 struct9 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[9])); //|a9,b9,c9,d9|e9,f9,g9,h9|i9,j9,k9,l9|m9,n9,o9,p9|
+		__m512 struct10 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[10])); //|a10,b10,c10,d10|e10,f10,g10,h10|i10,j10,k10,l10|m10,n10,o10,p10|
+		__m512 struct11 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[11])); //|a11,b11,c11,d11|e11,f11,g11,h11|i11,j11,k11,l11|m11,n11,o11,p11|
+		__m512 struct12 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[12])); //|a12,b12,c12,d12|e12,f12,g12,h12|i12,j12,k12,l12|m12,n12,o12,p12|
+		__m512 struct13 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[13])); //|a13,b13,c13,d13|e13,f13,g13,h13|i13,j13,k13,l13|m13,n13,o13,p13|
+		__m512 struct14 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[14])); //|a14,b14,c14,d14|e14,f14,g14,h14|i14,j14,k14,l14|m14,n14,o14,p14|
+		__m512 struct15 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[15])); //|a15,b15,c15,d15|e15,f15,g15,h15|i15,j15,k15,l15|m15,n15,o15,p15|
 
-			__m512d tmp0 = _mm512_castps_pd(_mm512_unpacklo_ps(v0, v1)); //|a0,a1,b0,b1|e0,e1,f0,f1|i0,i1,j0,j1|m0,m1,n0,n1|
-			__m512d tmp1 = _mm512_castps_pd(_mm512_unpacklo_ps(v2, v3)); //|a2,a3,b2,b3|e2,e3,f2,f3|i2,i3,j2,j3|m2,m3,n2,n3|
-			__m512d tmp2 = _mm512_castps_pd(_mm512_unpackhi_ps(v0, v1)); //|c0,c1,d0,d1|g0,g1,h0,h1|k0,k1,l0,l1|o0,o1,p0,p1|
-			__m512d tmp3 = _mm512_castps_pd(_mm512_unpackhi_ps(v2, v3)); //|c2,c3,d2,d3|g2,g3,h2,h3|k2,k3,l2,l3|o2,o3,p2,p3|
-			__m512 aeim = _mm512_castpd_ps(_mm512_unpacklo_pd(tmp0, tmp1)); //|a0,a1,a2,a3|e0,e1,e2,e3|i0,i1,i2,i3|m0,m1,m2,m3|
-			__m512 bfjn = _mm512_castpd_ps(_mm512_unpackhi_pd(tmp0, tmp1)); //|b0,b1,b2,b3|f0,f1,f2,f3|j0,j1,j2,j3|n0,n1,n2,n3|
-			__m512 cgko = _mm512_castpd_ps(_mm512_unpacklo_pd(tmp2, tmp3)); //|c0,c1,c2,c3|g0,g1,g2,g3|k0,k1,k2,k3|o0,o1,o2,o3|
-			__m512 dhlp = _mm512_castpd_ps(_mm512_unpackhi_pd(tmp2, tmp3)); //|d0,d1,d2,d3|h0,h1,h2,h3|l0,l1,l2,l3|p0,p1,p2,p3|
+		//64-bit packs are brought into proper order by these unpacks
+		__m512d tmp0 = _mm512_castps_pd(_mm512_unpacklo_ps(struct0, struct1)); //|a0,a1,b0,b1|e0,e1,f0,f1|i0,i1,j0,j1|m0,m1,n0,n1|
+		__m512d tmp1 = _mm512_castps_pd(_mm512_unpacklo_ps(struct2, struct3)); //|a2,a3,b2,b3|e2,e3,f2,f3|i2,i3,j2,j3|m2,m3,n2,n3|
+		__m512d tmp2 = _mm512_castps_pd(_mm512_unpacklo_ps(struct4, struct5)); //|a4,a5,b4,b5|e4,e5,f4,f5|i4,i5,j4,j5|m4,m5,n4,n5|
+		__m512d tmp3 = _mm512_castps_pd(_mm512_unpacklo_ps(struct6, struct7)); //|a6,a7,b6,b7|e6,e7,f6,f7|i6,i7,j6,j7|m6,m7,n6,n7|
+		__m512d tmp4 = _mm512_castps_pd(_mm512_unpacklo_ps(struct8, struct9)); //|a8,a9,b8,b9|e8,e9,f8,f9|i8,i9,j8,j9|m8,m9,n8,n9|
+		__m512d tmp5 = _mm512_castps_pd(_mm512_unpacklo_ps(struct10, struct11)); //|a10,a11,b10,b11|e10,e11,f10,f11|i10,i11,j10,j11|m10,m11,n10,n11|
+		__m512d tmp6 = _mm512_castps_pd(_mm512_unpacklo_ps(struct12, struct13)); //|a12,a13,b12,b13|e12,e13,f12,f13|i12,i13,j12,j13|m12,m13,n12,n13|
+		__m512d tmp7 = _mm512_castps_pd(_mm512_unpacklo_ps(struct14, struct15)); //|a14,a15,b14,b15|e14,e15,f14,f15|i14,i15,j14,j15|m14,m15,n14,n15|
+		__m512d tmp8 = _mm512_castps_pd(_mm512_unpackhi_ps(struct0, struct1)); //|c0,c1,d0,d1|g0,g1,h0,h1|k0,k1,l0,l1|o0,o1,p0,p1|
+		__m512d tmp9 = _mm512_castps_pd(_mm512_unpackhi_ps(struct2, struct3)); //|c2,c3,d2,d3|g2,g3,h2,h3|k2,k3,l2,l3|o2,o3,p2,p3|
+		__m512d tmp10 = _mm512_castps_pd(_mm512_unpackhi_ps(struct4, struct5)); //|c4,c5,d4,d5|g4,g5,h4,h5|k4,k5,l4,l5|o4,o5,p4,p5|
+		__m512d tmp11 = _mm512_castps_pd(_mm512_unpackhi_ps(struct6, struct7)); //|c6,c7,d6,d7|g6,g7,h6,h7|k6,k7,l6,l7|o6,o7,p6,p7|
+		__m512d tmp12 = _mm512_castps_pd(_mm512_unpackhi_ps(struct8, struct9)); //|c8,c9,d8,d9|g8,g9,h8,h9|k8,k9,l8,l9|o8,o9,p8,p9|
+		__m512d tmp13 = _mm512_castps_pd(_mm512_unpackhi_ps(struct10, struct11)); //|c10,c11,d10,d11|g10,g11,h10,h11|k10,k11,l10,l11|o10,o11,p10,p11|
+		__m512d tmp14 = _mm512_castps_pd(_mm512_unpackhi_ps(struct12, struct13)); //|c12,c13,d12,d13|g12,g13,h12,h13|k12,k13,l12,l13|o12,o13,p12,p13|
+		__m512d tmp15 = _mm512_castps_pd(_mm512_unpackhi_ps(struct14, struct15)); //|c14,c15,d14,d15|g14,g15,h14,h15|k14,k15,l14,l15|o14,o15,p14,p15|
 
-			if constexpr (FieldCount > 0) _mm_storeu_ps((float*)&ret[0] + i, _mm512_extractf32x4_ps(aeim, 0)); //a
-			if constexpr (FieldCount > 1) _mm_storeu_ps((float*)&ret[1] + i, _mm512_extractf32x4_ps(bfjn, 0)); //b
-			if constexpr (FieldCount > 2) _mm_storeu_ps((float*)&ret[2] + i, _mm512_extractf32x4_ps(cgko, 0)); //c
-			if constexpr (FieldCount > 3) _mm_storeu_ps((float*)&ret[3] + i, _mm512_extractf32x4_ps(dhlp, 0)); //d
-			if constexpr (FieldCount > 4) _mm_storeu_ps((float*)&ret[4] + i, _mm512_extractf32x4_ps(aeim, 1)); //e
-			if constexpr (FieldCount > 5) _mm_storeu_ps((float*)&ret[5] + i, _mm512_extractf32x4_ps(bfjn, 1)); //f
-			if constexpr (FieldCount > 6) _mm_storeu_ps((float*)&ret[6] + i, _mm512_extractf32x4_ps(cgko, 1)); //g
-			if constexpr (FieldCount > 7) _mm_storeu_ps((float*)&ret[7] + i, _mm512_extractf32x4_ps(dhlp, 1)); //h
-			if constexpr (FieldCount > 8) _mm_storeu_ps((float*)&ret[8] + i, _mm512_extractf32x4_ps(aeim, 2)); //i
-			if constexpr (FieldCount > 9) _mm_storeu_ps((float*)&ret[9] + i, _mm512_extractf32x4_ps(bfjn, 2)); //j
-			if constexpr (FieldCount > 10) _mm_storeu_ps((float*)&ret[10] + i, _mm512_extractf32x4_ps(cgko, 2)); //k
-			if constexpr (FieldCount > 11) _mm_storeu_ps((float*)&ret[11] + i, _mm512_extractf32x4_ps(dhlp, 2)); //l
-			if constexpr (FieldCount > 12) _mm_storeu_ps((float*)&ret[12] + i, _mm512_extractf32x4_ps(aeim, 3)); //m
-			if constexpr (FieldCount > 13) _mm_storeu_ps((float*)&ret[13] + i, _mm512_extractf32x4_ps(bfjn, 3)); //n
-			if constexpr (FieldCount > 14) _mm_storeu_ps((float*)&ret[14] + i, _mm512_extractf32x4_ps(cgko, 3)); //o
-			if constexpr (FieldCount > 15) _mm_storeu_ps((float*)&ret[15] + i, _mm512_extractf32x4_ps(dhlp, 3)); //p
-		}
+		//128-bit packs are brought into proper order by these unpacks
+		__m512d xmm0 = _mm512_unpacklo_pd(tmp0, tmp1); //|a0,a1,a2,a3|e0,e1,e2,e3|i0,i1,i2,i3|m0,m1,m2,m3|
+		__m512d xmm1 = _mm512_unpackhi_pd(tmp0, tmp1); //|b0,b1,b2,b3|f0,f1,f2,f3|j0,j1,j2,j3|n0,n1,n2,n3|
+		__m512d xmm2 = _mm512_unpacklo_pd(tmp8, tmp9); //|c0,c1,c2,c3|g0,g1,g2,g3|k0,k1,k2,k3|o0,o1,o2,o3|
+		__m512d xmm3 = _mm512_unpackhi_pd(tmp8, tmp9); //|d0,d1,d2,d3|h0,h1,h2,h3|l0,l1,l2,l3|p0,p1,p2,p3|
+		__m512d xmm4 = _mm512_unpacklo_pd(tmp2, tmp3); //|a4,a5,a6,a7|e4,e5,e6,e7|i4,i5,i6,i7|m4,m5,m6,m7|
+		__m512d xmm5 = _mm512_unpackhi_pd(tmp2, tmp3); //|b4,b5,b6,b7|f4,f5,f6,f7|j4,j5,j6,j7|n4,n5,n6,n7|
+		__m512d xmm6 = _mm512_unpacklo_pd(tmp10, tmp11); //|c4,c5,c6,c7|g4,g5,g6,g7|k4,k5,k6,k7|o4,o5,o6,o7|
+		__m512d xmm7 = _mm512_unpackhi_pd(tmp10, tmp11); //|d4,d5,d6,d7|h4,h5,h6,h7|l4,l5,l6,l7|p4,p5,p6,p7|
+		__m512d xmm8 = _mm512_unpacklo_pd(tmp4, tmp5); //|a8,a9,a10,a11|e8,e9,e10,e11|i8,i9,i10,i11|m8,m9,m10,m11|
+		__m512d xmm9 = _mm512_unpackhi_pd(tmp4, tmp5); //|b8,b9,b10,b11|f8,f9,f10,f11|j8,j9,j10,j11|n8,n9,n10,n11|
+		__m512d xmm10 = _mm512_unpacklo_pd(tmp12, tmp13); //|c8,c9,c10,c11|g8,g9,g10,g11|k8,k9,k10,k11|o8,o9,o10,o11|
+		__m512d xmm11 = _mm512_unpackhi_pd(tmp12, tmp13); //|d8,d9,d10,d11|h8,h9,h10,h11|l8,l9,l10,l11|p8,p9,p10,p11|
+		__m512d xmm12 = _mm512_unpacklo_pd(tmp6, tmp7); //|a12,a13,a14,a15|e12,e13,e14,e15|i12,i13,i14,i15|m12,m13,m14,m15|
+		__m512d xmm13 = _mm512_unpackhi_pd(tmp6, tmp7); //|b12,b13,b14,b15|f12,f13,f14,f15|j12,j13,j14,j15|n12,n13,n14,n15|
+		__m512d xmm14 = _mm512_unpacklo_pd(tmp14, tmp15); //|c12,c13,c14,c15|g12,g13,g14,g15|k12,k13,k14,k15|o12,o13,o14,o15|
+		__m512d xmm15 = _mm512_unpackhi_pd(tmp14, tmp15); //|d12,d13,d14,d15|h12,h13,h14,h15|l12,l13,l14,l15|p12,p13,p14,p15|
+
+		//shuffle_f32x4 can't move second argument to lower 256-bit half, permutex2var way may be simpler than inserting:
+		//__m512d ymm0 = _mm512_insertf32x4(xmm0, _mm512_castps512_ps128(xmm4), 1); //can also use just ymm inserts for this
+		__m512d ymm0 = _mm512_permutex2var_pd(xmm0, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm4); //|a0_3|a4_7|e0_3|e4_7|
+		__m512d ymm1 = _mm512_permutex2var_pd(xmm8, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm12); //|a8_11|a12_15|e8_11|e12_15|
+		if constexpr (FieldCount > 0) _mm512_storeu_pd(&ret[0], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final A
+		if constexpr (FieldCount > 4) _mm512_storeu_pd(&ret[4], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final E
+		ymm0 = _mm512_permutex2var_pd(xmm1, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm5); //|b0_3|b4_7|f0_3|f4_7|
+		ymm1 = _mm512_permutex2var_pd(xmm9, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm13); //|b8_11|b12_15|f8_11|f12_15|
+		if constexpr (FieldCount > 1) _mm512_storeu_pd(&ret[1], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final B
+		if constexpr (FieldCount > 5) _mm512_storeu_pd(&ret[5], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final F
+		ymm0 = _mm512_permutex2var_pd(xmm2, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm6); //|c0_3|c4_7|g0_3|g4_7|
+		ymm1 = _mm512_permutex2var_pd(xmm10, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm14); //|c8_11|c12_15|g8_11|g12_15|
+		if constexpr (FieldCount > 2) _mm512_storeu_pd(&ret[2], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final C
+		if constexpr (FieldCount > 6) _mm512_storeu_pd(&ret[6], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final G
+		ymm0 = _mm512_permutex2var_pd(xmm3, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm7); //|d0_3|d4_7|h0_3|h4_7|
+		ymm1 = _mm512_permutex2var_pd(xmm11, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm15); //|d8_11|d12_15|h8_11|h12_15|
+		if constexpr (FieldCount > 3) _mm512_storeu_pd(&ret[3], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final D
+		if constexpr (FieldCount > 7) _mm512_storeu_pd(&ret[7], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final H
+
+		ymm0 = _mm512_permutex2var_pd(xmm0, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm4); //|i0_3|i4_7|m0_3|m4_7|
+		ymm1 = _mm512_permutex2var_pd(xmm8, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm12); //|i8_11|i12_15|m8_11|m12_15|
+		if constexpr (FieldCount > 8) _mm512_storeu_pd(&ret[8], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final I
+		if constexpr (FieldCount > 12) _mm512_storeu_pd(&ret[12], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final M
+		ymm0 = _mm512_permutex2var_pd(xmm1, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm5); //|j0_3|j4_7|n0_3|n4_7|
+		ymm1 = _mm512_permutex2var_pd(xmm9, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm13); //|j8_11|j12_15|n8_11|n12_15|
+		if constexpr (FieldCount > 9) _mm512_storeu_pd(&ret[9], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final J
+		if constexpr (FieldCount > 13) _mm512_storeu_pd(&ret[13], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final N
+		ymm0 = _mm512_permutex2var_pd(xmm2, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm6); //|k0_3|k4_7|o0_3|o4_7|
+		ymm1 = _mm512_permutex2var_pd(xmm10, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm14); //|k8_11|k12_15|o8_11|o12_15|
+		if constexpr (FieldCount > 10) _mm512_storeu_pd(&ret[10], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final K
+		if constexpr (FieldCount > 14) _mm512_storeu_pd(&ret[14], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final O
+		ymm0 = _mm512_permutex2var_pd(xmm3, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm7); //|l0_3|l4_7|p0_3|p4_7|
+		ymm1 = _mm512_permutex2var_pd(xmm11, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm15); //|l8_11|l12_15|p8_11|p12_15|
+		if constexpr (FieldCount > 11) _mm512_storeu_pd(&ret[11], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final L
+		if constexpr (FieldCount > 15) _mm512_storeu_pd(&ret[15], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final P
 		return ret;
 	}
-#endif
 
 	//if no specialized version available, then just gather as normal.
 	const float* fp = (const float*)base;
