@@ -37,33 +37,49 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	_mm512_storeu_si512(&offsets[8], offsetHi);
 	constexpr uint64_t packLoadMask = (1ull << FieldCount) - 1; //avoid touching OOB for tails. Load only FieldCount lower floats
 
-#ifdef VS_CLANG //Specialized versions below rely very heavily on Clang optimizations, and if they fail, that will become horrible garbage code, probably slower than gathers anyway.
 	if constexpr (FieldCount > 2 && FieldCount <= 4)
 	{
-		float r0[16], r1[16], r2[16], r3[16];
-		for (int i = 0; i < 16; i += 4)
-		{
-			__m128 v0 = _mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i]));
-			__m128 v1 = _mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 1]));
-			__m128 v2 = _mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 2]));
-			__m128 v3 = _mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[i + 3]));
+		//r0 = abcd0,abcd4,abcd8,abcd12
+		__m512 r0 = xmm_x4_to_zmm( 
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[4])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[8])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[12]))
+		);
+		//r1 = abcd1,abcd5,abcd9,abcd13
+		__m512 r1 = xmm_x4_to_zmm(
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[1])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[5])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[9])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[13]))
+		);
+		//r2 = abcd2,abcd6,abcd10,abcd14
+		__m512 r2 = xmm_x4_to_zmm(
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[2])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[6])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[10])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[14]))
+		);
+		//r3 = abcd3,abcd7,abcd11,abcd15
+		__m512 r3 = xmm_x4_to_zmm(
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[3])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[7])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[11])),
+			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[15]))
+		);
 
-			_mm_storeu_ps(&r0[i], v0); //r0 = abcd0,abcd4,abcd8,abcd12
-			_mm_storeu_ps(&r1[i], v1); //r1 = abcd1,abcd5,abcd9,abcd13
-			_mm_storeu_ps(&r2[i], v2); //r2 = abcd2,abcd6,abcd10,abcd14
-			_mm_storeu_ps(&r3[i], v3); //r3 = abcd3,abcd7,abcd11,abcd15
-		}
-
-		__m512 aabb01 = _mm512_unpacklo_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-		__m512 aabb23 = _mm512_unpacklo_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
-		__m512 ccdd01 = _mm512_unpackhi_ps(_mm512_loadu_ps(r0), _mm512_loadu_ps(r1));
-		__m512 ccdd23 = _mm512_unpackhi_ps(_mm512_loadu_ps(r2), _mm512_loadu_ps(r3));
+		__m512 aabb01 = _mm512_unpacklo_ps(r0, r1);
+		__m512 aabb23 = _mm512_unpacklo_ps(r2, r3);
+		__m512 ccdd01 = _mm512_unpackhi_ps(r0, r1);
+		__m512 ccdd23 = _mm512_unpackhi_ps(r2, r3);
 		_mm512_storeu_pd(&ret[0], _mm512_unpacklo_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
 		if constexpr (FieldCount > 1) _mm512_storeu_pd(&ret[1], _mm512_unpackhi_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
 		if constexpr (FieldCount > 2) _mm512_storeu_pd(&ret[2], _mm512_unpacklo_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
 		if constexpr (FieldCount > 3) _mm512_storeu_pd(&ret[3], _mm512_unpackhi_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
 		return ret;
 	}
+
+#ifdef VS_CLANG //Specialized versions below rely very heavily on Clang optimizations, and if they fail, that will become horrible garbage code, probably slower than gathers anyway.
 	if constexpr (FieldCount > 4 && FieldCount <= 8)
 	{
 		for (int i = 0; i < 16; i += 4)
