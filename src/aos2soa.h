@@ -20,22 +20,28 @@ template<typename ReturnType, uint32_t FieldCount>
 __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(const void* base, __m512i ind, __mmask16 mask)
 	requires (sizeof(ReturnType) == 64 && FieldCount >= 1)
 {
+	//Unmasked elements use safe dummy index for load (first valid index is broadcasted to all lanes and replaces unmasked ones).
+	//This is done to avoid branching in a loop or mask calculation frenzy for masked loads. 
+	//The algorithm will break if all elements are invalid, but then the function can't do anything anyway, 
+	// so instead of forcing users to sanitize the mask, we do it ourselves. Function contract already says that values are undefined, so it's OK
 	std::array<ReturnType, FieldCount> ret;
 	if (!mask) [[unlikely]] return ret;
 	__m512i compressedInd = _mm512_maskz_compress_epi32(mask, ind);
-	ind = _mm512_mask_mov_epi32(_mm512_broadcastd_epi32(_mm512_castsi512_si128(compressedInd)), mask, ind); //unmasked elements will use safe index for dummy load (first found valid ind)
+	ind = _mm512_mask_mov_epi32(_mm512_broadcastd_epi32(_mm512_castsi512_si128(compressedInd)), mask, ind);
 
 	//ind can overflow if multiplied in place, causing silent corruption of the results. Thus, extend and multiply
 	uint64_t offsets[16];
 	const uint64_t rawBase = (const uint64_t)(base);
 	__m512i indLo = _mm512_cvtepi32_epi64(_mm512_extracti32x8_epi32(ind, 0));
 	__m512i indHi = _mm512_cvtepi32_epi64(_mm512_extracti32x8_epi32(ind, 1));
-	//can use *4 for easier addressing modes for free, since multiplication and extension is already required
+	//can use extra *4 for easier addressing modes. It's unlikely to matter much, but since it free, why not. 
+	//Multiplication and extension is already required due to indices being struct indices, not element indices
+	// and this function promises to load all 32-bit indices properly.
 	__m512i offsetLo = _mm512_mullo_epi64(indLo, _mm512_set1_epi64(FieldCount * 4));
 	__m512i offsetHi = _mm512_mullo_epi64(indHi, _mm512_set1_epi64(FieldCount * 4));
 	_mm512_storeu_si512(&offsets[0], offsetLo);
 	_mm512_storeu_si512(&offsets[8], offsetHi);
-	constexpr uint64_t packLoadMask = (1ull << FieldCount) - 1; //avoid touching OOB for tails. Load only FieldCount lower floats
+	constexpr uint64_t packLoadMask = (1ull << FieldCount) - 1; //avoid touching OOB for tails. Load only FieldCount lower floats for all loads
 
 	if constexpr (FieldCount > 2 && FieldCount <= 4)
 	{
@@ -72,14 +78,13 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m512 aabb23 = _mm512_unpacklo_ps(r2, r3);
 		__m512 ccdd01 = _mm512_unpackhi_ps(r0, r1);
 		__m512 ccdd23 = _mm512_unpackhi_ps(r2, r3);
-		_mm512_storeu_pd(&ret[0], _mm512_unpacklo_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
+		if constexpr (FieldCount > 0) _mm512_storeu_pd(&ret[0], _mm512_unpacklo_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
 		if constexpr (FieldCount > 1) _mm512_storeu_pd(&ret[1], _mm512_unpackhi_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
 		if constexpr (FieldCount > 2) _mm512_storeu_pd(&ret[2], _mm512_unpacklo_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
 		if constexpr (FieldCount > 3) _mm512_storeu_pd(&ret[3], _mm512_unpackhi_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
 		return ret;
 	}
 
-#ifdef VS_CLANG //Specialized versions below rely very heavily on Clang optimizations, and if they fail, that will become horrible garbage code, probably slower than gathers anyway.
 	if constexpr (FieldCount > 4 && FieldCount <= 8)
 	{
 		__m256 struct0 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0]));
@@ -99,6 +104,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m256 struct14 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[14]));
 		__m256 struct15 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[15]));
 		
+		//64-bit packs are brought into proper order by these unpacks
 		__m256d tmp0 = _mm256_castps_pd(_mm256_unpacklo_ps(struct0, struct1)); //|a0,a1,b0,b1|e0,e1,f0,f1|
 		__m256d tmp1 = _mm256_castps_pd(_mm256_unpacklo_ps(struct2, struct3)); //|a2,a3,b2,b3|e2,e3,f2,f3|
 		__m256d tmp2 = _mm256_castps_pd(_mm256_unpacklo_ps(struct4, struct5)); //|a4,a5,b4,b5|e4,e5,f4,f5|
@@ -116,6 +122,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m256d tmp14 = _mm256_castps_pd(_mm256_unpackhi_ps(struct12, struct13)); //|c12,c13,d12,d13|g12,g13,h12,h13|
 		__m256d tmp15 = _mm256_castps_pd(_mm256_unpackhi_ps(struct14, struct15)); //|c14,c15,d14,d15|g14,g15,h14,h15|
 
+		//128-bit packs are brought into proper order by these unpacks
 		__m256d xmm0 = _mm256_unpacklo_pd(tmp0, tmp1); //|a0,a1,a2,a3|e0,e1,e2,e3|
 		__m256d xmm1 = _mm256_unpackhi_pd(tmp0, tmp1); //|b0,b1,b2,b3|f0,f1,f2,f3|
 		__m256d xmm2 = _mm256_unpacklo_pd(tmp2, tmp3); //|a4,a5,a6,a7|e4,e5,e6,e7|
@@ -133,6 +140,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m256d xmm14 = _mm256_unpacklo_pd(tmp14, tmp15); //|c12,c13,c14,c15|g12,g13,g14,g15|
 		__m256d xmm15 = _mm256_unpackhi_pd(tmp14, tmp15); //|d12,d13,d14,d15|h12,h13,h14,h15|
 
+		//256-bit packs are brought into proper order by these unpacks
 		__m256d a0_7 = _mm256_insertf128_pd(xmm0, _mm256_castpd256_pd128(xmm2), 1);
 		__m256d b0_7 = _mm256_insertf128_pd(xmm1, _mm256_castpd256_pd128(xmm3), 1);
 		__m256d c0_7 = _mm256_insertf128_pd(xmm8, _mm256_castpd256_pd128(xmm10), 1);
@@ -160,6 +168,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		if constexpr (FieldCount > 7) _mm512_storeu_pd(&ret[7], ymm_x2_to_zmm(h0_7, h8_15));
 		return ret;
 	}
+#ifdef VS_CLANG //Specialized versions below rely very heavily on Clang optimizations, and if they fail, that will become horrible garbage code, probably slower than gathers anyway.
 	if constexpr (FieldCount > 8 && FieldCount <= 16) //TODO: this version is untested
 	{
 		for (int i = 0; i < 16; i += 4)
@@ -178,15 +187,15 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 			__m512 cgko = _mm512_castpd_ps(_mm512_unpacklo_pd(tmp2, tmp3)); //|c0,c1,c2,c3|g0,g1,g2,g3|k0,k1,k2,k3|o0,o1,o2,o3|
 			__m512 dhlq = _mm512_castpd_ps(_mm512_unpackhi_pd(tmp2, tmp3)); //|d0,d1,d2,d3|h0,h1,h2,h3|l0,l1,l2,l3|q0,q1,q2,q3|
 
-			_mm_storeu_ps((float*)&ret[0] + i, _mm512_extractf32x4_ps(aeim, 0)); //a
-			_mm_storeu_ps((float*)&ret[1] + i, _mm512_extractf32x4_ps(bfjn, 0)); //b
-			_mm_storeu_ps((float*)&ret[2] + i, _mm512_extractf32x4_ps(cgko, 0)); //c
-			_mm_storeu_ps((float*)&ret[3] + i, _mm512_extractf32x4_ps(dhlq, 0)); //d
-			_mm_storeu_ps((float*)&ret[4] + i, _mm512_extractf32x4_ps(aeim, 1)); //e
-			_mm_storeu_ps((float*)&ret[5] + i, _mm512_extractf32x4_ps(bfjn, 1)); //f
-			_mm_storeu_ps((float*)&ret[6] + i, _mm512_extractf32x4_ps(cgko, 1)); //g
-			_mm_storeu_ps((float*)&ret[7] + i, _mm512_extractf32x4_ps(dhlq, 1)); //h
-			_mm_storeu_ps((float*)&ret[8] + i, _mm512_extractf32x4_ps(aeim, 2)); //i
+			if constexpr (FieldCount > 0) _mm_storeu_ps((float*)&ret[0] + i, _mm512_extractf32x4_ps(aeim, 0)); //a
+			if constexpr (FieldCount > 1) _mm_storeu_ps((float*)&ret[1] + i, _mm512_extractf32x4_ps(bfjn, 0)); //b
+			if constexpr (FieldCount > 2) _mm_storeu_ps((float*)&ret[2] + i, _mm512_extractf32x4_ps(cgko, 0)); //c
+			if constexpr (FieldCount > 3) _mm_storeu_ps((float*)&ret[3] + i, _mm512_extractf32x4_ps(dhlq, 0)); //d
+			if constexpr (FieldCount > 4) _mm_storeu_ps((float*)&ret[4] + i, _mm512_extractf32x4_ps(aeim, 1)); //e
+			if constexpr (FieldCount > 5) _mm_storeu_ps((float*)&ret[5] + i, _mm512_extractf32x4_ps(bfjn, 1)); //f
+			if constexpr (FieldCount > 6) _mm_storeu_ps((float*)&ret[6] + i, _mm512_extractf32x4_ps(cgko, 1)); //g
+			if constexpr (FieldCount > 7) _mm_storeu_ps((float*)&ret[7] + i, _mm512_extractf32x4_ps(dhlq, 1)); //h
+			if constexpr (FieldCount > 8) _mm_storeu_ps((float*)&ret[8] + i, _mm512_extractf32x4_ps(aeim, 2)); //i
 			if constexpr (FieldCount > 9) _mm_storeu_ps((float*)&ret[9] + i, _mm512_extractf32x4_ps(bfjn, 2)); //j
 			if constexpr (FieldCount > 10) _mm_storeu_ps((float*)&ret[10] + i, _mm512_extractf32x4_ps(cgko, 2)); //k
 			if constexpr (FieldCount > 11) _mm_storeu_ps((float*)&ret[11] + i, _mm512_extractf32x4_ps(dhlq, 2)); //l
