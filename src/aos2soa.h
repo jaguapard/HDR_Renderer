@@ -224,41 +224,46 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m512d xmm14 = _mm512_unpacklo_pd(tmp14, tmp15); //|c12,c13,c14,c15|g12,g13,g14,g15|k12,k13,k14,k15|o12,o13,o14,o15|
 		__m512d xmm15 = _mm512_unpackhi_pd(tmp14, tmp15); //|d12,d13,d14,d15|h12,h13,h14,h15|l12,l13,l14,l15|p12,p13,p14,p15|
 
-		//shuffle_f32x4 can't move second argument to lower 256-bit half, permutex2var way may be simpler than inserting:
-		//__m512d ymm0 = _mm512_insertf32x4(xmm0, _mm512_castps512_ps128(xmm4), 1); //can also use just ymm inserts for this
-		__m512d ymm0 = _mm512_permutex2var_pd(xmm0, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm4); //|a0_3|a4_7|e0_3|e4_7|
-		__m512d ymm1 = _mm512_permutex2var_pd(xmm8, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm12); //|a8_11|a12_15|e8_11|e12_15|
-		if constexpr (FieldCount > 0) _mm512_storeu_pd(&ret[0], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final A
-		if constexpr (FieldCount > 4) _mm512_storeu_pd(&ret[4], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final E
-		ymm0 = _mm512_permutex2var_pd(xmm1, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm5); //|b0_3|b4_7|f0_3|f4_7|
-		ymm1 = _mm512_permutex2var_pd(xmm9, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm13); //|b8_11|b12_15|f8_11|f12_15|
-		if constexpr (FieldCount > 1) _mm512_storeu_pd(&ret[1], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final B
-		if constexpr (FieldCount > 5) _mm512_storeu_pd(&ret[5], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final F
-		ymm0 = _mm512_permutex2var_pd(xmm2, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm6); //|c0_3|c4_7|g0_3|g4_7|
-		ymm1 = _mm512_permutex2var_pd(xmm10, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm14); //|c8_11|c12_15|g8_11|g12_15|
-		if constexpr (FieldCount > 2) _mm512_storeu_pd(&ret[2], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final C
-		if constexpr (FieldCount > 6) _mm512_storeu_pd(&ret[6], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final G
-		ymm0 = _mm512_permutex2var_pd(xmm3, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm7); //|d0_3|d4_7|h0_3|h4_7|
-		ymm1 = _mm512_permutex2var_pd(xmm11, _mm512_setr_epi64(0, 1, 8, 9, 2, 3, 10, 11), xmm15); //|d8_11|d12_15|h8_11|h12_15|
-		if constexpr (FieldCount > 3) _mm512_storeu_pd(&ret[3], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final D
-		if constexpr (FieldCount > 7) _mm512_storeu_pd(&ret[7], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final H
+		__m512d ymm0 = _mm512_shuffle_f64x2(xmm0, xmm4, _MM_SHUFFLE(2, 0, 2, 0)); //|a0_3|i0_3|a4_7|i4_7|
+		__m512d ymm1 = _mm512_shuffle_f64x2(xmm8, xmm12, _MM_SHUFFLE(2, 0, 2, 0)); //|a8_11|i8_11|a12_15|i12_15|
+		if constexpr (FieldCount > 0) _mm512_storeu_pd(&ret[0], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(2, 0, 2, 0))); //final A
+		if constexpr (FieldCount > 8) _mm512_storeu_pd(&ret[8], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final I
 
-		ymm0 = _mm512_permutex2var_pd(xmm0, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm4); //|i0_3|i4_7|m0_3|m4_7|
-		ymm1 = _mm512_permutex2var_pd(xmm8, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm12); //|i8_11|i12_15|m8_11|m12_15|
-		if constexpr (FieldCount > 8) _mm512_storeu_pd(&ret[8], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final I
-		if constexpr (FieldCount > 12) _mm512_storeu_pd(&ret[12], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final M
-		ymm0 = _mm512_permutex2var_pd(xmm1, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm5); //|j0_3|j4_7|n0_3|n4_7|
-		ymm1 = _mm512_permutex2var_pd(xmm9, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm13); //|j8_11|j12_15|n8_11|n12_15|
-		if constexpr (FieldCount > 9) _mm512_storeu_pd(&ret[9], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final J
-		if constexpr (FieldCount > 13) _mm512_storeu_pd(&ret[13], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final N
-		ymm0 = _mm512_permutex2var_pd(xmm2, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm6); //|k0_3|k4_7|o0_3|o4_7|
-		ymm1 = _mm512_permutex2var_pd(xmm10, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm14); //|k8_11|k12_15|o8_11|o12_15|
-		if constexpr (FieldCount > 10) _mm512_storeu_pd(&ret[10], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final K
-		if constexpr (FieldCount > 14) _mm512_storeu_pd(&ret[14], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final O
-		ymm0 = _mm512_permutex2var_pd(xmm3, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm7); //|l0_3|l4_7|p0_3|p4_7|
-		ymm1 = _mm512_permutex2var_pd(xmm11, _mm512_setr_epi64(4, 5, 12, 13, 6, 7, 14, 15), xmm15); //|l8_11|l12_15|p8_11|p12_15|
-		if constexpr (FieldCount > 11) _mm512_storeu_pd(&ret[11], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(1, 0, 1, 0))); //final L
-		if constexpr (FieldCount > 15) _mm512_storeu_pd(&ret[15], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 2, 3, 2))); //final P
+		ymm0 = _mm512_shuffle_f64x2(xmm1, xmm5, _MM_SHUFFLE(2, 0, 2, 0)); //|b0_3|j0_3|b4_7|j4_7|
+		ymm1 = _mm512_shuffle_f64x2(xmm9, xmm13, _MM_SHUFFLE(2, 0, 2, 0)); //|b8_11|j8_11|b12_15|j12_15|
+		if constexpr (FieldCount > 1) _mm512_storeu_pd(&ret[1], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(2, 0, 2, 0))); //final B
+		if constexpr (FieldCount > 9) _mm512_storeu_pd(&ret[9], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final J
+
+		ymm0 = _mm512_shuffle_f64x2(xmm2, xmm6, _MM_SHUFFLE(2, 0, 2, 0)); //|c0_3|k0_3|c4_7|k4_7|
+		ymm1 = _mm512_shuffle_f64x2(xmm10, xmm14, _MM_SHUFFLE(2, 0, 2, 0)); //|c8_11|k8_11|c12_15|k12_15|
+		if constexpr (FieldCount > 2) _mm512_storeu_pd(&ret[2], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(2, 0, 2, 0))); //final C
+		if constexpr (FieldCount > 10) _mm512_storeu_pd(&ret[10], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final K
+
+		ymm0 = _mm512_shuffle_f64x2(xmm3, xmm7, _MM_SHUFFLE(2, 0, 2, 0)); //|d0_3|l0_3|d4_7|l4_7|
+		ymm1 = _mm512_shuffle_f64x2(xmm11, xmm15, _MM_SHUFFLE(2, 0, 2, 0)); //|d8_11|l8_11|d12_15|l12_15|
+		if constexpr (FieldCount > 3) _mm512_storeu_pd(&ret[3], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(2, 0, 2, 0))); //final D
+		if constexpr (FieldCount > 11) _mm512_storeu_pd(&ret[11], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final L
+
+
+		ymm0 = _mm512_shuffle_f64x2(xmm0, xmm4, _MM_SHUFFLE(3, 1, 3, 1)); //|e0_3|m0_3|e4_7|m4_7|
+		ymm1 = _mm512_shuffle_f64x2(xmm8, xmm12, _MM_SHUFFLE(3, 1, 3, 1)); //|e8_11|m8_11|e12_15|m12_15|
+		if (FieldCount > 4) _mm512_storeu_pd(&ret[4], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(2, 0, 2, 0))); //final E
+		if (FieldCount > 12) _mm512_storeu_pd(&ret[12], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final M
+
+		ymm0 = _mm512_shuffle_f64x2(xmm1, xmm5, _MM_SHUFFLE(3, 1, 3, 1)); //|f0_3|n0_3|f4_7|n4_7|
+		ymm1 = _mm512_shuffle_f64x2(xmm9, xmm13, _MM_SHUFFLE(3, 1, 3, 1)); //|f8_11|n8_11|f12_15|n12_15|
+		if (FieldCount > 5) _mm512_storeu_pd(&ret[5], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(2, 0, 2, 0))); //final F
+		if (FieldCount > 13) _mm512_storeu_pd(&ret[13], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final N
+
+		ymm0 = _mm512_shuffle_f64x2(xmm2, xmm6, _MM_SHUFFLE(3, 1, 3, 1)); //|g0_3|o0_3|g4_7|o4_7|
+		ymm1 = _mm512_shuffle_f64x2(xmm10, xmm14, _MM_SHUFFLE(3, 1, 3, 1)); //|g8_11|o8_11|g12_15|o12_15|
+		if (FieldCount > 6) _mm512_storeu_pd(&ret[6], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(2, 0, 2, 0))); //final G
+		if (FieldCount > 14) _mm512_storeu_pd(&ret[14], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final O
+
+		ymm0 = _mm512_shuffle_f64x2(xmm3, xmm7, _MM_SHUFFLE(3, 1, 3, 1)); //|h0_3|p0_3|h4_7|h4_7|
+		ymm1 = _mm512_shuffle_f64x2(xmm11, xmm15, _MM_SHUFFLE(3, 1, 3, 1)); //|h8_11|p8_11|p12_15|p12_15|
+		if (FieldCount > 7) _mm512_storeu_pd(&ret[7], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(2, 0, 2, 0))); //final H
+		if (FieldCount > 15) _mm512_storeu_pd(&ret[15], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final P
 		return ret;
 	}
 
