@@ -19,6 +19,7 @@ public:
 
 	static inline const __LutMan_tables_t tables = __LutMan_tables_t();
 	//Provides a polynomial approximation of degree PolynomialDegree of function y = x^2.2. Only valid for 0 <= x <= 1
+	//TODO: Not recommended to be used, too much error on dark shades
 	template<typename T, int PolynomialDegree>
 	static __forceinline T gamma2p2_toLinear(T x)
 	{
