@@ -13,6 +13,7 @@
 #include "OSD.h"
 #include "Statsman.h"
 #include "LUTMan.h"
+#include <wrl/client.h>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -79,23 +80,20 @@ static void __raise_error_internal(const char* filePath, int line, std::string e
 }
 #define RAISE_ERROR(msg) (__raise_error_internal(__FILE__, __LINE__, std::string("Error: ")+msg))
 
-ID3DBlob* CompileShader(const char* source, const char* entry, const char* target) {
-    ID3DBlob* blob = nullptr;
-    ID3DBlob* errors = nullptr;
+Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(const char* source, const char* entry, const char* target) {
+    Microsoft::WRL::ComPtr<ID3DBlob> blob, errors;
     HRESULT hr = D3DCompile(source, strlen(source), nullptr, nullptr, nullptr,
         entry, target, 0, 0, &blob, &errors);
     if (FAILED(hr)) {
         std::string errMsg;
         if (errors) {
             errMsg = static_cast<const char*>(errors->GetBufferPointer());
-            errors->Release();
         }
         else {
             errMsg = "Unknown compilation error";
         }
         RAISE_ERROR(errMsg);
     }
-    if (errors) errors->Release();
     return blob;
 }
 
@@ -211,8 +209,8 @@ int main(int argc, char* argv[])
         if (FAILED(device->CreateSamplerState(&sampDesc, &sampler)))
             RAISE_ERROR("CreateSamplerState failed");
 
-        ID3DBlob* vsBlob = CompileShader(g_VS, "main", "vs_5_0");
-        ID3DBlob* psBlob = CompileShader(g_PS, "main", "ps_5_0");
+        auto vsBlob = CompileShader(g_VS, "main", "vs_5_0");
+        auto psBlob = CompileShader(g_PS, "main", "ps_5_0");
 
         ID3D11VertexShader* vs = nullptr;
         ID3D11PixelShader* ps = nullptr;
@@ -220,7 +218,6 @@ int main(int argc, char* argv[])
             RAISE_ERROR("CreateVertexShader failed");
         if (FAILED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &ps)))
             RAISE_ERROR("CreatePixelShader failed");
-        vsBlob->Release(); psBlob->Release();
 
         // Main loop
         bool running = true;
