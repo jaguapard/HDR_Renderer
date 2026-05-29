@@ -7,10 +7,26 @@ HardwareRasterizingRenderer::HardwareRasterizingRenderer()
 {
 	//Create main vertex shader
 	ShaderCreationDesc vsDesc;
-	vsDesc.path = "BasicVS.cso";
-	vsDesc.inputLayout = { {"Pos", 0, DXGI_FORMAT_R32G32_FLOAT, 0,0,D3D11_INPUT_PER_VERTEX_DATA, 0} };
-	this->mainVS = Shader<ID3D11VertexShader>(this->gfx, vsDesc);
+	vsDesc.path = "MainVS.cso";
 
+	D3D11_INPUT_ELEMENT_DESC inpLayoutDesc = {};
+	inpLayoutDesc.SemanticIndex = 0;
+	inpLayoutDesc.InputSlot = 0;
+	inpLayoutDesc.AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+	inpLayoutDesc.InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+	inpLayoutDesc.InstanceDataStepRate = 0;
+	
+	inpLayoutDesc.SemanticName = "Pos";
+	inpLayoutDesc.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	vsDesc.inputLayout.push_back(inpLayoutDesc);
+	inpLayoutDesc.SemanticName = "UV";
+	inpLayoutDesc.Format = DXGI_FORMAT_R32G32_FLOAT;
+	vsDesc.inputLayout.push_back(inpLayoutDesc);
+	inpLayoutDesc.SemanticName = "Normals";
+	inpLayoutDesc.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+	vsDesc.inputLayout.push_back(inpLayoutDesc);
+	this->mainVS = Shader<ID3D11VertexShader>(this->gfx, vsDesc);
+	/*
 	ShaderCreationDesc skyboxVsDesc;
 	skyboxVsDesc.path = "SkyboxVS.cso";
 	skyboxVsDesc.inputLayout = {
@@ -22,10 +38,10 @@ HardwareRasterizingRenderer::HardwareRasterizingRenderer()
 	ShaderCreationDesc skyboxPsDesc;
 	skyboxPsDesc.path = "SkyboxPS.cso";
 	this->skyboxPS = Shader<ID3D11PixelShader>(this->gfx, skyboxPsDesc);
-
+	*/
 
 	ShaderCreationDesc psDesc;
-	psDesc.path = "BasicPS.cso";
+	psDesc.path = "MainPS.cso";
 	this->mainPS = Shader<ID3D11PixelShader>(this->gfx, psDesc);
 	this->gfx.deviceContext->PSSetShader(this->mainPS.shader.Get(), nullptr, 0);
 
@@ -247,17 +263,6 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		alreadyLoadedTextureIndices.insert(currModel.diffuseMapIndex); //avoid creating same texture twice
 	}
 
-	//Create constant buffer
-	D3D11_BUFFER_DESC cbd;
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cbd.Usage = D3D11_USAGE_DYNAMIC;
-	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	cbd.MiscFlags = 0;
-	cbd.ByteWidth = sizeof(ConstantBuffer);
-	cbd.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA csd;
-	csd.pSysMem = &this->mainCB_CPU;
-	DX_THROW_ON_FAIL(this->gfx.device->CreateBuffer(&cbd, &csd, &this->mainConstantBuffer), "Create constant buffer");
 	/*
 		if (this->discardUntexturedTriangles)
 		{
