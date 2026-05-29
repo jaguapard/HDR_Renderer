@@ -112,5 +112,5 @@ public:
 	//Writes out colors to pixels (x,y) of the framebuffer using mask
 	static void scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, Mask16 mask, void* frameBuf, int framebufW);
 protected:
-	TextureManager textureManager;
+	TextureManager& textureManager = TextureManager::getInstance();
 };

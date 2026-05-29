@@ -22,6 +22,18 @@
     <Filter Include="Header Files\Renderers">
       <UniqueIdentifier>{571f2a13-ff73-4356-9995-efd72db4e6bc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Renderers\Rasterizing">
+      <UniqueIdentifier>{36885dec-b441-428c-991e-da5e3bb4808c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Renderers\Raycasting">
+      <UniqueIdentifier>{47a4b239-44cf-4e45-a8cc-5bfb7d9bb0b9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Rasterizing">
+      <UniqueIdentifier>{9260cadf-7e8d-4d4f-bf18-09b02842f008}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Raycasting">
+      <UniqueIdentifier>{1bf2391b-6063-4c2d-880b-26cb9d72ec44}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -36,13 +48,7 @@
     <ClCompile Include="src\AssetLoader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\Threadpool.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\Renderers\Rasterizing\CoordinateTransformer.cpp">
@@ -66,9 +72,6 @@
     <ClCompile Include="src\BoundingBox.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderers\ColorPixelBuffer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\Renderers\RayCasting\Octree.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -78,10 +81,28 @@
     <ClCompile Include="src\LUTMan.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Renderers\Rasterizing\RasterizingExplodeAndRestoreSceneEffect.cpp">
+    <ClCompile Include="src\Mappers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Mappers.cpp">
+    <ClCompile Include="src\Decoder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Texture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\Rasterizing\RasterizingExplodeAndRestoreSceneEffect.cpp">
+      <Filter>Source Files\Rasterizing</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\Rasterizing\RasterizingRenderer.cpp">
+      <Filter>Source Files\Rasterizing</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp">
+      <Filter>Source Files\Raycasting</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Graphics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\errors.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -137,9 +158,6 @@
     <ClInclude Include="src\helpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\Threadpool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -179,16 +197,7 @@
     <ClInclude Include="src\BoundingBox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Renderers\ColorPixelBuffer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Renderers\RayCasting\Octree.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\Renderers\TextureManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Renderers\Rasterizing\RasterizingExplodeAndRestoreSceneEffect.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\LUTMan.h">
@@ -201,6 +210,30 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Texture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Decoder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Swizzler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Graphics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\RayCasting\Octree.h">
+      <Filter>Header Files\Renderers\Raycasting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\Rasterizing\RasterizingExplodeAndRestoreSceneEffect.h">
+      <Filter>Header Files\Renderers\Rasterizing</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h">
+      <Filter>Header Files\Renderers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\errors.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

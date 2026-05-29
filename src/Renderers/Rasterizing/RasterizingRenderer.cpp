@@ -176,8 +176,8 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	Threadpool* threadpool = settings.threadpool;
 	int threadCount = threadpool->getWorkerCount();
 
-	int w = (int)settings.outputTextureParams.Width;
-	int h = (int)settings.outputTextureParams.Height;
+	int w = settings.outputTextureW;
+	int h = settings.outputTextureH;
 	uint64_t skyColorFP16 = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_TO_NEAREST_INT), 0);
 	this->depthBufMain.resize(w, h);
 	this->triangleIndexBuf.resize(w, h);
