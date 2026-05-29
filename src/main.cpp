@@ -14,6 +14,7 @@
 #include "Statsman.h"
 #include "LUTMan.h"
 #include <wrl/client.h>
+#include "libs.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -71,14 +72,6 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target {
     return tex.Sample(samp, flippedUV);
 }
 )";
-
-static void __raise_error_internal(const char* filePath, int line, std::string errorMsg)
-{
-    std::stringstream ss;
-    ss << "Error in file: " << filePath << "\n" << "Line " << line << "\n" << errorMsg;
-    throw std::runtime_error(ss.str());
-}
-#define RAISE_ERROR(msg) (__raise_error_internal(__FILE__, __LINE__, std::string("Error: ")+msg))
 
 Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(const char* source, const char* entry, const char* target) {
     Microsoft::WRL::ComPtr<ID3DBlob> blob, errors;
