@@ -187,7 +187,7 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 					v.y = it.v[k].space.y;
 					v.z = it.v[k].space.z;
 					v.u = it.v[k].diffuseMapCoords.x;
-					v.v = it.v[k].diffuseMapCoords.y;
+					v.v = -it.v[k].diffuseMapCoords.y; //Mismatching conventions, fixing this up at import stage is the easiest solution
 					v.nx = it.v[k].normal.x;
 					v.ny = it.v[k].normal.y;
 					v.nz = it.v[k].normal.z;
@@ -216,12 +216,12 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 	vertexBufferSubresourceData.pSysMem = verts.data();
 	DX_THROW_ON_FAIL(this->gfx.device->CreateBuffer(&vertexBufferDesc, &vertexBufferSubresourceData, &this->mainVertexBuffer), "Create Main VB", this->gfx.device.Get());
 
-	std::unordered_set<int> alreadyLoadedTextureIndices = { -1 };
+	std::unordered_set<int> alreadyLoadedTextureIndices = { TextureManager::INVALID_HANDLE };
 	for (int i = 0; i < this->sceneModels.size(); ++i)
 	{
 		auto& currModel = this->sceneModels[i];
 		currModel.vertexBuffer = this->mainVertexBuffer;
-		if (alreadyLoadedTextureIndices.find(currModel.diffuseMapIndex) == alreadyLoadedTextureIndices.end()) continue;
+		if (alreadyLoadedTextureIndices.find(currModel.diffuseMapIndex) != alreadyLoadedTextureIndices.end()) continue;
 
 		HW_Texture2D createdTexture;
 		//createdTexture.texture
@@ -247,7 +247,7 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 		srvDesc.Format = texDesc.Format;
-		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 		srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
 		srvDesc.Texture2D.MostDetailedMip = 0;
 		DX_THROW_ON_FAIL(gfx.device->CreateShaderResourceView(createdTexture.texture.Get(), &srvDesc, &createdTexture.srv));
@@ -330,6 +330,8 @@ void HardwareRasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	for (auto& it : this->sceneModels)
 	{
+		this->gfx.deviceContext->PSSetShaderResources(0, 1, this->textures[it.diffuseMapIndex].srv.GetAddressOf());
+		this->gfx.deviceContext->PSSetSamplers(0, 1, this->textures[it.diffuseMapIndex].samplerState.GetAddressOf());
 		this->gfx.deviceContext->Draw(it.vertexCount, it.startVertex);
 	}
 	DX_THROW_ON_FAIL(this->gfx.swapChain->Present(settings.vsyncEnabled ? 1 : 0, 0));
