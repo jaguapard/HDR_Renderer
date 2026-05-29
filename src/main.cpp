@@ -45,35 +45,6 @@ void operator delete(void* block)
     return _aligned_free(block);
 }
 
-// Simple shaders
-const char* g_VS = R"(
-struct VS_OUTPUT {
-    float4 Pos : SV_POSITION;
-    float2 Tex : TEXCOORD0;
-};
-
-VS_OUTPUT main(uint id : SV_VertexID) {
-    VS_OUTPUT output;
-    float2 verts[3] = {
-        float2(-1, -1),
-        float2(-1, 3),
-        float2(3, -1)
-    };
-    output.Pos = float4(verts[id], 0, 1);
-    output.Tex = (verts[id] + 1) * 0.5;
-    return output;
-}
-)";
-
-const char* g_PS = R"(
-Texture2D tex : register(t0);
-SamplerState samp : register(s0);
-float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target {
-    float2 flippedUV = float2(uv.x, uv.y);
-    return tex.Sample(samp, flippedUV);
-}
-)";
-
 std::string vec2str(Vec4f v, int componentsToPrint = 4)
 {
     std::string ret;
@@ -103,54 +74,8 @@ int main(int argc, char* argv[])
 
         TTF_Init();
 
-        // Dynamic texture (CPU-writable + SRV)
-        D3D11_TEXTURE2D_DESC texDesc = {};
+        CPU_Renderer_Context cpuRenderingCtx = graphics.makeCPURendererContext();
 
-        constexpr int DOWNSCALE_MULT = 10;
-#ifdef NDEBUG
-        texDesc.Width = w;
-        texDesc.Height = h;
-#else
-        texDesc.Width = w/DOWNSCALE_MULT;
-        texDesc.Height = h/DOWNSCALE_MULT;
-#endif
-        texDesc.MipLevels = 1;
-        texDesc.ArraySize = 1;
-        texDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-        texDesc.SampleDesc.Count = 1;
-        texDesc.Usage = D3D11_USAGE_DYNAMIC;
-        texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-        texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-        if (texDesc.Width % 4 != 0 || texDesc.Height % 4 != 0) throw std::runtime_error("Unsupported output texture size! Each side length must be multiple of 4."); //I think this is correct, because it goes haywire if sizes are weird even if renderers are doing everything properly.
-
-        ID3D11Texture2D* cpuTexture = nullptr;
-        if (FAILED(graphics.device->CreateTexture2D(&texDesc, nullptr, &cpuTexture)))
-            RAISE_ERROR("CreateTexture2D (cpuTexture) failed");
-
-        ID3D11ShaderResourceView* srv = nullptr;
-        if (FAILED(graphics.device->CreateShaderResourceView(cpuTexture, nullptr, &srv)))
-            RAISE_ERROR("CreateShaderResourceView failed");
-
-        D3D11_SAMPLER_DESC sampDesc = {};
-        sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-        sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-
-        ID3D11SamplerState* sampler = nullptr;
-        if (FAILED(graphics.device->CreateSamplerState(&sampDesc, &sampler)))
-            RAISE_ERROR("CreateSamplerState failed");
-
-        auto vsBlob = Graphics::CompileShader(g_VS, "main", "vs_5_0");
-        auto psBlob = Graphics::CompileShader(g_PS, "main", "ps_5_0");
-
-        ID3D11VertexShader* vs = nullptr;
-        ID3D11PixelShader* ps = nullptr;
-        if (FAILED(graphics.device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &vs)))
-            RAISE_ERROR("CreateVertexShader failed");
-        if (FAILED(graphics.device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &ps)))
-            RAISE_ERROR("CreatePixelShader failed");
-
-        // Main loop
         bool running = true;
         SDL_Event e;
         uint64_t frameCounter = 0, oldFrameCounter = 0;
@@ -190,9 +115,12 @@ int main(int argc, char* argv[])
         //gs.camPos = { 20,-20,-100 };
         gs.camPos = { 1215.152100, 42.281734, 24.533436 };
         gs.camAng = { 0.000000, -1.588021, -0.288000 };
-        gs.outputTextureParams = texDesc;
+        gs.outputTextureW = cpuRenderingCtx.outputTextureW;
+        gs.outputTextureH = cpuRenderingCtx.outputTextureH;
+        gs.screenW = cpuRenderingCtx.screenW;
+        gs.screenH = cpuRenderingCtx.screenH;
         gs.threadpool = &threadpool;
-        uint32_t OSD_fontSize = std::max<uint32_t>(6, float(texDesc.Height) / 72);
+        uint32_t OSD_fontSize = std::max<uint32_t>(6, float(cpuRenderingCtx.outputTextureH) / 72);
         OSD osd(OSD_fontSize);
         uint64_t lastOsdInfoTicks = SDL_GetTicksNS();
         double lastOsdDrawMs = NAN;
@@ -278,9 +206,7 @@ int main(int argc, char* argv[])
                 continue;
             }
 
-            D3D11_MAPPED_SUBRESOURCE mapped;
-            if (FAILED(graphics.deviceContext->Map(cpuTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-                RAISE_ERROR("Map(cpuTexture) failed");
+            D3D11_MAPPED_SUBRESOURCE mapped = graphics.CPURendering_OnFrameStart(cpuRenderingCtx);
 
             //TODO: change coordinate system, so Y = up/down, Z = into the screen, X = left/right
             Matrix4 rotation = Matrix4::rotationXYZ(gs.camAng);
@@ -325,7 +251,7 @@ int main(int argc, char* argv[])
             std::vector<std::pair<std::string, std::string>> additionalInfo = {
                 {"Camera pos", vec2str(gs.camPos)},
                 {"Camera ang", vec2str(gs.camAng)},
-                {"Render resolution", std::to_string(texDesc.Width) + "x" + std::to_string(texDesc.Height) },
+                {"Render resolution", std::to_string(gs.outputTextureW) + "x" + std::to_string(gs.outputTextureH) },
                 {"Output resolution", std::to_string(graphics.w) + "x" + std::to_string(graphics.h) },
                 {"OSD draw time: ", std::to_string(lastOsdDrawMs) + " ms"},
             };
@@ -337,14 +263,14 @@ int main(int argc, char* argv[])
                 int osdH = osdSurface->h;
                 const Vec4f* osdPixels = (Vec4f*)(osdSurface->pixels);
                 uint64_t* output = (uint64_t*)gs.graphicsOutputBuffer;
-                for (int y = 0; y < std::min<int>(osdH, texDesc.Height); ++y)
+                for (int y = 0; y < std::min<int>(osdH, gs.outputTextureH); ++y)
                 {
-                    for (int x = 0; x < std::min<int>(osdW, texDesc.Width); ++x)
+                    for (int x = 0; x < std::min<int>(osdW, gs.outputTextureW); ++x)
                     {
                         Vec4f osdPixel = osdPixels[y * osdW + x];
                         if (osdPixel.x > 0 || osdPixel.y > 0 || osdPixel.z > 0) //alpha is always 1 in returned surface for some reason, so work around by testing manually
                         {
-                            int outInd = (texDesc.Height - y - 1) * texDesc.Width + x; //currently, y is backwards (0 = bottom of the screen, h-1 = top). Renderers don't care, so just flip OSD instead.
+                            int outInd = (gs.outputTextureH - y - 1) * gs.outputTextureW + x; //currently, y is backwards (0 = bottom of the screen, h-1 = top). Renderers don't care, so just flip OSD instead.
                             output[outInd] = _mm_extract_epi64(_mm_cvtps_ph(osdPixel, _MM_FROUND_TO_NEAREST_INT), 0);
                         }
                     }
@@ -368,27 +294,8 @@ int main(int argc, char* argv[])
             }
             uint64_t ticksAfterOSD = SDL_GetTicksNS();
             lastOsdDrawMs = (ticksAfterOSD - ticksBeforeOSD) / 1e6;
-
-            graphics.deviceContext->Unmap(cpuTexture, 0);
-
-            graphics.deviceContext->OMSetRenderTargets(1, graphics.mainRenderTargetView.GetAddressOf(), nullptr);
-            float clear[4] = { 0,0,0,1 };
-            graphics.deviceContext->ClearRenderTargetView(graphics.mainRenderTargetView.Get(), clear);
-
-            graphics.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            graphics.deviceContext->VSSetShader(vs, nullptr, 0);
-            graphics.deviceContext->PSSetShader(ps, nullptr, 0);
-            graphics.deviceContext->PSSetShaderResources(0, 1, &srv);
-            graphics.deviceContext->PSSetSamplers(0, 1, &sampler);
-
-            graphics.deviceContext->Draw(3, 0);
-            if (FAILED(graphics.swapChain->Present(0, 0)))
-                RAISE_ERROR("swapChain->Present failed");
+            graphics.CPURendering_Present(cpuRenderingCtx);
         }
-
-        // Cleanup
-        vs->Release(); ps->Release(); sampler->Release(); srv->Release();
-        cpuTexture->Release();
     }
     catch (const std::exception& e)
     {

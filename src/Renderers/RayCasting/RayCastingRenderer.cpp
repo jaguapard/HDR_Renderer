@@ -206,7 +206,7 @@ void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 
 void RayCastingRenderer::renderFrame(const GameSettings& settings)
 {
-	int bufW = settings.outputTextureParams.Width, bufH = settings.outputTextureParams.Height;
+	int bufW = settings.outputTextureW, bufH = settings.outputTextureH;
 	//coordinate check
 	/*	first:	second:
 		___		
