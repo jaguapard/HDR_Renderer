@@ -1,5 +1,7 @@
 #include "Graphics.h"
 #include "errors.h"
+#include <d3dcompiler.h>
+
 using namespace DirectX;
 Graphics::Graphics(uint32_t w, uint32_t h)
 {
@@ -49,4 +51,22 @@ Graphics::Graphics(uint32_t w, uint32_t h)
     vp.MinDepth = 0;
     vp.MaxDepth = 1;
     this->deviceContext->RSSetViewports(1, &vp);
+}
+
+Microsoft::WRL::ComPtr<ID3DBlob> Graphics::CompileShader(const char* sourceCode, const char* entryPointName, const char* targetLevel)
+{
+    Microsoft::WRL::ComPtr<ID3DBlob> blob, errors;
+    HRESULT hr = D3DCompile(sourceCode, strlen(sourceCode), nullptr, nullptr, nullptr,
+        entryPointName, targetLevel, 0, 0, &blob, &errors);
+    if (FAILED(hr)) {
+        std::string errMsg;
+        if (errors) {
+            errMsg = static_cast<const char*>(errors->GetBufferPointer());
+        }
+        else {
+            errMsg = "Unknown compilation error";
+        }
+        RAISE_ERROR(errMsg);
+    }
+    return blob;
 }

@@ -12,5 +12,7 @@ public:
 	Microsoft::WRL::ComPtr<ID3D11Device> device;
 	Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext;
 	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> mainRenderTargetView;
+
+	static Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(const char* sourceCode, const char* entryPointName, const char* targetLevel);
 private:
 };

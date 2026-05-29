@@ -15,6 +15,7 @@
 #include "LUTMan.h"
 #include <wrl/client.h>
 #include "libs.h"
+#include "Graphics.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -72,23 +73,6 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target {
     return tex.Sample(samp, flippedUV);
 }
 )";
-
-Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(const char* source, const char* entry, const char* target) {
-    Microsoft::WRL::ComPtr<ID3DBlob> blob, errors;
-    HRESULT hr = D3DCompile(source, strlen(source), nullptr, nullptr, nullptr,
-        entry, target, 0, 0, &blob, &errors);
-    if (FAILED(hr)) {
-        std::string errMsg;
-        if (errors) {
-            errMsg = static_cast<const char*>(errors->GetBufferPointer());
-        }
-        else {
-            errMsg = "Unknown compilation error";
-        }
-        RAISE_ERROR(errMsg);
-    }
-    return blob;
-}
 
 std::string vec2str(Vec4f v, int componentsToPrint = 4)
 {
@@ -202,8 +186,8 @@ int main(int argc, char* argv[])
         if (FAILED(device->CreateSamplerState(&sampDesc, &sampler)))
             RAISE_ERROR("CreateSamplerState failed");
 
-        auto vsBlob = CompileShader(g_VS, "main", "vs_5_0");
-        auto psBlob = CompileShader(g_PS, "main", "ps_5_0");
+        auto vsBlob = Graphics::CompileShader(g_VS, "main", "vs_5_0");
+        auto psBlob = Graphics::CompileShader(g_PS, "main", "ps_5_0");
 
         ID3D11VertexShader* vs = nullptr;
         ID3D11PixelShader* ps = nullptr;
