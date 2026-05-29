@@ -23,6 +23,8 @@ Microsoft::WRL::ComPtr<ID3DBlob> Graphics::CompileShader(const char* sourceCode,
 
 Graphics::Graphics(uint32_t w, uint32_t h)
 {
+    if (Graphics::instance) throw std::runtime_error("Graphics class instance already exists. Graphics class is a singleton and cannot have more than one instance.");
+    Graphics::instance = this;
     this->w = w;
     this->h = h;
     this->window = SDL_CreateWindow("Heightmap renderer", w, h, 0);
