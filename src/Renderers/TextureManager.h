@@ -4,7 +4,7 @@
 #include "../Texture.h"
 #include <mutex>
 #include <unordered_map>
-
+#include "../Threadpool.h"
 class TextureManager
 {
 public:
@@ -15,7 +15,16 @@ public:
 
 	static TextureManager& getInstance();
 	int addTextureBySurface(SDL_Surface* s);
+
+	//Loads texture by path specified and returns it's handle.
 	int addTextureByPath(std::string path);
+
+	//TODO: just use std::async/future/etc
+	//Asynchronously loads a texture at specified path, returning the handle to import task.
+	//When the task completes, stores the handle to the imported texture to retHandle
+	//The caller must ensure that retHandle reference is valid until the load task completes
+	Threadpool::TaskHandle addTextureByPathAsync(const std::string& path, int* retHandle);
+
 	const Texture& getTextureByHandle(int i) const;
 	bool handleIsValid(int h) const;
 	void clear();

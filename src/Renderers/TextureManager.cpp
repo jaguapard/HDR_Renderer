@@ -55,12 +55,14 @@ int TextureManager::addTextureBySurface(SDL_Surface* s)
 }
 int TextureManager::addTextureByPath(std::string path)
 {
-	auto found = this->pathToIndexMap.find(path);
-	if (found != this->pathToIndexMap.end())
 	{
 		std::lock_guard lck(this->mtx);
-		std::cout << "Texture at " << path << " was already loaded, returning existing index " << found->second << "\n";
-		return found->second;
+		auto found = this->pathToIndexMap.find(path);
+		if (found != this->pathToIndexMap.end())
+		{
+			std::cout << "Texture at " << path << " was already loaded, returning existing index " << found->second << "\n";
+			return found->second;
+		}
 	}
 
 	auto initialSurf = Smart_Surface(IMG_Load(path.c_str()));
@@ -83,6 +85,15 @@ int TextureManager::addTextureByPath(std::string path)
 	//std::cout << "Successfully loaded texture from " << path << " and assigned it index " << h << "\n";
 	this->pathToIndexMap[path] = h;
 	return h;
+}
+
+Threadpool::TaskHandle TextureManager::addTextureByPathAsync(const std::string& path, int* retHandle)
+{
+	Threadpool::Task tsk;
+	tsk.func = [path, retHandle, this]() {
+		*retHandle = this->addTextureByPath(path);
+	};
+	return Threadpool::instance->addTask(tsk);
 }
 
 const Texture& TextureManager::getTextureByHandle(int i) const
