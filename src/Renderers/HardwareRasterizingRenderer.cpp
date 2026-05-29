@@ -1,7 +1,8 @@
 #include "HardwareRasterizingRenderer.h"
+#include "../GameSettings.h"
 #include "../AssetLoader.h"
 #include "TextureManager.h"
-
+using namespace DirectX;
 using namespace HardwareRasterizing;
 HardwareRasterizingRenderer::HardwareRasterizingRenderer()
 {
@@ -278,4 +279,57 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 
 void HardwareRasterizingRenderer::renderFrame(const GameSettings& settings)
 {
+	XMMATRIX rotation = XMMatrixRotationRollPitchYawFromVector(settings.camAng); // TODO: pass it through from update stage, to avoid possibility of mismatch
+	XMMATRIX translation = XMMatrixTranslation(-settings.camPos.x, -settings.camPos.y, -settings.camPos.z);
+	XMMATRIX view = translation * XMMatrixTranspose(rotation);
+	XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV2, float(this->gfx.w) / float(this->gfx.h), 100000.f, 0.1f);
+
+	this->mainCB_CPU.camPos = settings.camPos;
+	this->mainCB_CPU.lightDir = XMVector3Normalize(this->lightDir);
+	
+	this->mainCB_CPU.view = XMMatrixTranspose(view);
+	this->mainCB_CPU.projection = XMMatrixTranspose(projection);
+	this->mainCB_CPU.viewProjection = XMMatrixTranspose(view * projection);
+	this->mainCB_CPU.time = XMVectorSet(settings.gameTime, 0, 0, 0);
+	D3D11_MAPPED_SUBRESOURCE mappedCb = {};
+	DX_THROW_ON_FAIL(this->gfx.deviceContext->Map(this->mainConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedCb), "Constant buffer map");
+	memcpy(mappedCb.pData, &this->mainCB_CPU, sizeof(this->mainCB_CPU));
+	this->gfx.deviceContext->Unmap(this->mainConstantBuffer.Get(), 0);
+
+	this->gfx.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	this->gfx.deviceContext->OMSetRenderTargets(1, this->gfx.mainRenderTargetView.GetAddressOf(), this->depthStencilView.Get());
+	float clear[4] = { 0,0,0,1 };
+	this->gfx.deviceContext->ClearRenderTargetView(this->gfx.mainRenderTargetView.Get(), clear);
+	this->gfx.deviceContext->ClearDepthStencilView(this->depthStencilView.Get(), D3D11_CLEAR_DEPTH, 0.f, 0);
+
+	//UINT skyboxVbStride = sizeof(Vertex3D);
+	//UINT skyboxVbOffset = 0;
+	UINT mainVbStride = sizeof(Vertex);
+	UINT mainVbOffset = 0;
+
+	/*/
+	this->gfx.deviceContext->IASetVertexBuffers(0, 1, this->skyboxVB.GetAddressOf(), &skyboxVbStride, &skyboxVbOffset);
+	this->gfx.deviceContext->VSSetShader(this->skyboxVS.shader.Get(), nullptr, 0);
+	this->gfx.deviceContext->PSSetShader(this->skyboxPS.shader.Get(), nullptr, 0);
+	this->gfx.deviceContext->IASetInputLayout(this->skyboxVS.inputLayout.Get());
+	this->gfx.deviceContext->VSSetConstantBuffers(0, 1, this->mainConstantBuffer.GetAddressOf());
+	this->gfx.deviceContext->PSSetConstantBuffers(0, 1, this->mainConstantBuffer.GetAddressOf());
+	this->gfx.deviceContext->PSSetShaderResources(0, 1, this->skyboxCubemap.srv.GetAddressOf());
+	this->gfx.deviceContext->PSSetSamplers(0, 1, this->skyboxSamplerState.GetAddressOf());
+	this->gfx.deviceContext->OMSetDepthStencilState(this->skyboxDepthStencilState.Get(), 0);
+	this->gfx.deviceContext->Draw(this->skyCubeVertexCount, 0);*/
+
+	this->gfx.deviceContext->IASetVertexBuffers(0, 1, this->mainVertexBuffer.GetAddressOf(), &mainVbStride, &mainVbOffset);
+	this->gfx.deviceContext->VSSetShader(this->mainVS.shader.Get(), nullptr, 0);
+	this->gfx.deviceContext->IASetInputLayout(this->mainVS.inputLayout.Get());
+	this->gfx.deviceContext->PSSetShader(this->mainPS.shader.Get(), nullptr, 0);
+	this->gfx.deviceContext->VSSetConstantBuffers(0, 1, this->mainConstantBuffer.GetAddressOf());
+	this->gfx.deviceContext->PSSetConstantBuffers(0, 1, this->mainConstantBuffer.GetAddressOf());
+	this->gfx.deviceContext->OMSetDepthStencilState(this->mainDepthStencilState.Get(), 0);
+
+	for (auto& it : this->sceneModels)
+	{
+		this->gfx.deviceContext->Draw(it.vertexCount, it.startVertex);
+	}
+	DX_THROW_ON_FAIL(this->gfx.swapChain->Present(1, 0));
 }

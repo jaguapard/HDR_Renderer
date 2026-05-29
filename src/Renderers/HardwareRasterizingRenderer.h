@@ -5,6 +5,7 @@
 #include <filesystem>
 #include "../libs.h"
 #include <d3dcompiler.h>
+#include <DirectXMath.h>
 
 namespace HardwareRasterizing
 {
@@ -125,4 +126,5 @@ private:
 
 	std::vector<HardwareRasterizing::Model> sceneModels;
 	std::vector<HardwareRasterizing::HW_Texture2D> textures;
+	Vec4f lightDir = Vec4f(0.4, 0.2, 0.6, 0);
 };
