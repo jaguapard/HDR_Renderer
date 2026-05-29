@@ -195,7 +195,8 @@ int main(int argc, char* argv[])
 
             if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_3)) //swap renderers
             {
-                if (dynamic_cast<RasterizingRenderer*>(currentRenderer.get())) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
+                if (dynamic_pointer_cast<RasterizingRenderer>(currentRenderer)) scheduledRendererChange = std::make_shared<HardwareRasterizingRenderer>();
+                else if (dynamic_pointer_cast<HardwareRasterizingRenderer>(currentRenderer)) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
                 else scheduledRendererChange = std::make_shared<RasterizingRenderer>();
                 continue;
             }
