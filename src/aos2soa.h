@@ -158,14 +158,14 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m256d g8_15 = _mm256_permute2f128_pd(xmm12, xmm14, 1 | (3 << 4));
 		__m256d h8_15 = _mm256_permute2f128_pd(xmm13, xmm15, 1 | (3 << 4));
 
-		if constexpr (FieldCount > 0) _mm512_storeu_pd(&ret[0], ymm_x2_to_zmm(a0_7, a8_15));
-		if constexpr (FieldCount > 1) _mm512_storeu_pd(&ret[1], ymm_x2_to_zmm(b0_7, b8_15));
-		if constexpr (FieldCount > 2) _mm512_storeu_pd(&ret[2], ymm_x2_to_zmm(c0_7, c8_15));
-		if constexpr (FieldCount > 3) _mm512_storeu_pd(&ret[3], ymm_x2_to_zmm(d0_7, d8_15));
-		if constexpr (FieldCount > 4) _mm512_storeu_pd(&ret[4], ymm_x2_to_zmm(e0_7, e8_15));
-		if constexpr (FieldCount > 5) _mm512_storeu_pd(&ret[5], ymm_x2_to_zmm(f0_7, f8_15));
-		if constexpr (FieldCount > 6) _mm512_storeu_pd(&ret[6], ymm_x2_to_zmm(g0_7, g8_15));
-		if constexpr (FieldCount > 7) _mm512_storeu_pd(&ret[7], ymm_x2_to_zmm(h0_7, h8_15));
+		if constexpr (FieldCount > 0) _mm512_storeu_ps(&ret[0], ymm_x2_to_zmm(_mm256_castpd_ps(a0_7), _mm256_castpd_ps(a8_15)));
+		if constexpr (FieldCount > 1) _mm512_storeu_ps(&ret[1], ymm_x2_to_zmm(_mm256_castpd_ps(b0_7), _mm256_castpd_ps(b8_15)));
+		if constexpr (FieldCount > 2) _mm512_storeu_ps(&ret[2], ymm_x2_to_zmm(_mm256_castpd_ps(c0_7), _mm256_castpd_ps(c8_15)));
+		if constexpr (FieldCount > 3) _mm512_storeu_ps(&ret[3], ymm_x2_to_zmm(_mm256_castpd_ps(d0_7), _mm256_castpd_ps(d8_15)));
+		if constexpr (FieldCount > 4) _mm512_storeu_ps(&ret[4], ymm_x2_to_zmm(_mm256_castpd_ps(e0_7), _mm256_castpd_ps(e8_15)));
+		if constexpr (FieldCount > 5) _mm512_storeu_ps(&ret[5], ymm_x2_to_zmm(_mm256_castpd_ps(f0_7), _mm256_castpd_ps(f8_15)));
+		if constexpr (FieldCount > 6) _mm512_storeu_ps(&ret[6], ymm_x2_to_zmm(_mm256_castpd_ps(g0_7), _mm256_castpd_ps(g8_15)));
+		if constexpr (FieldCount > 7) _mm512_storeu_ps(&ret[7], ymm_x2_to_zmm(_mm256_castpd_ps(h0_7), _mm256_castpd_ps(h8_15)));
 		return ret;
 	}
 
