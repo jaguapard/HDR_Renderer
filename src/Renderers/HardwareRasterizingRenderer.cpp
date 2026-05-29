@@ -332,5 +332,5 @@ void HardwareRasterizingRenderer::renderFrame(const GameSettings& settings)
 	{
 		this->gfx.deviceContext->Draw(it.vertexCount, it.startVertex);
 	}
-	DX_THROW_ON_FAIL(this->gfx.swapChain->Present(1, 0));
+	DX_THROW_ON_FAIL(this->gfx.swapChain->Present(settings.vsyncEnabled ? 1 : 0, 0));
 }
