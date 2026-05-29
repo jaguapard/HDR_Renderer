@@ -123,6 +123,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilState> mainDepthStencilState, skyboxDepthStencilState;
 	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> depthStencilView;
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> skyboxSamplerState;
+	Microsoft::WRL::ComPtr<ID3D11BlendState> mainBlendState;
 
 	std::vector<HardwareRasterizing::Model> sceneModels;
 	std::vector<HardwareRasterizing::HW_Texture2D> textures;

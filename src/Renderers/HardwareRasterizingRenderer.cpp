@@ -84,7 +84,18 @@ HardwareRasterizingRenderer::HardwareRasterizingRenderer()
 	dsDesc.DepthEnable = false;
 	dsDesc.StencilEnable = false;
 	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	this->gfx.device->CreateDepthStencilState(&dsDesc, &this->skyboxDepthStencilState);
+	DX_THROW_ON_FAIL(this->gfx.device->CreateDepthStencilState(&dsDesc, &this->skyboxDepthStencilState));
+
+	D3D11_BLEND_DESC blendDesc = {};
+	blendDesc.RenderTarget[0].BlendEnable = TRUE;
+	blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ZERO;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	DX_THROW_ON_FAIL(this->gfx.device->CreateBlendState(&blendDesc, &this->mainBlendState));
 
 	/*
 	std::vector<Vertex3D> skyCubeVerts = this->gfx.generateRectangularCuboidNoDedup();
@@ -329,6 +340,7 @@ void HardwareRasterizingRenderer::renderFrame(const GameSettings& settings)
 	this->gfx.deviceContext->VSSetConstantBuffers(0, 1, this->mainConstantBuffer.GetAddressOf());
 	this->gfx.deviceContext->PSSetConstantBuffers(0, 1, this->mainConstantBuffer.GetAddressOf());
 	this->gfx.deviceContext->OMSetDepthStencilState(this->mainDepthStencilState.Get(), 0);
+	this->gfx.deviceContext->OMSetBlendState(this->mainBlendState.Get(), nullptr, 0xFFFFFFFF);
 
 	for (auto& it : this->sceneModels)
 	{
