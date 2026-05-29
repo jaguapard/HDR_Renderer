@@ -7,6 +7,7 @@
 #include "C_Input.h"
 #include "Renderers\RayCasting\RayCastingRenderer.h"
 #include "Renderers\Rasterizing\RasterizingRenderer.h"
+#include "Renderers\HardwareRasterizingRenderer.h"
 #include "GameSettings.h"
 #include <bob/Matrix4.h>
 #include "Threadpool.h"
@@ -142,7 +143,7 @@ int main(int argc, char* argv[])
             for (auto& it : Statsman::statsmenForThreads) it.reset();
             if (!currentRenderer && !scheduledRendererChange)
             {
-                scheduledRendererChange = std::make_shared<RasterizingRenderer>();
+                scheduledRendererChange = std::make_shared<HardwareRasterizingRenderer>();
                 sceneReloadNeeded = true;
                 skipThisFrame = true;
                 //else if (dynamic_cast<RasterizingRenderer*>(currentRenderer.get())) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
@@ -151,7 +152,13 @@ int main(int argc, char* argv[])
             }
             if (scheduledRendererChange) //change renderer if it's scheduled, or create default one if it doesn't exist
             {
+                graphics.reset(); //to not force renderers to clean up their state, the main will reset it via a call to this.
+                cpuRenderingCtx = graphics.makeCPURendererContext();
                 currentRenderer = scheduledRendererChange;
+                //now that renderer is OK to go live, it can be set up. Putting setup in constructor will make graphics.reset() 
+                // call clean all of it's setup, and structuring everything to create renderer instance just in time is annoying. 
+                // Thus, the setup method was born to mitigate this by explicitly marking the "OK to setup" stage.
+                currentRenderer->setup();
                 scheduledRendererChange = nullptr;
                 sceneReloadNeeded = true;
                 skipThisFrame = true;
@@ -194,7 +201,8 @@ int main(int argc, char* argv[])
 
             if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_3)) //swap renderers
             {
-                if (dynamic_cast<RasterizingRenderer*>(currentRenderer.get())) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
+                if (dynamic_pointer_cast<RasterizingRenderer>(currentRenderer)) scheduledRendererChange = std::make_shared<HardwareRasterizingRenderer>();
+                else if (dynamic_pointer_cast<HardwareRasterizingRenderer>(currentRenderer)) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
                 else scheduledRendererChange = std::make_shared<RasterizingRenderer>();
                 continue;
             }
@@ -206,8 +214,6 @@ int main(int argc, char* argv[])
                 sceneReloadNeeded = true;
                 continue;
             }
-
-            D3D11_MAPPED_SUBRESOURCE mapped = graphics.CPURendering_OnFrameStart(cpuRenderingCtx);
 
             //TODO: change coordinate system, so Y = up/down, Z = into the screen, X = left/right
             Matrix4 rotation = Matrix4::rotationXYZ(gs.camAng);
@@ -242,9 +248,15 @@ int main(int argc, char* argv[])
 
             if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_O)) gs.osdEnabled ^= 1;
             if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_T)) gs.texturingEnabled ^= 1;
+            if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_V)) gs.vsyncEnabled ^= 1;
 
             //std::cout << "cam pos" << vec2str(gs.camPos) << ", camAng: " << vec2str(gs.camAng) << "\n";
-            gs.graphicsOutputBuffer = mapped.pData;
+            bool isHardwareRenderer = dynamic_pointer_cast<HardwareRasterizingRenderer>(currentRenderer) != nullptr;
+            if (!isHardwareRenderer)
+            {
+                D3D11_MAPPED_SUBRESOURCE mapped = graphics.CPURendering_OnFrameStart(cpuRenderingCtx);
+                gs.graphicsOutputBuffer = mapped.pData;
+            }
             currentRenderer->renderFrame(gs);
             osd.registerFrameDone(currentRenderer.get());
 
@@ -256,7 +268,7 @@ int main(int argc, char* argv[])
                 {"Output resolution", std::to_string(graphics.w) + "x" + std::to_string(graphics.h) },
                 {"OSD draw time: ", std::to_string(lastOsdDrawMs) + " ms"},
             };
-            if (gs.osdEnabled) //VERY slow, impacts FPS a lot, disabled by default
+            if (gs.osdEnabled && !isHardwareRenderer) //VERY slow, impacts FPS a lot, disabled by default
             {
                 float scalingFactor = 1;// std::max(0.5f, float(texDesc.Height) / h); //very small OSD becomes unreadable
                 auto osdSurface = osd.draw(scalingFactor, additionalInfo);
@@ -293,9 +305,9 @@ int main(int argc, char* argv[])
                     std::cout << std::string(nls+1, '\r');*/
                 }
             }
+            if (!isHardwareRenderer) graphics.CPURendering_Present(cpuRenderingCtx);
             uint64_t ticksAfterOSD = SDL_GetTicksNS();
             lastOsdDrawMs = (ticksAfterOSD - ticksBeforeOSD) / 1e6;
-            graphics.CPURendering_Present(cpuRenderingCtx);
         }
     }
     catch (const std::exception& e)

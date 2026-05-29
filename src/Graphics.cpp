@@ -23,6 +23,8 @@ Microsoft::WRL::ComPtr<ID3DBlob> Graphics::CompileShader(const char* sourceCode,
 
 Graphics::Graphics(uint32_t w, uint32_t h)
 {
+    if (Graphics::instance) throw std::runtime_error("Graphics class instance already exists. Graphics class is a singleton and cannot have more than one instance.");
+    Graphics::instance = this;
     this->w = w;
     this->h = h;
     this->window = SDL_CreateWindow("Heightmap renderer", w, h, 0);
@@ -60,15 +62,7 @@ Graphics::Graphics(uint32_t w, uint32_t h)
     Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
     DX_THROW_ON_FAIL(this->swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &backBuffer), "Get back buffer");
     DX_THROW_ON_FAIL(device->CreateRenderTargetView(backBuffer.Get(), nullptr, &this->mainRenderTargetView), "Create render target view on backbuffer");
-
-    D3D11_VIEWPORT vp;
-    vp.TopLeftX = 0;
-    vp.TopLeftY = 0;
-    vp.Width = w;
-    vp.Height = h;
-    vp.MinDepth = 0;
-    vp.MaxDepth = 1;
-    this->deviceContext->RSSetViewports(1, &vp);
+    this->reset();
 }
 
 // Simple shaders
@@ -99,6 +93,19 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target {
     return tex.Sample(samp, flippedUV);
 }
 )";
+
+void Graphics::reset()
+{
+    this->deviceContext->ClearState();
+    D3D11_VIEWPORT vp;
+    vp.TopLeftX = 0;
+    vp.TopLeftY = 0;
+    vp.Width = w;
+    vp.Height = h;
+    vp.MinDepth = 0;
+    vp.MaxDepth = 1;
+    this->deviceContext->RSSetViewports(1, &vp);
+}
 
 CPU_Renderer_Context Graphics::makeCPURendererContext()
 {

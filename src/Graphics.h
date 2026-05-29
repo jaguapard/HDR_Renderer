@@ -14,10 +14,16 @@ class Graphics
 {
 public:
 	Graphics(uint32_t w, uint32_t h);
+	Graphics(const Graphics&) = delete;
+	Graphics(Graphics&&) = delete;
+	Graphics& operator=(Graphics&&) = delete;
+	Graphics& operator=(const Graphics&) = delete;
 	SDL_Window* window;
 	uint32_t w, h;
 	//static const std::strong_ordering SHADERS_FOLDER;
 
+	//Resets the state of graphics pipeline. Call this when swapping renderers to avoid state leaking
+	void reset();
 	//Prepares Graphics pipeline for simple CPU Renderer mode. The returned struct must be preserved by the called and provided to Graphics instance when rendering
 	CPU_Renderer_Context makeCPURendererContext();
 
@@ -25,6 +31,8 @@ public:
 	D3D11_MAPPED_SUBRESOURCE CPURendering_OnFrameStart(CPU_Renderer_Context& ctx);
 	//Unmaps CPU texture and outputs the frame to the screen
 	void CPURendering_Present(CPU_Renderer_Context& ctx);
+
+	static inline Graphics* instance = nullptr;
 
 
 	Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain;

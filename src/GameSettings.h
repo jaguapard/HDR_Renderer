@@ -16,6 +16,7 @@ struct GameSettings
 	bool mouseCaptured = false;
 	bool osdEnabled = false;
 	bool texturingEnabled = true;
+	bool vsyncEnabled = true;
 	float flySpeed = 550;
 	double gameTime = 0;
 	double gameTimeLastDt = 0;

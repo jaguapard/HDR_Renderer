@@ -36,6 +36,7 @@ public:
 		bool hasStarted() const;
 		bool hasFinished() const;
 		bool isInProgress() const;
+		void blockUntilComplete();
 	private:
 		static inline constexpr bool isThreadpoolHandleType = true;
 		GenericHandle handle;

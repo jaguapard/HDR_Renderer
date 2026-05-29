@@ -34,6 +34,12 @@
     <Filter Include="Source Files\Raycasting">
       <UniqueIdentifier>{1bf2391b-6063-4c2d-880b-26cb9d72ec44}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Renderers\Hardware">
+      <UniqueIdentifier>{b08cec15-d226-443a-b0ed-50bd3d9abe0b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Renderers\Hardware\Shaders">
+      <UniqueIdentifier>{a3f18f64-e031-4923-8e81-f00b677e7a16}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -103,6 +109,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\errors.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Renderers\HardwareRasterizingRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -236,5 +245,21 @@
     <ClInclude Include="src\errors.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Renderers\HardwareRasterizingRenderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Renderers\HardwareRasterizing\Shaders\cbuff.hlsli">
+      <Filter>Header Files\Renderers\Hardware\Shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="src\Renderers\HardwareRasterizing\Shaders\MainPS.hlsl">
+      <Filter>Header Files\Renderers\Hardware\Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="src\Renderers\HardwareRasterizing\Shaders\MainVS.hlsl">
+      <Filter>Header Files\Renderers\Hardware\Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

@@ -19,9 +19,11 @@ class RendererBase
 {
 public:
 	RendererBase() = default;
-	//virtual void handleInputEvent(const SDL_Event& ev, C_Input& input) = 0;
+	//This method is called when renderer should perform it's setup routines. The constructor is the wrong place to do it since the rest of the pipeline may not yet be ready for it's setup
+	virtual void setup() {};
 	virtual void loadScene(RendererLoadSceneData scd) = 0;
 	virtual void renderFrame(const GameSettings& settings) = 0;
+	virtual ~RendererBase() {};
 	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
 	

@@ -29,6 +29,11 @@ MipLevel::MipLevel(uint32_t w, uint32_t h)
     this->opacityMap.shrink_to_fit();
 }
 
+uint32_t MipLevel::getPixelRGBA32(uint32_t x, uint32_t y) const
+{
+    return this->colors[y * mapper.getParams().w + x];
+}
+
 [[gnu::target("avx512vbmi")]]
 Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32x16& v, Mask16 mask) const
 {
@@ -143,4 +148,25 @@ Vec4_f32x16 Texture::gatherLinearIntensities(const float32x16& u, const float32x
 float32x16 Texture::gatherA(const float32x16& u, const float32x16& v, const Mask16& mask) const
 {
     return this->mipLevels[0].gatherA(u, v, mask);
+}
+
+void Texture::QueryTexture(uint32_t* w, uint32_t* h, std::unique_ptr<uint32_t[]>* retRGBA32, int mipLevel) const
+{
+    const auto& mip = this->mipLevels[mipLevel];
+    uint32_t mw = mip.mapper.getParams().w;
+    uint32_t mh = mip.mapper.getParams().h;
+    if (w) *w = mw;
+    if (h) *h = mh;
+    if (retRGBA32)
+    {
+        std::unique_ptr<uint32_t[]> rd = std::make_unique<uint32_t[]>(mip.mapper.getParams().w * mip.mapper.getParams().h);
+        for (uint32_t y = 0; y < mh; ++y)
+        {
+            for (uint32_t x = 0; x < mw; ++x)
+            {
+                rd[y * mw + x] = mip.getPixelRGBA32(x, y);
+            }
+        }
+        *retRGBA32 = std::move(rd);
+    }
 }
