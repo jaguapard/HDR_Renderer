@@ -423,6 +423,7 @@
     <ClInclude Include="src\Decoder.h" />
     <ClInclude Include="src\EnumCycler.h" />
     <ClInclude Include="src\GameSettings.h" />
+    <ClInclude Include="src\Graphics.h" />
     <ClInclude Include="src\helpers.h" />
     <ClInclude Include="src\Mappers.h" />
     <ClInclude Include="src\OSD.h" />

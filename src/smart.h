@@ -1,7 +1,6 @@
 #pragma once
 #include <memory>
 #include <SDL3\SDL.h>
-
 #include <SDL3\SDL_ttf.h>
 
 
