@@ -150,3 +150,9 @@ float32x16 TextureManager::gatherAlphaFromMultipleTextures(const int32x16& textu
 	}
 	return ret;
 }
+
+TextureManager& TextureManager::getInstance()
+{
+	static TextureManager man;
+	return man;
+}

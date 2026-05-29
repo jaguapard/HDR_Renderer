@@ -66,7 +66,8 @@ int main(int argc, char* argv[])
         Statsman::statsmenForThreads.resize(threadpool.getWorkerCount() + 1); //last one for main thread
         if (!SDL_Init(SDL_INIT_VIDEO)) RAISE_ERROR("SDL_Init failed"); 
         C_Input::getInstance();
-     
+        TextureManager::getInstance();
+
         int w = 2560;
         int h = 1440;
         Graphics graphics(w, h);
