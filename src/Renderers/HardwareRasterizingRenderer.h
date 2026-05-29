@@ -109,10 +109,9 @@ namespace HardwareRasterizing
 class HardwareRasterizingRenderer : public RendererBase
 {
 public:
-	HardwareRasterizingRenderer();
 	virtual void loadScene(RendererLoadSceneData scd);
 	virtual void renderFrame(const GameSettings& settings);
-
+	virtual void setup();
 private:
 	Graphics& gfx = *Graphics::instance;
 	HardwareRasterizing::ConstantBuffer mainCB_CPU;

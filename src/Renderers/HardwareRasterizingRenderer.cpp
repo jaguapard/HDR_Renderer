@@ -4,7 +4,7 @@
 #include "TextureManager.h"
 using namespace DirectX;
 using namespace HardwareRasterizing;
-HardwareRasterizingRenderer::HardwareRasterizingRenderer()
+void HardwareRasterizingRenderer::setup()
 {
 	//Create main vertex shader
 	ShaderCreationDesc vsDesc;

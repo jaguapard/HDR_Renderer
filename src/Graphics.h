@@ -22,6 +22,8 @@ public:
 	uint32_t w, h;
 	//static const std::strong_ordering SHADERS_FOLDER;
 
+	//Resets the state of graphics pipeline. Call this when swapping renderers to avoid state leaking
+	void reset();
 	//Prepares Graphics pipeline for simple CPU Renderer mode. The returned struct must be preserved by the called and provided to Graphics instance when rendering
 	CPU_Renderer_Context makeCPURendererContext();
 

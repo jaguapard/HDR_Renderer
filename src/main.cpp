@@ -152,7 +152,13 @@ int main(int argc, char* argv[])
             }
             if (scheduledRendererChange) //change renderer if it's scheduled, or create default one if it doesn't exist
             {
+                graphics.reset(); //to not force renderers to clean up their state, the main will reset it via a call to this.
+                cpuRenderingCtx = graphics.makeCPURendererContext();
                 currentRenderer = scheduledRendererChange;
+                //now that renderer is OK to go live, it can be set up. Putting setup in constructor will make graphics.reset() 
+                // call clean all of it's setup, and structuring everything to create renderer instance just in time is annoying. 
+                // Thus, the setup method was born to mitigate this by explicitly marking the "OK to setup" stage.
+                currentRenderer->setup();
                 scheduledRendererChange = nullptr;
                 sceneReloadNeeded = true;
                 skipThisFrame = true;
