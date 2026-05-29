@@ -98,56 +98,10 @@ int main(int argc, char* argv[])
      
         int w = 2560;
         int h = 1440;
-        window = SDL_CreateWindow("SDL3 + D3D11 Pixel Display", w, h, 0);
-        if (!window) RAISE_ERROR("SDL_CreateWindow failed");
-
-        SDL_PropertiesID props = SDL_GetWindowProperties(window);
-        if (!props) RAISE_ERROR("SDL_GetWindowProperties returned NULL");
-
-        void* rawHwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
-        HWND hwnd = reinterpret_cast<HWND>(rawHwnd);
-        if (!hwnd) RAISE_ERROR("Failed to obtain HWND from SDL3 window properties");
+        Graphics graphics(w, h);
+        window = graphics.window;
 
         TTF_Init();
-
-        DXGI_SWAP_CHAIN_DESC scd = {};
-        scd.BufferCount = 2;
-        scd.BufferDesc.Width = w;
-        scd.BufferDesc.Height = h;
-        scd.BufferDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-        scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        scd.OutputWindow = hwnd;
-        scd.SampleDesc.Count = 1;
-        scd.Windowed = TRUE;
-        scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-
-        IDXGISwapChain* swapChain = nullptr;
-        ID3D11Device* device = nullptr;
-        ID3D11DeviceContext* context = nullptr;
-        if (FAILED(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE,
-            nullptr, 0, nullptr, 0, D3D11_SDK_VERSION,
-            &scd, &swapChain, &device, nullptr, &context)))
-            RAISE_ERROR("D3D11CreateDeviceAndSwapChain failed");
-
-        ID3D11Texture2D* backBuffer = nullptr;
-        if (FAILED(swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer)))
-            RAISE_ERROR("GetBuffer failed");
-
-        ID3D11RenderTargetView* rtv = nullptr;
-        if (FAILED(device->CreateRenderTargetView(backBuffer, nullptr, &rtv))) {
-            backBuffer->Release();
-            RAISE_ERROR("CreateRenderTargetView failed");
-        }
-        backBuffer->Release();
-
-        D3D11_VIEWPORT vp;
-        vp.TopLeftX = 0;
-        vp.TopLeftY = 0;
-        vp.Width = w;
-        vp.Height = h;
-        vp.MinDepth = 0;
-        vp.MaxDepth = 1;
-        context->RSSetViewports(1, &vp);
 
         // Dynamic texture (CPU-writable + SRV)
         D3D11_TEXTURE2D_DESC texDesc = {};
@@ -171,11 +125,11 @@ int main(int argc, char* argv[])
         if (texDesc.Width % 4 != 0 || texDesc.Height % 4 != 0) throw std::runtime_error("Unsupported output texture size! Each side length must be multiple of 4."); //I think this is correct, because it goes haywire if sizes are weird even if renderers are doing everything properly.
 
         ID3D11Texture2D* cpuTexture = nullptr;
-        if (FAILED(device->CreateTexture2D(&texDesc, nullptr, &cpuTexture)))
+        if (FAILED(graphics.device->CreateTexture2D(&texDesc, nullptr, &cpuTexture)))
             RAISE_ERROR("CreateTexture2D (cpuTexture) failed");
 
         ID3D11ShaderResourceView* srv = nullptr;
-        if (FAILED(device->CreateShaderResourceView(cpuTexture, nullptr, &srv)))
+        if (FAILED(graphics.device->CreateShaderResourceView(cpuTexture, nullptr, &srv)))
             RAISE_ERROR("CreateShaderResourceView failed");
 
         D3D11_SAMPLER_DESC sampDesc = {};
@@ -183,7 +137,7 @@ int main(int argc, char* argv[])
         sampDesc.AddressU = sampDesc.AddressV = sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 
         ID3D11SamplerState* sampler = nullptr;
-        if (FAILED(device->CreateSamplerState(&sampDesc, &sampler)))
+        if (FAILED(graphics.device->CreateSamplerState(&sampDesc, &sampler)))
             RAISE_ERROR("CreateSamplerState failed");
 
         auto vsBlob = Graphics::CompileShader(g_VS, "main", "vs_5_0");
@@ -191,9 +145,9 @@ int main(int argc, char* argv[])
 
         ID3D11VertexShader* vs = nullptr;
         ID3D11PixelShader* ps = nullptr;
-        if (FAILED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &vs)))
+        if (FAILED(graphics.device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &vs)))
             RAISE_ERROR("CreateVertexShader failed");
-        if (FAILED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &ps)))
+        if (FAILED(graphics.device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &ps)))
             RAISE_ERROR("CreatePixelShader failed");
 
         // Main loop
@@ -325,7 +279,7 @@ int main(int argc, char* argv[])
             }
 
             D3D11_MAPPED_SUBRESOURCE mapped;
-            if (FAILED(context->Map(cpuTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+            if (FAILED(graphics.deviceContext->Map(cpuTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
                 RAISE_ERROR("Map(cpuTexture) failed");
 
             //TODO: change coordinate system, so Y = up/down, Z = into the screen, X = left/right
@@ -372,7 +326,7 @@ int main(int argc, char* argv[])
                 {"Camera pos", vec2str(gs.camPos)},
                 {"Camera ang", vec2str(gs.camAng)},
                 {"Render resolution", std::to_string(texDesc.Width) + "x" + std::to_string(texDesc.Height) },
-                {"Output resolution", std::to_string(scd.BufferDesc.Width) + "x" + std::to_string(scd.BufferDesc.Height) },
+                {"Output resolution", std::to_string(graphics.w) + "x" + std::to_string(graphics.h) },
                 {"OSD draw time: ", std::to_string(lastOsdDrawMs) + " ms"},
             };
             if (gs.osdEnabled) //VERY slow, impacts FPS a lot, disabled by default
@@ -415,27 +369,26 @@ int main(int argc, char* argv[])
             uint64_t ticksAfterOSD = SDL_GetTicksNS();
             lastOsdDrawMs = (ticksAfterOSD - ticksBeforeOSD) / 1e6;
 
-            context->Unmap(cpuTexture, 0);            
+            graphics.deviceContext->Unmap(cpuTexture, 0);
 
-            context->OMSetRenderTargets(1, &rtv, nullptr);
+            graphics.deviceContext->OMSetRenderTargets(1, graphics.mainRenderTargetView.GetAddressOf(), nullptr);
             float clear[4] = { 0,0,0,1 };
-            context->ClearRenderTargetView(rtv, clear);
+            graphics.deviceContext->ClearRenderTargetView(graphics.mainRenderTargetView.Get(), clear);
 
-            context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            context->VSSetShader(vs, nullptr, 0);
-            context->PSSetShader(ps, nullptr, 0);
-            context->PSSetShaderResources(0, 1, &srv);
-            context->PSSetSamplers(0, 1, &sampler);
+            graphics.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            graphics.deviceContext->VSSetShader(vs, nullptr, 0);
+            graphics.deviceContext->PSSetShader(ps, nullptr, 0);
+            graphics.deviceContext->PSSetShaderResources(0, 1, &srv);
+            graphics.deviceContext->PSSetSamplers(0, 1, &sampler);
 
-            context->Draw(3, 0);
-            if (FAILED(swapChain->Present(0, 0)))
+            graphics.deviceContext->Draw(3, 0);
+            if (FAILED(graphics.swapChain->Present(0, 0)))
                 RAISE_ERROR("swapChain->Present failed");
         }
 
         // Cleanup
         vs->Release(); ps->Release(); sampler->Release(); srv->Release();
-        cpuTexture->Release(); rtv->Release(); swapChain->Release();
-        context->Release(); device->Release();
+        cpuTexture->Release();
     }
     catch (const std::exception& e)
     {
