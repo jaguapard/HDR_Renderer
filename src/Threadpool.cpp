@@ -279,6 +279,11 @@ bool Threadpool::TaskHandle::hasFinished() const
 	return handle.pool->hasTaskFinished(*this);
 }
 
+void Threadpool::TaskHandle::blockUntilComplete()
+{
+	this->handle.pool->blockUntilComplete(*this);
+}
+
 void Threadpool::GateHandle::open()
 {
 	handle.pool->openGate(*this);
