@@ -99,6 +99,12 @@
     <ClCompile Include="src\Renderers\RayCasting\RayCastingRenderer.cpp">
       <Filter>Source Files\Raycasting</Filter>
     </ClCompile>
+    <ClCompile Include="src\Graphics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\errors.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\bob\SSE_Vec4.h">
@@ -223,6 +229,12 @@
     </ClInclude>
     <ClInclude Include="src\Renderers\RayCasting\RayCastingRenderer.h">
       <Filter>Header Files\Renderers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\errors.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
