@@ -242,32 +242,34 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 		texDesc.ArraySize = 1;
 		texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 		texDesc.CPUAccessFlags = 0;
-		texDesc.MipLevels = 1;
+		texDesc.MipLevels = 0;
 		texDesc.Usage = D3D11_USAGE_DEFAULT;
-		texDesc.MiscFlags = 0; //TODO: verify this
+		texDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 		texDesc.SampleDesc.Count = 1;
 		texDesc.SampleDesc.Quality = 0;
-		texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 
 		std::unique_ptr<uint32_t[]> mem;
 		this->textureManager.getTextureByHandle(currModel.diffuseMapIndex).QueryTexture(&texDesc.Width, &texDesc.Height, &mem);
 
-		D3D11_SUBRESOURCE_DATA data;
-		data.pSysMem = mem.get();
-		data.SysMemPitch = texDesc.Width * 4;
-		data.SysMemSlicePitch = 0;
-		DX_THROW_ON_FAIL(gfx.device->CreateTexture2D(&texDesc, &data, &createdTexture.texture));
+		DX_THROW_ON_FAIL(gfx.device->CreateTexture2D(&texDesc, nullptr, &createdTexture.texture));
+		this->gfx.deviceContext->UpdateSubresource(createdTexture.texture.Get(), 0, nullptr, mem.get(), texDesc.Width * 4, 0);
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 		srvDesc.Format = texDesc.Format;
 		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = texDesc.MipLevels;
+		srvDesc.Texture2D.MipLevels = -1;
 		srvDesc.Texture2D.MostDetailedMip = 0;
 		DX_THROW_ON_FAIL(gfx.device->CreateShaderResourceView(createdTexture.texture.Get(), &srvDesc, &createdTexture.srv));
+		this->gfx.deviceContext->GenerateMips(createdTexture.srv.Get());
 
 		D3D11_SAMPLER_DESC samplerDesc = {};
-		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR; //D3D11_FILTER_ANISOTROPIC;
+		samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+		samplerDesc.MaxAnisotropy = D3D11_REQ_MAXANISOTROPY;
 		samplerDesc.AddressU = samplerDesc.AddressV = samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.MinLOD = 0.f;
+		samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+		samplerDesc.MipLODBias = 0.f;
 		//float skyboxBorderColor[4] = { 1.f,0.f,1.f,1.f }; //magenta
 		//memcpy(samplerDesc.BorderColor, skyboxBorderColor, sizeof(skyboxBorderColor));
 		DX_THROW_ON_FAIL(this->gfx.device->CreateSamplerState(&samplerDesc, &createdTexture.samplerState));
