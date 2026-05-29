@@ -154,6 +154,7 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 	AssetLoader ldr;
 	std::vector<AssetLoader::ImportedModel> loadedModels;
 	std::vector<Vertex> verts;
+	size_t modelIndexBase = 0;
 	for (auto [path, mode] : scd.files)
 	{
 		if (mode == "obj") { loadedModels = ldr.loadObj(path, ""); }
@@ -198,7 +199,8 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 
 		Threadpool::instance->blockUntilComplete(textureLoadingTasks);
 		for (int i = 0; i < loadedModels.size(); ++i)
-			this->sceneModels[i].diffuseMapIndex = diffuseMapIndices[i];
+			this->sceneModels[modelIndexBase+i].diffuseMapIndex = diffuseMapIndices[i];
+		modelIndexBase += loadedModels.size();
 
 	}
 
@@ -330,6 +332,7 @@ void HardwareRasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	for (auto& it : this->sceneModels)
 	{
+		//if (it.diffuseMapIndex == 0) continue;
 		this->gfx.deviceContext->PSSetShaderResources(0, 1, this->textures[it.diffuseMapIndex].srv.GetAddressOf());
 		this->gfx.deviceContext->PSSetSamplers(0, 1, this->textures[it.diffuseMapIndex].samplerState.GetAddressOf());
 		this->gfx.deviceContext->Draw(it.vertexCount, it.startVertex);
