@@ -2,6 +2,9 @@
 #include "RendererBase.h"
 #include "../Graphics.h"
 #include <memory>
+#include <filesystem>
+#include "../libs.h"
+#include <d3dcompiler.h>
 
 namespace HardwareRasterizing
 {
@@ -15,6 +18,19 @@ namespace HardwareRasterizing
 		ID3D11ClassLinkage* classLinkange = nullptr; //passed directly to D3D11
 	};
 
+	static const std::string SHADERS_FOLDER = []() {
+		//std::wstring modulePath = utils::getCurrModuleFullPath();
+
+		wchar_t path[8192] = { 0 };
+		HRESULT hr = GetModuleFileNameW(nullptr, path, sizeof(path) / sizeof(path[0]));
+		if (FAILED(hr)) throw std::runtime_error("GetModuleFileNameW failed with HRESULT " + std::to_string(hr));
+		std::wstring modulePath = std::wstring(path);
+
+		auto p = std::filesystem::path(modulePath);
+		auto r = p.remove_filename();
+		r.append(L"Shaders\\");
+		return r.string();
+	}();
 	template<typename T>
 	struct Shader
 	{
@@ -26,13 +42,23 @@ namespace HardwareRasterizing
 		Shader(Graphics& gfx, const ShaderCreationDesc& desc);
 	};
 
+	static std::wstring ascii_string_to_wstring(const std::string s)
+	{
+		std::wstring ws;
+		for (auto& c : s)
+			if (c >= 0 && c <= 127)
+				ws.push_back(c);
+			else RAISE_ERROR("Naive extension of non-ASCII string to wstring requested");
+		return ws;
+	}
+
 	template<typename T>
 	inline Shader<T>::Shader(Graphics& gfx, const ShaderCreationDesc& desc)
 	{
 		if (desc.path.empty()) RAISE_ERROR("Attempted to create shader with empty path.");
 		std::string asciiPath;
 		if (desc.pathIsAbsolute) asciiPath = desc.path;
-		else asciiPath = gfx.SHADERS_FOLDER + desc.path;
+		else asciiPath = SHADERS_FOLDER + desc.path;
 		std::string baseMessage = "While creating shader from file " + asciiPath + ": ";
 
 		std::wstring fullPath = ascii_string_to_wstring(asciiPath);

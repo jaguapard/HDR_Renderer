@@ -270,3 +270,7 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 			}
 		}*/
 }
+
+void HardwareRasterizingRenderer::renderFrame(const GameSettings& settings)
+{
+}
