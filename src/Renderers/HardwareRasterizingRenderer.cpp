@@ -344,7 +344,7 @@ void HardwareRasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	for (auto& it : this->sceneModels)
 	{
-		//if (it.diffuseMapIndex == 0) continue;
+		if (it.diffuseMapIndex == 0) continue;
 		this->gfx.deviceContext->PSSetShaderResources(0, 1, this->textures[it.diffuseMapIndex].srv.GetAddressOf());
 		this->gfx.deviceContext->PSSetSamplers(0, 1, this->textures[it.diffuseMapIndex].samplerState.GetAddressOf());
 		this->gfx.deviceContext->Draw(it.vertexCount, it.startVertex);
