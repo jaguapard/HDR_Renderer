@@ -512,7 +512,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			if (!activeTriangles) break;
 			currOutputTriangle = &currOutput.outputTriangles[outputTriangleIndex];
 			
-			float32x16 fovMult = 1; //TODO: adjustable game setting?
+			float32x16 fovMult = input.nearPlaneZ;
 			float32x16 minX = FLT_MAX, maxX = -FLT_MAX, minY = FLT_MAX, maxY = -FLT_MAX;
 			for (int i = 0; i < 3; ++i)
 			{
@@ -873,7 +873,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			}
 
 			float32x16 zInvSrc = _mm512_maskz_loadu_ps(xBoundsMask, main_zBuffer + yInt * w + xInt);
-			Vec4_f32x16 screenPos(x, y, 1, zInvSrc);
+			Vec4_f32x16 screenPos(x, y, this->currGs->cameraPlane_zDist, zInvSrc);
 			Vec4_f32x16 worldCoords = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPos);
 
 			int32x16 triangleIndices = _mm512_maskz_loadu_epi32(xBoundsMask, renderJobPtrsBuffer + yInt * w + xInt);
@@ -934,7 +934,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				shadowMult = 0.f;
 				const auto& currentShadowMap = this->drawCommands[1];
 				Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
-				float32x16 zInv = float32x16(1) / sunWorldPositions.z;
+				float32x16 zInv = float32x16(this->currGs->cameraPlane_zDist) / sunWorldPositions.z;
 				Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
 				//sunScreenPositions.x = _mm512_roundscale_ps(sunScreenPositions.x, _MM_FROUND_TO_NEAREST_INT);
 				//sunScreenPositions.y = _mm512_roundscale_ps(sunScreenPositions.y, _MM_FROUND_TO_NEAREST_INT);

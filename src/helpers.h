@@ -168,3 +168,5 @@ __forceinline __m512 ymm_x2_to_zmm(__m256 ymm0, __m256 ymm1)
 {
 	return _mm512_insertf32x8(_mm512_castps256_ps512(ymm0), ymm1, 1);
 }
+
+static constexpr double PI = 3.1415926535897932384626433;

@@ -8,9 +8,9 @@
 class Threadpool;
 struct GameSettings
 {
-	Vec4f camPos, camAng, forward, down, right;
 	Matrix4 viewMatrix;
-	float cameraPlane_zDist = 1;
+	Vec4f camPos, camAng, forward, down, right;
+	float verticalFovDegrees = 70, cameraPlane_zDist;
 	void* graphicsOutputBuffer;
 	uint32_t outputTextureW, outputTextureH, screenW, screenH;
 	bool mouseCaptured = false;

@@ -295,10 +295,10 @@ void HardwareRasterizingRenderer::loadScene(RendererLoadSceneData scd)
 void HardwareRasterizingRenderer::renderFrame(const GameSettings& settings)
 {
 	Vec4f shuffledCamAng(settings.camAng.z, settings.camAng.y, settings.camAng.x); //incoming angles are not in agreement with DirectX usual conventions, so just shuffle them manually, lol
-	XMMATRIX rotation = XMMatrixRotationRollPitchYawFromVector(shuffledCamAng); // TODO: pass it through from update stage, to avoid possibility of mismatch
+	XMMATRIX rotation = XMMatrixRotationRollPitchYawFromVector(shuffledCamAng);
 	XMMATRIX translation = XMMatrixTranslation(-settings.camPos.x, -settings.camPos.y, -settings.camPos.z);
 	XMMATRIX view = translation * XMMatrixTranspose(rotation);
-	XMMATRIX projection = XMMatrixPerspectiveFovLH(2 * atan(0.5), float(this->gfx.w) / float(this->gfx.h), 100000.f, 0.1f);
+	XMMATRIX projection = XMMatrixPerspectiveFovLH(settings.verticalFovDegrees/180*PI, float(this->gfx.w) / float(this->gfx.h), 100000.f, 0.1f);
 
 	this->mainCB_CPU.camPos = settings.camPos;
 	this->mainCB_CPU.lightDir = XMVector3Normalize(this->lightDir);
