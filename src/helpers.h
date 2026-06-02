@@ -69,7 +69,9 @@ __forceinline void interleaved_ph_to_ps(__m512i inp, __m512& retLow, __m512& ret
 
 __forceinline void interleaved_ph_to_ps(__m512i inp, float32x16& retLow, float32x16& retHigh)
 {
-	interleaved_ph_to_ps(inp, retLow.zmm, retHigh.zmm);
+	int32x16 x = _mm512_permutexvar_epi16(_mm512_setr_epi16(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31), inp);
+	retLow = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(x, 0));
+	retHigh = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(x, 1));
 }
 
 //Returns 64 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 000011112222...dddd

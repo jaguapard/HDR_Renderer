@@ -40,8 +40,8 @@ Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
     float32x16 lerpT_x = pixelsX - float32x16(_mm512_floor_ps(pixelsX));
     float32x16 lerpT_y = pixelsY - float32x16(_mm512_floor_ps(pixelsY));
-    int32x16 startX = pixelsX.trunc();
-    int32x16 startY = pixelsY.trunc();
+    int32x16 startX = cvt<int>(pixelsX);
+    int32x16 startY = cvt<int>(pixelsY);
     const auto& p = this->mapper.getParams();
 
     std::array<Vec4_f32x16, 4> linear;
@@ -52,7 +52,7 @@ Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32
         int32x16 sampleX = startX + sx, sampleY = startY + sy;
         this->mapper.wrapInts(sampleX, sampleY);
 
-        int32x16 samples = int32x16::gather(this->colors.data(), sampleY * p.w + sampleX, mask);
+        int32x16 samples = gather<int, 16>(this->colors.data(), sampleY * p.w + sampleX, mask);
         linear[i] = Decoder::RGBA8888_to_linear_using_FP16_LUT(samples);
     }
 
@@ -65,14 +65,14 @@ float32x16 MipLevel::gatherA(const float32x16& u, const float32x16& v, Mask16 ma
 {
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
     //TODO: same filtering for opacity maps as textures, else it creates disagreement between stages
-    int32x16 sx = pixelsX.trunc();
-    int32x16 sy = pixelsY.trunc();
+    int32x16 sx = cvt<int>(pixelsX);
+    int32x16 sy = cvt<int>(pixelsY);
     this->mapper.wrapInts(sx, sy);
 
     int32x16 ind = sy * this->mapper.getParams().w + sx;
     int32x16 gatherInd = ind >> 5;
     int32x16 shifts = ind & 31;
-    int32x16 gathered = int32x16::gather(this->opacityMap.data(), gatherInd, mask);
+    int32x16 gathered = gather<int, 16>(this->opacityMap.data(), gatherInd, mask);
     gathered &= int32x16(1) << shifts;
     return _mm512_mask_mov_ps(float32x16(0.f), gathered != 0, float32x16(1.f));
 }
@@ -110,7 +110,7 @@ Texture::Texture(const SDL_Surface* s)
                         int32x16 dstB = (srcUint32 >> 16) & 0xFF;
                         int32x16 dstA = (srcUint32 >> 24) & 0xFF;
                         int32x16 dstFull = dstR | (dstG << 8) | (dstB << 16) | (dstA << 24);
-                        _mm512_mask_storeu_epi32(&this->mipLevels[0].colors[y * w + x], boundsMask, dstFull.zmm);
+                        _mm512_mask_storeu_epi32(&this->mipLevels[0].colors[y * w + x], boundsMask, dstFull);
                     }
                 }
             }

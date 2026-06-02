@@ -145,11 +145,11 @@ namespace Rasterizing
 
 		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret) const
 		{
-			int32x16 f = int32x16::gather(this->normals.data(), ind, mask);
+			int32x16 f = gather<int, 16>(this->normals.data(), ind, mask);
 			int32x16 xy = f & 0xFFFFFFFE; //LSB of x (LSB of mantissa) holds the sign bit of z, so discard it before conversion
 			interleaved_ph_to_ps(xy, ret.x, ret.y);
 			float32x16 zsq = _mm512_max_ps(float32x16(0.f), float32x16(1) - (ret.x * ret.x) - (ret.y * ret.y));
-			float32x16 signless_z = zsq.sqrt();
+			float32x16 signless_z = sqrtf(zsq);
 			ret.z = _mm512_mask_mov_ps(signless_z, (f & ~0xFFFFFFFE) != 0, -signless_z);
 		}
 	private:

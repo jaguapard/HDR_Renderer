@@ -98,17 +98,7 @@ namespace AVXXY_NAMESPACE
 	{
 		return val >= min && val <= max;
 	}
-	namespace capabilities 
-	{
-		static constexpr bool AVX512F = true;
-		static constexpr bool AVX512VL = true;
-		static constexpr bool AVX512VBMI = true;
-		static constexpr bool AVX2 = true;
-		static constexpr bool AVX = true;
-		static constexpr bool SSE42 = true;
-		static constexpr bool SSE41 = true;
-		static constexpr bool SSSE3 = true;
-		static constexpr bool SSE2 = true;
-		static constexpr bool SSE = true;
-	}
+
+	template<class...>
+	inline constexpr bool always_false_v = false;
 }

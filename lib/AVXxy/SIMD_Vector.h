@@ -24,6 +24,7 @@ namespace AVXXY_NAMESPACE
 	struct alignas(std::min(64ull, sizeof(_S)* _N)) SIMD_Vector
 	{
 		using ScalarType = _S;
+		using IntScalarType = typename bits_to_int_t<sizeof(_S) * 8>::type;
 		static inline constexpr size_t LaneCount = _N;
 		using MaskType = SIMD_Mask<LaneCount>;
 		using Self = SIMD_Vector<ScalarType, LaneCount>;
@@ -48,7 +49,7 @@ namespace AVXXY_NAMESPACE
 		//Floating point vectors require the scalar type of intrinsic vector and SIMD_Vector to be the same
 		//If SIMD_Vector and intrinsic vector sizes mismatch, only the lowest bits of intrinsic vector are copied to the constructed SIMD_Vector
 		template <typename T>
-		SIMD_Vector(T intrinsicVec) requires(IsIntrinsicVector<T>&& ConversionToNativeVectorLegal<Self, T>)
+		SIMD_Vector(const T& intrinsicVec) requires(IsIntrinsicVector<T>&& ConversionToNativeVectorLegal<Self, T>)
 		{
 			memcpy(this, &intrinsicVec, std::min(sizeof(Self), sizeof(T)));
 		}
@@ -68,23 +69,37 @@ namespace AVXXY_NAMESPACE
 			return ret;
 		}
 
+		static __forceinline Self sequence()
+		{
+			Self ret;
+			for (size_t i = 0; i < LaneCount; ++i) ret[i] = i;
+			return ret;
+		}
+
+		//Returns true if there's at least one element with it's most significant bit set, or false otherwise.
+		operator bool() const
+		{
+			return reinterpret<IntScalarType>(*this) < 0;
+		}
+
 		//Returns a reference to scalar element in lane i
 		__forceinline const ScalarType& operator[](size_t i) const { return this->arr[i]; };
 		//Returns a reference to scalar element in lane i
 		__forceinline ScalarType& operator[](size_t i) { return this->arr[i]; };
 
-		__forceinline static Self load(const void* p, const MaskType& mask = MaskType::AllOnes, const Self& src = 0) { return load<ScalarType, LaneCount>(p, mask, src); }
+		/*
+		__forceinline static Self load(const void* p, const MaskType& mask = MaskType::AllOnes, const Self& src = 0) { return AVXXY_NAMESPACE::load<ScalarType, LaneCount>(p, mask, src); }
 
 		template<size_t Scale = sizeof(ScalarType), typename I>
 		__forceinline static Self gather(const void* p, const SIMD_Vector<I, LaneCount>& ind, const MaskType& mask = MaskType::AllOnes, const Self& src = 0) {
-			return gather<Scale>(p, ind, mask, src);
+			return AVXXY_NAMESPACE::gather<Scale>(p, ind, mask, src);
 		}
 
 		template<size_t Scale = sizeof(ScalarType), typename I>
 		__forceinline void scatter(const void* p, const SIMD_Vector<I, LaneCount>& ind, const MaskType& mask = MaskType::AllOnes)
 		{
-			return scatter<Scale>(*this, p, ind, mask);
-		}
+			return AVXXY_NAMESPACE::scatter<Scale>(*this, p, ind, mask);
+		}*/
 
 		template <typename T0, typename T1>
 			requires (LaneCount == 2)

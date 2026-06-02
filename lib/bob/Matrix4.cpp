@@ -313,21 +313,21 @@ float Matrix4::det3(int excludeRow, int excludeCol) const
 
 
 //todo: these will need to be changed to faster versions
-float32x16 sin16(float32x16 x)
+AVXxy::f32x16 sin16(AVXxy::f32x16 x)
 {
-	float32x16 ret;
+	AVXxy::f32x16 ret;
 	for (int i = 0; i < 16; ++i) ret[i] = sinf(x[i]);
 	return ret;
 }
-float32x16 cos16(float32x16 x)
-{	
-	float32x16 ret;
+AVXxy::f32x16 cos16(AVXxy::f32x16 x)
+{
+	AVXxy::f32x16 ret;
 	for (int i = 0; i < 16; ++i) ret[i] = cosf(x[i]);
 	return ret;
 }
-MatrixPack16_4x4 MatrixPack16_4x4::rotationX(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationX(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = sinTheta;
@@ -351,9 +351,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationX(float32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::rotationY(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationY(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = 0.f;
@@ -377,9 +377,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationY(float32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::rotationZ(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationZ(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = 1.f;
 	ret.elements[0][1] = 0.f;
@@ -408,9 +408,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationXYZ(const bob::Vec4_f32x16& angle)
 	return rotationZ(angle.z) * rotationY(angle.y) * rotationX(angle.x);
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = sinTheta;
@@ -434,9 +434,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(float32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = 0.f;
@@ -460,9 +460,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(float32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationZ(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationZ(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = 1.f;
 	ret.elements[0][1] = 0.f;

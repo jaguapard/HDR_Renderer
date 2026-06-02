@@ -101,12 +101,12 @@ Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, V
 float32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x8& retT)
 {
 	constexpr float epsilon = std::numeric_limits<float>::epsilon();
-	constexpr float eps = std::numeric_limits<float>::epsilon();
+	const f32x8 eps = std::numeric_limits<float>::epsilon();
 
 	Vec4_f32x8 edge1 = triB - triA;
 	Vec4_f32x8 edge2 = triC - triA;
 
-	float32x8 activeRays = _mm256_set1_ps(std::bit_cast<float>(-1));
+	Mask8 activeRays = 0xFF;
 	// Backface culling, assuming CW-wound triangles.
 	/*
 	const Vec4_f32x8 normal = edge1.cross3d(edge2); // No need to normalize
@@ -116,7 +116,7 @@ float32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, 
 	Vec4_f32x8 ray_cross_e2 = rayDirs.cross3d(edge2);
 	float32x8 det = edge1.dot3d(ray_cross_e2);
 	
-	float32x8 absDet = _mm256_blendv_ps(det, -det, det < 0.f);
+	float32x8 absDet = _mm256_blendv_ps(det, -det, mask2vec<float>(det < 0.f));
 	activeRays &= absDet >= eps;
 	if (!activeRays) return _mm256_set1_ps(0); // Ray is parallel to triangle
 
@@ -124,12 +124,12 @@ float32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, 
 	Vec4_f32x8 s = rayOrigins - triA;
 	float32x8 u = inv_det * s.dot3d(ray_cross_e2);
 
-	activeRays &= u >= -eps & (u - 1) <= eps;
+	activeRays &= u >= -eps & ((u - 1) <= eps);
 	if (!activeRays) return _mm256_set1_ps(0); // Ray passes outside edge2's bounds
 
 	Vec4_f32x8 s_cross_e1 = s.cross3d(edge1);
 	float32x8 v = inv_det * rayDirs.dot3d(s_cross_e1);
-	activeRays &= (v >= -eps) & (u + v - 1) <= eps;
+	activeRays &= (v >= -eps) & ((u + v - 1) <= eps);
 	if (!activeRays) return _mm256_set1_ps(0); // Ray passes outside edge1's bounds
 
 	// The ray line intersects with the triangle.
@@ -137,7 +137,7 @@ float32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, 
 	// t < epsilon means that there is a line intersection but not a ray intersection.
 	float32x8 t = inv_det * edge2.dot3d(s_cross_e1);
 	retT = t;
-	return activeRays & t > epsilon; // Ray intersection
+	return activeRays & mask2vec<float>(t > epsilon); // Ray intersection
 }
 void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 {

@@ -65,7 +65,7 @@ namespace AVXXY_NAMESPACE
 				else if constexpr (std::is_same_v<From, uint32_t> && sizeof(To) == 8) return TV(_mm512_cvtepu32_epi64(value));
 				else if constexpr (std::is_same_v<From, int32_t> && sizeof(To) == 8) return TV(_mm512_cvtepi32_epi64(value));
 			}
-			else static_assert(false, "Unsupported arguments for SIMD_Vector zmm_cvt");
+			else static_assert(always_false_v<To,From>, "Unsupported arguments for SIMD_Vector zmm_cvt");
 	}
 
 
@@ -126,7 +126,7 @@ namespace AVXXY_NAMESPACE
 			else if constexpr (std::is_same_v<From, uint32_t> && sizeof(To) == 8) return TV(_mm256_cvtepu32_epi64(value));
 			else if constexpr (std::is_same_v<From, int32_t> && sizeof(To) == 8) return TV(_mm256_cvtepi32_epi64(value));
 		}
-		else static_assert(false, "Unsupported arguments for SIMD_Vector zmm_cvt");
+		else static_assert(always_false_v<To, From>, "Unsupported arguments for SIMD_Vector zmm_cvt");
 	}
 	//This function is used internally and lacks upstream input sanitization. If you're looking for vector conversions, use cvt instead
 	template<typename To, size_t N, typename From>
@@ -185,7 +185,7 @@ namespace AVXXY_NAMESPACE
 			else if constexpr (std::is_same_v<From, uint32_t> && sizeof(To) == 8) return TV(_mm_cvtepu32_epi64(value));
 			else if constexpr (std::is_same_v<From, int32_t> && sizeof(To) == 8) return TV(_mm_cvtepi32_epi64(value));
 		}
-		else static_assert(false, "Unsupported arguments for SIMD_Vector zmm_cvt");
+		else static_assert(always_false_v<To, From>, "Unsupported arguments for SIMD_Vector zmm_cvt");
 	}
 	}
 
@@ -219,6 +219,6 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (inRange(MaxSize, 33, 64)) return internals::zmm_cvt<To>(value);
 		else if constexpr (inRange(MaxSize, 17, 32)) return internals::ymm_cvt<To>(value);
 		else if constexpr (MaxSize <= 16) return internals::xmm_cvt<To>(value);
-		else static_assert(false, "Unsupported arguments for SIMD_Vector cvt");
+		else static_assert(always_false_v<To, From>, "Unsupported arguments for SIMD_Vector cvt");
 	}
 }

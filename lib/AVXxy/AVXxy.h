@@ -1,3 +1,5 @@
+#undef min
+#undef max
 #pragma once
 #include "namespace.h"
 #include "SIMD_Mask.h"

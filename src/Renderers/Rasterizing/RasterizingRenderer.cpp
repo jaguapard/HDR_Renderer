@@ -449,8 +449,8 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			float32x16 dot = currOutputTriangle->vertices[0].space.dot3d(transformedFaceNormals);
 			switch (currCmd.faceCullingType)
 			{
-				case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
-				case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & NO_FRONTFACE_CULLING) != 0 | dot >= 0.f; break;
+				case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & int(NO_BACKFACE_CULLING)) != 0 | dot < 0.f; break;
+				case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & int(NO_FRONTFACE_CULLING)) != 0 | dot >= 0.f; break;
 				default: break;
 			}
 			if (!activeTriangles) continue;
@@ -618,12 +618,12 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
 				if (!currActiveTriangles) continue;
 
-				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
-				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
+				vecFirstThread = clamp(vecFirstThread, i32x16(0), i32x16(threadCount - 1));
+				vecLastThread = clamp(vecLastThread, i32x16(0), i32x16(threadCount - 1));
 
 				for (int i = 0; i < 16; ++i)
 				{
-					if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
+					if (!currActiveTriangles[i]) continue;
 					for (int currReceiverThread = vecFirstThread[i]; currReceiverThread <= vecLastThread[i]; ++currReceiverThread)
 					{
 						auto& targetStore = (*currCmd.trianglesToZones)[threadIndex * threadCount + currReceiverThread];
@@ -696,10 +696,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
 					Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
 
-				int32x16 intX = x.trunc();
-				int32x16 intY = y.trunc();
+				int32x16 intX = cvt<int>(x);
+				int32x16 intY = cvt<int>(y);
 				int32x16 zbufferGatherInd = intY * w + intX;
-				float32x16 currDepthValues = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), scavengerBounds, zbufferGatherInd, zBuffer, 4);
+				float32x16 currDepthValues = gather<float, 16>(zBuffer, zbufferGatherInd, scavengerBounds);
 
 				//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
 				//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
@@ -707,8 +707,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				if (Statsman::ENABLED)
 				{
 					MyStatsman.rasterizing.zBufferFetchLanes += 16;
-					MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(scavengerBounds.mask);
-					MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+					MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(scavengerBounds);
+					MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints);
 				}
 				if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
@@ -737,17 +737,17 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				if (Statsman::ENABLED)
 				{
 					MyStatsman.rasterizing.zBufferWriteLanes += 16;
-					MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+					MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask);
 					MyStatsman.rasterizing.frameBufWriteLanes += 16;
-					MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-					MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+					MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask);
+					MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask);
 				}
 			}
 			scavenger.size = 0;
 		};
 		for (int i = 0; i < 16; ++i)
 		{
-			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
+			if (!currActiveTriangles[i]) continue;
 
 			bool processingTail = false;
 			//4x4 packed layout is much more friendly to small geometry compared to 1x16 (much less dead lanes)
@@ -766,7 +766,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					if (Statsman::ENABLED)
 					{
 						MyStatsman.rasterizing.barycentricsCalculated += 16;
-						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask);
 					}
 					//this branch may acually be slower than just letting 0 entries get written to scavenger. The scavenger does prevent execution falling through further already
 					//if (!pointsInsideTriangleMask) continue;
@@ -964,8 +964,8 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 							Mask16 inShadowMapBounds = xBoundsMask & ssx >= 0.f & ssy >= 0.f & ssx < smapW & ssy < smapH;
 							if (inShadowMapBounds)
 							{
-								int32x16 gatherInd = int32x16(ssy.trunc()) * this->drawCommands[1].renderW + int32x16(ssx.trunc());
-								float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(FLT_MAX), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+								int32x16 gatherInd = int32x16(cvt<int>(ssy)) * this->drawCommands[1].renderW + int32x16(cvt<int>(ssx));
+								float32x16 shadowMapDepths = gather<float, 16>(shadowMap_zBuffer, gatherInd, inShadowMapBounds, FLT_MAX);
 								if (Statsman::ENABLED)
 								{
 									MyStatsman.rasterizing.shadowMapGatherLanes += 16;

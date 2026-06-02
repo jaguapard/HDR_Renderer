@@ -33,15 +33,31 @@ namespace AVXXY_NAMESPACE
 			for (int i = 0; i < N; ++i) ret[i] = (*this)[i] ? trueValue : falseValue;
 		}
 
-		__forceinline SIMD_Mask<N / 2> lower_half() const
+		__forceinline SIMD_Mask<N / 2> lo() const
 		{
 			return bits;
 		}
-		__forceinline SIMD_Mask<N / 2> upper_half() const
+		__forceinline SIMD_Mask<N / 2> hi() const
 		{
 			return bits >> (N / 2);
 		}
 		bool operator[](size_t i) const;
+
+		SIMD_Mask<N>& operator&=(const SIMD_Mask<N>& other)
+		{
+			*this = *this & other;
+			return *this;
+		}
+		SIMD_Mask<N>& operator|=(const SIMD_Mask<N>& other)
+		{
+			*this = *this | other;
+			return *this;
+		}
+		SIMD_Mask<N>& operator^=(const SIMD_Mask<N>& other)
+		{
+			*this = *this ^ other;
+			return *this;
+		}
 	private:
 		UintType bits;
 	};

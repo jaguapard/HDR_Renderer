@@ -33,12 +33,12 @@ public:
 	__forceinline bob::Vec4_f32x16 operator*(const bob::Vec4_f32x16& v) const
 	{
 		bob::Vec4_f32x16 ret = 0;
-		bob::float32x16 mat = _mm512_loadu_ps(this);
+		AVXxy::f32x16 mat = _mm512_loadu_ps(this);
 		for (int i = 0; i < 4; ++i)
 		{
 			for (int j = 0; j < 4; ++j)
 			{
-				ret[i] += v[j] * mat[i * 4 + j];
+				ret[i] += v[j] * AVXXY_NAMESPACE::f32x16(mat[i * 4 + j]);
 			}
 		}
 		return ret;
@@ -51,7 +51,7 @@ public:
 	bob::_SSE_Vec4_float& operator[](int i);
 
 	std::string toString(int precision = 5) const;
-	
+
 	float det() const;
 	Matrix4 inverse() const;
 
@@ -70,16 +70,16 @@ private:
 class alignas(64) MatrixPack16_4x4
 {
 public:
-	bob::float32x16 elements[4][4];
-	static MatrixPack16_4x4 rotationX(bob::float32x16 theta);
-	static MatrixPack16_4x4 rotationY(bob::float32x16 theta);
-	static MatrixPack16_4x4 rotationZ(bob::float32x16 theta);
+	AVXxy::f32x16 elements[4][4];
+	static MatrixPack16_4x4 rotationX(AVXxy::f32x16 theta);
+	static MatrixPack16_4x4 rotationY(AVXxy::f32x16 theta);
+	static MatrixPack16_4x4 rotationZ(AVXxy::f32x16 theta);
 	static MatrixPack16_4x4 rotationXYZ(const bob::Vec4_f32x16& angle);
 
 	//These function return very fast low quality approximations for the rotation matrices. Use only if inaccuracies don't matter
-	static MatrixPack16_4x4 fast_rotationX(bob::float32x16 theta);
-	static MatrixPack16_4x4 fast_rotationY(bob::float32x16 theta);
-	static MatrixPack16_4x4 fast_rotationZ(bob::float32x16 theta);
+	static MatrixPack16_4x4 fast_rotationX(AVXxy::f32x16 theta);
+	static MatrixPack16_4x4 fast_rotationY(AVXxy::f32x16 theta);
+	static MatrixPack16_4x4 fast_rotationZ(AVXxy::f32x16 theta);
 	static MatrixPack16_4x4 fast_rotationXYZ(const bob::Vec4_f32x16& angle);
 
 	static MatrixPack16_4x4 identity();
@@ -97,7 +97,7 @@ public:
 		return ret;
 	}
 
-	__forceinline MatrixPack16_4x4 operator*(const MatrixPack16_4x4& other) const 
+	__forceinline MatrixPack16_4x4 operator*(const MatrixPack16_4x4& other) const
 	{
 		MatrixPack16_4x4 ret;
 		memset(&ret, 0, sizeof(ret));

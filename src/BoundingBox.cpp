@@ -117,5 +117,5 @@ float32x8 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x8 rayOrigins, Vec4_f32
 	float32x8 tmax_total = _mm256_min_ps(tmax_z, _mm256_min_ps(tmax_x, tmax_y));
 	ret_tMin = tmin_total;
 	ret_tMax = tmax_total;
-	return tmin_total <= tmax_total; //TODO: should this have equality?
+	return mask2vec<float>(tmin_total <= tmax_total); //TODO: should this have equality?
 }

@@ -8,12 +8,12 @@ float32x16 LUTMan::sin(float32x16 x)
 }
 float32x16 LUTMan::cos(float32x16 x)
 {
-	float32x16 periods = x * (1.0 / (2 * M_PI));
+	float32x16 periods = x * float(1.0 / (2 * M_PI));
 	periods = _mm512_floor_ps(periods);
-	x -= periods * (2 * M_PI); //now x is 0..2_PI range
-	float32x16 lutIndex = x * (tables.cos_fp32.size() / (2 * M_PI));
+	x -= periods * float(2 * M_PI); //now x is 0..2_PI range
+	float32x16 lutIndex = x * float(tables.cos_fp32.size() / (2 * M_PI));
 	
-	int32x16 lutIndexFirst = lutIndex.trunc();
+	int32x16 lutIndexFirst = cvt<int>(lutIndex);
 	int32x16 lutIndexSecond = lutIndexFirst + 1;
 
 	float32x16 lut0 = _mm512_load_ps(&tables.cos_fp32[0]);
