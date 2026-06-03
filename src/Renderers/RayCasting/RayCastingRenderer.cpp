@@ -72,7 +72,7 @@ Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, V
 	Vec4_f32x16 ray_cross_e2 = rayDirs.cross3d(edge2);
 	float32x16 det = edge1.dot3d(ray_cross_e2);
 
-	activeRays &= float32x16(_mm512_abs_ps(det)) >= eps;
+	activeRays &= abs(det) >= eps;
 	if (!activeRays) return 0; // Ray is parallel to triangle
 
 	float32x16 inv_det = float32x16(1.f) / det;
@@ -289,14 +289,14 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				if (hits.raysHit)
 				{
 					int32x16 modelTextureIndOffset = hits.modelIndices * sizeof(RayCasting::Model) + offsetof(RayCasting::Model, textureIndex);
-					int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(int32x16(0), hits.raysHit, modelTextureIndOffset, this->sceneModels.data(), 1);
+					int32x16 diffuseMapIndices = gather<i32x16, 1>(this->sceneModels.data(), modelTextureIndOffset, hits.raysHit);
 					textureColors = this->textureManager.gatherLinearIntesitiesFromMultipleTextures(diffuseMapIndices, hits.textureCoords[0], hits.textureCoords[1], hits.raysHit);
 					
-					float32x16 normalShadingMult = _mm512_max_ps(_mm512_setzero_ps(), hits.normals.dot3d(lightDir));
+					float32x16 normalShadingMult = max(f32x16(0), hits.normals.dot3d(lightDir));
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
 					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true, threadIndexFake);
 					//float32x16 shadowMult = _mm512_maskz_mov_ps(~shadowTrace.raysHit, float32x16(1));
-					float32x16 totalMult = _mm512_add_ps(ambientLightIntensity, _mm512_maskz_mov_ps(~shadowTrace.raysHit, normalShadingMult));
+					float32x16 totalMult = ambientLightIntensity + maskz_mov(~shadowTrace.raysHit, normalShadingMult);
 					for (int i = 0; i < 3; ++i)
 					{
 						textureColors[i] *= totalMult;
@@ -367,22 +367,22 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			ret.raysHit |= toOverride;
 			if (!shadowRays)
 			{
-				ret.t = _mm512_mask_mov_ps(ret.t, toOverride, t);
+				ret.t = mask_mov(ret.t, toOverride, t);
 
-				ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
-				ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
+				ret.modelIndices = mask_mov(ret.modelIndices, toOverride, int32x16(modelIndex));
+				ret.triangleIndices = mask_mov(ret.triangleIndices, toOverride, int32x16(triangleIndex));
 				Vec4_f32x16 normals(0.f, 0.f, 0.f, 0.f);
 				for (int i = 0; i < 3; ++i) normals += Vec4_f32x16(triangle.tv[i].normal) * worldBarycentrics[i];
 				normals /= normals.len3d();
 
 				for (int k = 0; k < 3; ++k)
 				{
-					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
-					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, normals[k]);
+					ret.worldBarycentrics[k] = mask_mov(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
+					ret.normals[k] = mask_mov(ret.normals[k], toOverride, normals[k]);
 				}
 				for (int k = 0; k < 2; ++k)
 				{
-					ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
+					ret.textureCoords[k] = mask_mov(ret.textureCoords[k], toOverride, uv[k]);
 				}
 			}
 			else

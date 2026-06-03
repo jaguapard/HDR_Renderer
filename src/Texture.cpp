@@ -103,7 +103,7 @@ Texture::Texture(const SDL_Surface* s)
                     {
                         //alpha is binary, all values above 0 considered fully opaque. TODO: when implementing transparency, change this
                         Mask16 boundsMask = (int32x16::sequence() + x) < w;
-                        int32x16 srcUint32 = _mm512_maskz_loadu_epi32(boundsMask, srcRow + x);
+                        int32x16 srcUint32 = load<i32x16>(srcRow + x, boundsMask);
 
                         int32x16 dstR = srcUint32 & 0xFF;
                         int32x16 dstG = (srcUint32 >> 8) & 0xFF;
