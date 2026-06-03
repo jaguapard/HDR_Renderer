@@ -51,18 +51,18 @@ std::pair<float, float> WrappingMapper::wrapUV(float u, float v)
 
 std::pair<float32x8, float32x8> WrappingMapper::wrapUV(float32x8 u, float32x8 v)
 {
-	u -= _mm256_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
-	u -= _mm256_floor_ps(u);
-	v -= _mm256_floor_ps(v);
-	v -= _mm256_floor_ps(v);
+	u -= floor(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+	u -= floor(u);
+	v -= floor(v);
+	v -= floor(v);
 	return { u,v };
 }
 
 std::pair<float32x16, float32x16> WrappingMapper::wrapUV(float32x16 u, float32x16 v)
 {
-	u -= _mm512_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
-	u -= _mm512_floor_ps(u);
-	v -= _mm512_floor_ps(v);
-	v -= _mm512_floor_ps(v);
+	u -= floor(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+	u -= floor(u);
+	v -= floor(v);
+	v -= floor(v);
 	return { u,v };
 }

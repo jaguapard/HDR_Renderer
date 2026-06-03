@@ -9,7 +9,7 @@ float32x16 LUTMan::sin(float32x16 x)
 float32x16 LUTMan::cos(float32x16 x)
 {
 	float32x16 periods = x * float(1.0 / (2 * M_PI));
-	periods = _mm512_floor_ps(periods);
+	periods = floor(periods);
 	x -= periods * float(2 * M_PI); //now x is 0..2_PI range
 	float32x16 lutIndex = x * float(tables.cos_fp32.size() / (2 * M_PI));
 	
@@ -21,7 +21,7 @@ float32x16 LUTMan::cos(float32x16 x)
 	//permutes already cut off MSB's, so we can use them without change
 	float32x16 v1 = permx2(lut0, lutIndexFirst, lut1);
 	float32x16 v2 = permx2(lut0, lutIndexSecond, lut1);
-	float32x16 lerpT = lutIndex - float32x16(_mm512_floor_ps(lutIndex));
+	float32x16 lerpT = lutIndex - floor(lutIndex);
 	return v1 + (v2 - v1) * lerpT;
 }
 

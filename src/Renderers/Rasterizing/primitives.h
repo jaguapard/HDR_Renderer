@@ -162,19 +162,19 @@ namespace Rasterizing
 			const uint32_t* p = this->vind_diffuseInd.data() + startInd * 4;
 
 			__mmask64 m = duplicate_mmask_bits_16_to_64(mask);
-			int32x16 r0 = _mm512_maskz_loadu_epi32(m, p); //v0v1v2di for triangles 0,1,2,3
-			int32x16 r1 = _mm512_maskz_loadu_epi32(m >> 16, p+16); //v0v1v2di for triangles 4,5,6,7
-			int32x16 r2 = _mm512_maskz_loadu_epi32(m >> 32, p+32);  //v0v1v2di for triangles 8,9,10,11
-			int32x16 r3 = _mm512_maskz_loadu_epi32(m >> 48, p+48);  //v0v1v2di for triangles 12,13,14,15
+			int32x16 r0 = load<i32x16>(p, m); //v0v1v2di for triangles 0,1,2,3
+			int32x16 r1 = load<i32x16>(p + 16, m >> 16); //v0v1v2di for triangles 4,5,6,7
+			int32x16 r2 = load<i32x16>(p + 32, m >> 32);  //v0v1v2di for triangles 8,9,10,11
+			int32x16 r3 = load<i32x16>(p + 48, m >> 48);  //v0v1v2di for triangles 12,13,14,15
 
-			int32x16 v0v1_v0v1_x = _mm512_unpacklo_epi32(r0, r1); //v0_0, v0_4, v1_0, v1_4 | v0_1, v0_5, v1_1, v1_5 | v0_2, v0_6, v1_2, v1_6 | v0_3, v0_7, v1_3, v1_3 | 
-			int32x16 v0v1_v0v1_y = _mm512_unpacklo_epi32(r2, r3); //same as above, but +8
-			int32x16 v2di_v2di_x = _mm512_unpackhi_epi32(r0, r1); //v2di for 8 triangles: 0,4,1,5,2,6,3,7
-			int32x16 v2di_v2di_y = _mm512_unpackhi_epi32(r2, r3); //same as above, but +8
-			int32x16 v0_a = _mm512_unpacklo_epi64(v0v1_v0v1_x, v0v1_v0v1_y); //v0: 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15
-			int32x16 v1_a = _mm512_unpackhi_epi64(v0v1_v0v1_x, v0v1_v0v1_y); //v1: 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15
-			int32x16 v2_a = _mm512_unpacklo_epi64(v2di_v2di_x, v2di_v2di_y);
-			int32x16 di_a = _mm512_unpackhi_epi64(v2di_v2di_x, v2di_v2di_y);
+			u64x8 v0v1_v0v1_x = reinterpret<u64x8>(unpacklo(r0, r1)); //v0_0, v0_4, v1_0, v1_4 | v0_1, v0_5, v1_1, v1_5 | v0_2, v0_6, v1_2, v1_6 | v0_3, v0_7, v1_3, v1_3 | 
+			u64x8 v0v1_v0v1_y = reinterpret<u64x8>(unpacklo(r2, r3)); //same as above, but +8
+			u64x8 v2di_v2di_x = reinterpret<u64x8>(unpackhi(r0, r1)); //v2di for 8 triangles: 0,4,1,5,2,6,3,7
+			u64x8 v2di_v2di_y = reinterpret<u64x8>(unpackhi(r2, r3)); //same as above, but +8
+			int32x16 v0_a = reinterpret<i32x16>(unpacklo(v0v1_v0v1_x, v0v1_v0v1_y)); //v0: 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15
+			int32x16 v1_a = reinterpret<i32x16>(unpackhi(v0v1_v0v1_x, v0v1_v0v1_y)); //v1: 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15
+			int32x16 v2_a = reinterpret<i32x16>(unpacklo(v2di_v2di_x, v2di_v2di_y));
+			int32x16 di_a = reinterpret<i32x16>(unpackhi(v2di_v2di_x, v2di_v2di_y));
 			retVind0 = permx(v0_a, i32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15));
 			retVind1 = permx(v1_a, i32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15));
 			retVind2 = permx(v2_a, i32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15));
