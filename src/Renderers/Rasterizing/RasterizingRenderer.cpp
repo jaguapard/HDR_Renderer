@@ -728,10 +728,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
 				if (!opaquePixelsMask) continue;
 
-				_mm512_mask_i32scatter_ps(zBuffer, opaquePixelsMask, zbufferGatherInd, interpolatedDividedUv.z, 4);
+				scatter(interpolatedDividedUv.z, zBuffer, zbufferGatherInd, opaquePixelsMask);
 				if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 				{
-					_mm512_mask_i32scatter_epi32(triangleIndBuf, opaquePixelsMask, zbufferGatherInd, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]), 4);
+					scatter(i32x16(inp.progenitorTriangleIndices[i]), triangleIndBuf, zbufferGatherInd, opaquePixelsMask);
 				}
 
 				if (Statsman::ENABLED)
