@@ -12,7 +12,7 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 		this->xyzp.push_back(x);
 		this->xyzp.push_back(y);
 		this->xyzp.push_back(z);
-		__m128 f32 = _mm_setr_ps(u, v, nx, ny);
+		f32x4 f32 = f32x4(u, v, nx, ny);
 		__m128i f16 = _mm_cvtps_ph(f32, _MM_FROUND_TO_NEAREST_INT);
 		int32_t nx_fp16 = _mm_extract_epi16(f16, 2);
 		int32_t ny_fp16 = _mm_extract_epi16(f16, 3);

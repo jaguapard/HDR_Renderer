@@ -38,8 +38,8 @@ uint32_t MipLevel::getPixelRGBA32(uint32_t x, uint32_t y) const
 Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32x16& v, Mask16 mask) const
 {
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
-    float32x16 lerpT_x = pixelsX - float32x16(_mm512_floor_ps(pixelsX));
-    float32x16 lerpT_y = pixelsY - float32x16(_mm512_floor_ps(pixelsY));
+    float32x16 lerpT_x = pixelsX - floor(pixelsX);
+    float32x16 lerpT_y = pixelsY - floor(pixelsY);
     int32x16 startX = vec_cvt<int>(pixelsX);
     int32x16 startY = vec_cvt<int>(pixelsY);
     const auto& p = this->mapper.getParams();

@@ -540,10 +540,10 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			activeTriangles = (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & (activeTriangles & nonZeroSignedAreaMask);
 			if (!activeTriangles) continue;
 
-			currOutputTriangle->minX = _mm512_floor_ps(minX);
-			currOutputTriangle->minY = _mm512_floor_ps(minY);
-			currOutputTriangle->maxX = _mm512_ceil_ps(maxX);
-			currOutputTriangle->maxY = _mm512_ceil_ps(maxY);
+			currOutputTriangle->minX = floor(minX);
+			currOutputTriangle->minY = floor(minY);
+			currOutputTriangle->maxX = ceil(maxX);
+			currOutputTriangle->maxY = ceil(maxY);
 			currOutputTriangle->rcpSignedArea = float32x16(1) / signedArea;
 			currOutputTriangle->activeTrianges = activeTriangles;
 		}
@@ -938,8 +938,8 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 					{
 						float32x16 sx = sunScreenPositions.x + ox;
 						float32x16 sy = sunScreenPositions.y + oy;
-						float32x16 sx0 = _mm512_floor_ps(sx);
-						float32x16 sy0 = _mm512_floor_ps(sy);
+						float32x16 sx0 = floor(sx);
+						float32x16 sy0 = floor(sy);
 						float32x16 sx1 = sx0 + 1;
 						float32x16 sy1 = sy0 + 1;
 						float32x16 fracX = sx - sx0;
