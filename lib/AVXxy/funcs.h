@@ -74,7 +74,7 @@ namespace AVXXY_NAMESPACE
 		return load<typename T::ScalarType, T::LaneCount>(p, mask, src);
 	}
 
-	template<typename S, size_t N> void store(SIMD_Vector<S, N>& v, const void* p, const typename SIMD_Vector<S, N>::MaskType& mask = SIMD_Vector<S, N>::MaskType::AllOnes);
+	template<typename S, size_t N> void store(const SIMD_Vector<S, N>& v, void* p, const typename SIMD_Vector<S, N>::MaskType& mask = SIMD_Vector<S, N>::MaskType::AllOnes);
 	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (std::is_integral_v<I> && sizeof(I) <= 8)
 	SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskType& mask = SIMD_Vector<S, N>::MaskType::AllOnes, const SIMD_Vector<S, N>& src = 0);
 

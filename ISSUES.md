@@ -3,7 +3,7 @@
 - Scene and renderer state switching machine is duct-taped spaghetti
 - Heavy dependence on AVX512, intrinsics everywhere
 - Renderers too aware of the scene, gotta separate it into a class
-- After swapping vector library to avxxy - weird colored dots on some textures, hard to see but they're there. Decoder?
+- After swapping vector library to avxxy - weird colored dots on some textures, hard to see but they're there. Decoder? Bilinear?
 
 # Rasterizing renderer
 - Some transparent pixels are sky-colored, most notable during scene explosion
