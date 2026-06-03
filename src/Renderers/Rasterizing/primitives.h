@@ -113,35 +113,7 @@ namespace Rasterizing
 			std::array<float32x16, 4> a = aos2soa_gather_and_transpose<float32x16, 4>(this->xyzp.data(), ind, mask);
 			for (int i = 0; i < 3; ++i) retXYZ[i] = a[i];
 			interleaved_ph_to_ps(reinterpret<u32x16>(a[3]), retU, retV);
-			/*
-			for (int i = 0; i < 4; ++i)
-			{
-				float32x16 a = _mm512_permutex2var_ps(_mm512_loadu_ps(r0), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28, 0, 0)), _mm512_loadu_ps(r1));
-				float32x16 b = _mm512_permutex2var_ps(_mm512_loadu_ps(r2), _mm512_add_epi32(_mm512_set1_epi32(i), _mm512_setr_epi32(0, 0, 0, 16, 0, 0, 4, 20, 0, 0, 8, 24, 0, 0, 12, 28)), _mm512_loadu_ps(r3));
-				float32x16 c = _mm512_mask_mov_ps(a, 0b1100110011001100, b);
-				if (i < 3) retXYZ[i] = c;
-				else interleaved_ph_to_ps(_mm512_castps_si512(c), retU, retV);
-			}*/
 		}
-		//Gathers world XYZ positions for vertex indices using mask. Corresponding value in src is returned for masked out elements.
-		/*
-		__forceinline void gatherWorldXYZ(int32x16 ind, Mask16 mask, float32x16& retX, float32x16& retY, float32x16& retZ, float32x16 src = 0.f) const
-		{
-			retX = _mm512_mask_i32gather_ps(src, mask, ind, this->x.data(), 4);
-			retY = _mm512_mask_i32gather_ps(src, mask, ind, this->y.data(), 4);
-			retZ = _mm512_mask_i32gather_ps(src, mask, ind, this->z.data(), 4);
-		}
-
-		__forceinline void gatherWorldXYZ(int32x16 ind, Mask16 mask, Vec4_f32x16& ret, float32x16 src = 0.f) const
-		{
-			this->gatherWorldXYZ(ind, mask, ret.x, ret.y, ret.z, src);
-		}
-
-		__forceinline void gatherUV(int32x16 ind, Mask16 mask, float32x16& retU, float32x16& retV, float32x16 src = 0.f) const
-		{
-			int32x16 packedUv = _mm512_mask_i32gather_epi32(src, mask, ind, this->uvPacked.data(), 4);
-			interleaved_ph_to_ps(packedUv, retU, retV);
-		}*/
 
 		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret) const
 		{
