@@ -43,14 +43,14 @@ namespace Rasterizing
 		static __forceinline VertexPack16 maskMove(const VertexPack16& zero, const VertexPack16& one, Mask16 mask)
 		{
 			VertexPack16 ret;
-			ret.space.x = _mm512_mask_mov_ps(zero.space.x, mask, one.space.x);
-			ret.space.y = _mm512_mask_mov_ps(zero.space.y, mask, one.space.y);
-			ret.space.z = _mm512_mask_mov_ps(zero.space.z, mask, one.space.z);
-			ret.normal.x = _mm512_mask_mov_ps(zero.normal.x, mask, one.normal.x);
-			ret.normal.y = _mm512_mask_mov_ps(zero.normal.y, mask, one.normal.y);
-			ret.normal.z = _mm512_mask_mov_ps(zero.normal.z, mask, one.normal.z);
-			ret.u = _mm512_mask_mov_ps(zero.u, mask, one.u);
-			ret.v = _mm512_mask_mov_ps(zero.v, mask, one.v);
+			ret.space.x = mask_mov(zero.space.x, mask, one.space.x);
+			ret.space.y = mask_mov(zero.space.y, mask, one.space.y);
+			ret.space.z = mask_mov(zero.space.z, mask, one.space.z);
+			ret.normal.x = mask_mov(zero.normal.x, mask, one.normal.x);
+			ret.normal.y = mask_mov(zero.normal.y, mask, one.normal.y);
+			ret.normal.z = mask_mov(zero.normal.z, mask, one.normal.z);
+			ret.u = mask_mov(zero.u, mask, one.u);
+			ret.v = mask_mov(zero.v, mask, one.v);
 			return ret;
 		}
 
