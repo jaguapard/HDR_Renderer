@@ -58,7 +58,7 @@ namespace AVXXY_NAMESPACE
 			}
 		}
 
-		else if constexpr (!hasVectorVersion)
+		if constexpr (!hasVectorVersion)
 		{
 			T ret;
 			for (size_t i = 0; i < N; ++i) ret[i] = a[i] + b[i];
@@ -116,10 +116,10 @@ namespace AVXXY_NAMESPACE
 			}
 		}
 
-		else if constexpr (!hasVectorVersion)
+		if constexpr (!hasVectorVersion)
 		{
 			T ret;
-			for (size_t i = 0; i < N; ++i) ret[i] = a[i] + b[i];
+			for (size_t i = 0; i < N; ++i) ret[i] = a[i] - b[i];
 			return ret;
 		}
 		else return concat(sub(a.lo, b.lo), sub(a.hi, b.hi));
@@ -255,7 +255,7 @@ namespace AVXXY_NAMESPACE
 			{
 				if constexpr (std::is_same_v<S, double>) ret[i] = std::bit_cast<double>(std::bit_cast<uint64_t>(a[i]) & std::bit_cast<uint64_t>(b[i]));
 				else if constexpr (std::is_same_v<S, float>) ret[i] = std::bit_cast<float>(std::bit_cast<uint32_t>(a[i]) & std::bit_cast<uint32_t>(b[i]));
-				else ret[i] = a[i] ^ b[i];
+				else ret[i] = a[i] & b[i];
 			}
 			return ret;
 		}
@@ -294,7 +294,7 @@ namespace AVXXY_NAMESPACE
 			{
 				if constexpr (std::is_same_v<S, double>) ret[i] = std::bit_cast<double>(std::bit_cast<uint64_t>(a[i]) | std::bit_cast<uint64_t>(b[i]));
 				else if constexpr (std::is_same_v<S, float>) ret[i] = std::bit_cast<float>(std::bit_cast<uint32_t>(a[i]) | std::bit_cast<uint32_t>(b[i]));
-				else ret[i] = a[i] ^ b[i];
+				else ret[i] = a[i] | b[i];
 			}
 			return ret;
 		}
@@ -374,6 +374,7 @@ namespace AVXXY_NAMESPACE
 				else if constexpr (std::is_same_v<S, float>) ret[i] = std::bit_cast<float>(~std::bit_cast<uint32_t>(a[i]));
 				else ret[i] = ~a[i];
 			}
+			return ret;
 		}
 	}
 
@@ -557,20 +558,12 @@ namespace AVXXY_NAMESPACE
 			for (size_t i = 0; i < N; ++i)
 			{
 				auto j = ind[i] & (2 * N - 1);
-				ret[i] = j < N ? a[ind[j]] : b[ind[j - N]];
+				ret[i] = j < N ? a[j] : b[j - N];
 			}
 			return ret;
 		}
 	}
-	/*
-	template<typename S, size_t N, typename I>
-	requires (std::is_integral_v<I> && sizeof(SIMD_Vector<S,N>) <= 64)
-	SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
-	{
 
-		return SIMD_Vector<S, N>();
-	}
-	*/
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N / 2> upper_half(const SIMD_Vector<S, N>& a)
 	{
