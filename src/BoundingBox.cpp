@@ -81,16 +81,16 @@ Mask16 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigins, Vec4_f32x1
 	float32x16 ty2 = (float32x16(this->ymax) - rayOrigins.y) * rcpRayDirs.y;
 	float32x16 tz2 = (float32x16(this->zmax) - rayOrigins.z) * rcpRayDirs.z;
 
-	float32x16 tmin_x = _mm512_min_ps(tx1, tx2);
-	float32x16 tmin_y = _mm512_min_ps(ty1, ty2);
-	float32x16 tmin_z = _mm512_min_ps(tz1, tz2);
+	float32x16 tmin_x = min(tx1, tx2);
+	float32x16 tmin_y = min(ty1, ty2);
+	float32x16 tmin_z = min(tz1, tz2);
 
-	float32x16 tmax_x = _mm512_max_ps(tx1, tx2);
-	float32x16 tmax_y = _mm512_max_ps(ty1, ty2);
-	float32x16 tmax_z = _mm512_max_ps(tz1, tz2);
+	float32x16 tmax_x = max(tx1, tx2);
+	float32x16 tmax_y = max(ty1, ty2);
+	float32x16 tmax_z = max(tz1, tz2);
 
-	float32x16 tmin_total = _mm512_max_ps(_mm512_max_ps(_mm512_setzero_ps(), tmin_z), _mm512_max_ps(tmin_x, tmin_y));
-	float32x16 tmax_total = _mm512_min_ps(tmax_z, _mm512_min_ps(tmax_x, tmax_y));
+	float32x16 tmin_total = max(max(f32x16(0.f), tmin_z), max(tmin_x, tmin_y));
+	float32x16 tmax_total = min(tmax_z, min(tmax_x, tmax_y));
 	ret_tMin = tmin_total;
 	ret_tMax = tmax_total;
 	return tmin_total <= tmax_total; //TODO: should this have equality?
@@ -105,16 +105,16 @@ float32x8 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x8 rayOrigins, Vec4_f32
 	float32x8 ty2 = (float32x8(this->ymax) - rayOrigins.y) * rcpRayDirs.y;
 	float32x8 tz2 = (float32x8(this->zmax) - rayOrigins.z) * rcpRayDirs.z;
 
-	float32x8 tmin_x = _mm256_min_ps(tx1, tx2);
-	float32x8 tmin_y = _mm256_min_ps(ty1, ty2);
-	float32x8 tmin_z = _mm256_min_ps(tz1, tz2);
+	float32x8 tmin_x = min(tx1, tx2);
+	float32x8 tmin_y = min(ty1, ty2);
+	float32x8 tmin_z = min(tz1, tz2);
 
-	float32x8 tmax_x = _mm256_max_ps(tx1, tx2);
-	float32x8 tmax_y = _mm256_max_ps(ty1, ty2);
-	float32x8 tmax_z = _mm256_max_ps(tz1, tz2);
+	float32x8 tmax_x = max(tx1, tx2);
+	float32x8 tmax_y = max(ty1, ty2);
+	float32x8 tmax_z = max(tz1, tz2);
 
-	float32x8 tmin_total = _mm256_max_ps(_mm256_max_ps(_mm256_setzero_ps(), tmin_z), _mm256_max_ps(tmin_x, tmin_y));
-	float32x8 tmax_total = _mm256_min_ps(tmax_z, _mm256_min_ps(tmax_x, tmax_y));
+	float32x8 tmin_total = max(max(f32x8(0), tmin_z), max(tmin_x, tmin_y));
+	float32x8 tmax_total = min(tmax_z, min(tmax_x, tmax_y));
 	ret_tMin = tmin_total;
 	ret_tMax = tmax_total;
 	return mask2vec<float>(tmin_total <= tmax_total); //TODO: should this have equality?
