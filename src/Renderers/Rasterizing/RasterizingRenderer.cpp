@@ -696,8 +696,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
 					Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
 
-				int32x16 intX = cvt<int>(x);
-				int32x16 intY = cvt<int>(y);
+				int32x16 intX = vec_cvt<int>(x);
+				int32x16 intY = vec_cvt<int>(y);
 				int32x16 zbufferGatherInd = intY * w + intX;
 				float32x16 currDepthValues = gather<float, 16>(zBuffer, zbufferGatherInd, scavengerBounds);
 
@@ -964,7 +964,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 							Mask16 inShadowMapBounds = xBoundsMask & ssx >= 0.f & ssy >= 0.f & ssx < smapW & ssy < smapH;
 							if (inShadowMapBounds)
 							{
-								int32x16 gatherInd = int32x16(cvt<int>(ssy)) * this->drawCommands[1].renderW + int32x16(cvt<int>(ssx));
+								int32x16 gatherInd = int32x16(vec_cvt<int>(ssy)) * this->drawCommands[1].renderW + int32x16(vec_cvt<int>(ssx));
 								float32x16 shadowMapDepths = gather<float, 16>(shadowMap_zBuffer, gatherInd, inShadowMapBounds, FLT_MAX);
 								if (Statsman::ENABLED)
 								{

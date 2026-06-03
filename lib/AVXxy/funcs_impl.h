@@ -81,8 +81,8 @@ namespace AVXXY_NAMESPACE
 	__forceinline SIMD_Vector<S, N> mul(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (std::is_same_v<S, int8_t>) return cvt<int8_t>(mul(cvt<int16_t>(a), cvt<int16_t>(b)));
-		else if constexpr (std::is_same_v<S, uint8_t>) return cvt<uint8_t>(mul(cvt<uint16_t>(a), cvt<uint16_t>(b)));
+		if constexpr (std::is_same_v<S, int8_t>) return vec_cvt<int8_t>(mul(vec_cvt<int16_t>(a), vec_cvt<int16_t>(b)));
+		else if constexpr (std::is_same_v<S, uint8_t>) return vec_cvt<uint8_t>(mul(vec_cvt<uint16_t>(a), vec_cvt<uint16_t>(b)));
 		else if constexpr (inRange(sizeof(T), 33, 64))
 		{
 			if constexpr (std::is_same_v<S, float>) return _mm512_mul_ps(a, b);
@@ -135,8 +135,8 @@ namespace AVXXY_NAMESPACE
 	{
 		using T = SIMD_Vector<S, N>;
 		constexpr size_t sz = sizeof(T);
-		if constexpr (std::is_integral_v<S> && sizeof(S) <= 2) return cvt<S>(div(cvt<float>(a), cvt<float>(b))); //emulate division for 8 and 16 bit ints via float division
-		else if constexpr (std::is_integral_v<S> && sizeof(S) == 4) return cvt<S>(div(cvt<double>(a), cvt<double>(b))); //for 32 bit ints via double division
+		if constexpr (std::is_integral_v<S> && sizeof(S) <= 2) return vec_cvt<S>(div(vec_cvt<float>(a), vec_cvt<float>(b))); //emulate division for 8 and 16 bit ints via float division
+		else if constexpr (std::is_integral_v<S> && sizeof(S) == 4) return vec_cvt<S>(div(vec_cvt<double>(a), vec_cvt<double>(b))); //for 32 bit ints via double division
 		//64 bit integers are too large, can't easily weasel our way out. TODO: implement 64-bit int div
 		else if constexpr (sz > 64) return concat(div(lower_half(a), lower_half(b)), div(upper_half(a), upper_half(b)));
 		else if constexpr (inRange(sz, 33, 64))
@@ -269,14 +269,14 @@ namespace AVXXY_NAMESPACE
 		if constexpr (sizeof(T) > 64) return concat(shift_left(a.lo, amount.lo), shift_left(a.hi, amount.hi));
 		if constexpr (sizeof(S) == 1) //no 8 bit shifts in x86!
 		{
-			auto alo = cvt<uint16_t>(cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
-			auto ahi = cvt<uint16_t>(cvt<uint8_t>(a.hi));
-			auto shlo = cvt<S>(shift_left(alo, amount.lo));
-			auto shhi = cvt<S>(shift_left(ahi, amount.hi));
+			auto alo = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
+			auto ahi = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.hi));
+			auto shlo = vec_cvt<S>(shift_left(alo, amount.lo));
+			auto shhi = vec_cvt<S>(shift_left(ahi, amount.hi));
 			return concat(shlo, shhi);
 		}
 
-		auto xa = cvt<typename T::IntScalarType>(amount);
+		auto xa = vec_cvt<typename T::IntScalarType>(amount);
 		if constexpr (inRange(sizeof(T), 33, 64))
 		{
 			if constexpr (sizeof(S) == 8) return _mm512_sllv_epi64(a, xa);
@@ -305,14 +305,14 @@ namespace AVXXY_NAMESPACE
 		if constexpr (sizeof(T) > 64) return concat(shift_right(a.lo, amount.lo), shift_right(a.hi, amount.hi));
 		if constexpr (sizeof(S) == 1) //no 8 bit shifts in x86!
 		{
-			auto alo = cvt<uint16_t>(cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
-			auto ahi = cvt<uint16_t>(cvt<uint8_t>(a.hi));
-			auto shlo = cvt<S>(shift_right(alo, amount.lo));
-			auto shhi = cvt<S>(shift_right(ahi, amount.hi));
+			auto alo = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
+			auto ahi = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.hi));
+			auto shlo = vec_cvt<S>(shift_right(alo, amount.lo));
+			auto shhi = vec_cvt<S>(shift_right(ahi, amount.hi));
 			return concat(shlo, shhi);
 		}
 
-		auto xa = cvt<typename T::IntScalarType>(amount);
+		auto xa = vec_cvt<typename T::IntScalarType>(amount);
 		if constexpr (inRange(sizeof(T), 33, 64))
 		{
 			if constexpr (sizeof(S) == 8) return _mm512_srlv_epi64(a, xa);
@@ -339,7 +339,7 @@ namespace AVXXY_NAMESPACE
 		requires (sizeof(SIMD_Vector<S, N>) <= 64) //for now, don't emulate, just route to native permutex
 	{
 		using T = SIMD_Vector<S, N>;
-		auto xind = cvt<typename T::IntScalarType>(ind); //TODO: when implementing larger permutes: can overflow
+		auto xind = vec_cvt<typename T::IntScalarType>(ind); //TODO: when implementing larger permutes: can overflow
 		if constexpr (inRange(sizeof(T), 33, 64))
 		{
 			if (std::is_same_v<S, double>) return _mm512_permutexvar_pd(xind, a);
@@ -375,7 +375,7 @@ namespace AVXXY_NAMESPACE
 		requires (sizeof(SIMD_Vector<S, N>) <= 64)
 	{
 		using T = SIMD_Vector<S, N>;
-		auto xind = cvt<typename T::IntScalarType>(ind);
+		auto xind = vec_cvt<typename T::IntScalarType>(ind);
 		if constexpr (inRange(sizeof(T), 33, 64))
 		{
 			if (std::is_same_v<S, double>) return _mm512_permutex2var_pd(a, xind, b);
@@ -429,7 +429,7 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a)
 	{
-		auto x = cvt<float>(a);
+		auto x = vec_cvt<float>(a);
 		if constexpr (sizeof(x) > 64) return concat(sqrtf(x.lo), sqrtf(x.hi));
 		else if constexpr (inRange(sizeof(x), 33, 64)) return _mm512_sqrt_ps(x);
 		else if constexpr (inRange(sizeof(x), 17, 32)) return _mm256_sqrt_ps(x);
@@ -439,7 +439,7 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	SIMD_Vector<double, N> sqrtd(const SIMD_Vector<S, N>& a)
 	{
-		auto x = cvt<double>(a);
+		auto x = vec_cvt<double>(a);
 		if constexpr (sizeof(x) > 64) return concat(sqrtd(x.lo), sqrtd(x.hi));
 		else if constexpr (inRange(sizeof(x), 33, 64)) return _mm512_sqrt_pd(x);
 		else if constexpr (inRange(sizeof(x), 17, 32)) return _mm256_sqrt_pd(x);
@@ -697,7 +697,7 @@ namespace AVXXY_NAMESPACE
 				auto dwords = gather<int32_t, N, Scale>(base, ind >> indShift, mask);
 				auto shifts = ind & (indShift == 1 ? 1 : 3);
 				auto prefab = dwords >> (shifts << 3); //shift into proper places
-				ret = cvt<S>(prefab);
+				ret = vec_cvt<S>(prefab);
 			}
 			else [[unlikely]] //unaligned pointer, nothing we can do but read scalarly
 			{
@@ -722,7 +722,7 @@ namespace AVXXY_NAMESPACE
 		using CanonicalIndex_t = std::conditional_t<(sizeof(I) <= 4), int32_t, int64_t>;
 		//progressively sanitize inputs. There're no gathers for small indices, so first, need to extend them.
 		//TODO: can unite this check with Scale and use smaller indices?
-		if constexpr (!std::is_same_v<I, CanonicalIndex_t>) return gather<S, N, Scale>(base, cvt<CanonicalIndex_t>(ind), mask, src);
+		if constexpr (!std::is_same_v<I, CanonicalIndex_t>) return gather<S, N, Scale>(base, vec_cvt<CanonicalIndex_t>(ind), mask, src);
 
 		//if we get here, means that indices are already in good format (4-byte or 8-byte)
 		using RetVec_t = SIMD_Vector<S, N>;
@@ -785,7 +785,7 @@ namespace AVXXY_NAMESPACE
 		{
 			//if scale is not native, emulate it by gathering with scale 1 and manually calculated byte offsets. 
 			//TODO: Can optimize a little by checking if Scale*maxint(I) fits into smaller sizes
-			return gather<S, N, 1>(base, mul(cvt<int64_t>(ind), Scale), mask, src);
+			return gather<S, N, 1>(base, mul(vec_cvt<int64_t>(ind), Scale), mask, src);
 		}
 	}
 
@@ -806,10 +806,10 @@ namespace AVXXY_NAMESPACE
 			return;
 		}
 
-		if constexpr (!(Scale == 1 || Scale == 2 || Scale == 4 || Scale == 8)) return scatter<S, N, 1>(vec, base, cvt<int64_t>(ind) * Scale, mask);
+		if constexpr (!(Scale == 1 || Scale == 2 || Scale == 4 || Scale == 8)) return scatter<S, N, 1>(vec, base, vec_cvt<int64_t>(ind) * Scale, mask);
 
 		using CanonInd_t = std::conditional_t<sizeof(I) <= 4, int32_t, int64_t>;
-		if (!std::is_same_v<CanonInd_t, I>) return scatter<S, N, Scale>(vec, base, cvt<CanonInd_t>(ind), mask);
+		if (!std::is_same_v<CanonInd_t, I>) return scatter<S, N, Scale>(vec, base, vec_cvt<CanonInd_t>(ind), mask);
 
 		using IndVec_t = SIMD_Vector<I, N>;
 		using RetVec_t = SIMD_Vector<S, N>;

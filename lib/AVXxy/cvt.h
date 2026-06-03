@@ -7,7 +7,7 @@ namespace AVXXY_NAMESPACE
 	//Various internal functions of the library that are not meant to be used by the users.
 	namespace internals
 	{
-		//This function is used internally and lacks upstream input sanitization. If you're looking for vector conversions, use cvt instead
+		//This function is used internally and lacks upstream input sanitization. If you're looking for vector conversions, use vec_cvt instead
 		template<typename To, size_t N, typename From>
 		__forceinline SIMD_Vector<To, N> zmm_cvt(const SIMD_Vector<From, N>& value)
 		requires (inRange(std::max(sizeof(SIMD_Vector<From, N>), sizeof(SIMD_Vector<To, N>)), 33, 64))
@@ -69,7 +69,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 
-	//This function is used internally and lacks upstream input sanitization. If you're looking for vector conversions, use cvt instead
+	//This function is used internally and lacks upstream input sanitization. If you're looking for vector conversions, use vec_cvt instead
 	template<typename To, size_t N, typename From>
 	__forceinline SIMD_Vector<To, N> ymm_cvt(const SIMD_Vector<From, N>& value)
 	requires (inRange(std::max(sizeof(SIMD_Vector<From, N>), sizeof(SIMD_Vector<To, N>)), 17, 32))
@@ -128,7 +128,7 @@ namespace AVXXY_NAMESPACE
 		}
 		else static_assert(always_false_v<To, From>, "Unsupported arguments for SIMD_Vector zmm_cvt");
 	}
-	//This function is used internally and lacks upstream input sanitization. If you're looking for vector conversions, use cvt instead
+	//This function is used internally and lacks upstream input sanitization. If you're looking for vector conversions, use vec_cvt instead
 	template<typename To, size_t N, typename From>
 	__forceinline SIMD_Vector<To, N> xmm_cvt(const SIMD_Vector<From, N>& value)
 	requires (std::max(sizeof(SIMD_Vector<From, N>), sizeof(SIMD_Vector<To, N>)) <= 16)
@@ -192,33 +192,33 @@ namespace AVXXY_NAMESPACE
 
 
 	template<typename To, size_t N, typename From>
-	__forceinline SIMD_Vector<To, N> cvt(const SIMD_Vector<From, N>& value)
+	__forceinline SIMD_Vector<To, N> vec_cvt(const SIMD_Vector<From, N>& value)
 	{
 		using FromVector = SIMD_Vector<From, N>; using ToVector = SIMD_Vector<To, N>;
 		constexpr size_t MaxSize = std::max(sizeof(FromVector), sizeof(ToVector));
 		if constexpr (std::is_same_v<To, From>) return value; //if something tries to convert type to itself, it's just a NOP, so value can be passed back immediately
 		else if constexpr (sizeof(To) == sizeof(From) && std::is_integral_v<To> && std::is_integral_v<From>) return reinterpret<To>(value); //same sized integers, just reinterpret
-		else if constexpr (MaxSize > 64) return concat(cvt<To>(extract<0, 2>(value)), cvt<To>(extract<1, 2>(value))); //break up too large vectors to halves
+		else if constexpr (MaxSize > 64) return concat(vec_cvt<To>(extract<0, 2>(value)), vec_cvt<To>(extract<1, 2>(value))); //break up too large vectors to halves
 
 		//if constexpr (N == 1) return insert<0,1,To,1>({},  )
 		//small integers have no direct path to floating point conversions, so route them through 32-bit integers of samed signedness
 		//from small integer to double or float
 		else if constexpr (std::is_integral_v<From> && sizeof(From) < 4 && (std::is_same_v<To, double> || std::is_same_v<To, float>))
 		{
-			if constexpr (std::is_signed_v<From>) return cvt<To>(cvt<int32_t>(value));
-			if constexpr (std::is_unsigned_v<From>) return cvt<To>(cvt<uint32_t>(value));
+			if constexpr (std::is_signed_v<From>) return vec_cvt<To>(vec_cvt<int32_t>(value));
+			if constexpr (std::is_unsigned_v<From>) return vec_cvt<To>(vec_cvt<uint32_t>(value));
 		}
 		//same for inverse conversions. From double or float to small integer
 		else if constexpr ((std::is_same_v<From, double> || std::is_same_v<From, float>) && std::is_integral_v<To> && sizeof(To) < 4)
 		{
-			if constexpr (std::is_signed_v<To>) return cvt<To>(cvt<int32_t>(value));
-			if constexpr (std::is_unsigned_v<To>) return cvt<To>(cvt<uint32_t>(value));
+			if constexpr (std::is_signed_v<To>) return vec_cvt<To>(vec_cvt<int32_t>(value));
+			if constexpr (std::is_unsigned_v<To>) return vec_cvt<To>(vec_cvt<uint32_t>(value));
 		}
 
 		//Now that special cases are out of the way, actual intrinsics can be used.
 		else if constexpr (inRange(MaxSize, 33, 64)) return internals::zmm_cvt<To>(value);
 		else if constexpr (inRange(MaxSize, 17, 32)) return internals::ymm_cvt<To>(value);
 		else if constexpr (MaxSize <= 16) return internals::xmm_cvt<To>(value);
-		else static_assert(always_false_v<To, From>, "Unsupported arguments for SIMD_Vector cvt");
+		else static_assert(always_false_v<To, From>, "Unsupported arguments for SIMD_Vector vec_cvt");
 	}
 }

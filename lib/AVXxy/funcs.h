@@ -42,7 +42,7 @@ namespace AVXXY_NAMESPACE
 	//For floating point to integer conversions, the input vector is truncated
 	//For integer to bigger integer conversions, the input vector is sign or zero extended, depending on input signedness
 	//For integer to smaller integer conversions, the input vector is wrapped around small integer's max value (TODO: is it true?)
-	template<typename To, size_t N, typename From> SIMD_Vector<To, N> cvt(const SIMD_Vector<From, N>& value);
+	template<typename To, size_t N, typename From> SIMD_Vector<To, N> vec_cvt(const SIMD_Vector<From, N>& value);
 	template<typename S, size_t N> SIMD_Vector<S, N*2> concat(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N>& what);
 	template<size_t N> SIMD_Mask<N * 2> concat_masks(const SIMD_Mask<N>& to, const SIMD_Mask<N>& what);
 	
