@@ -82,7 +82,7 @@ namespace AVXXY_NAMESPACE
 		requires (T::IsSimdVector)
 	T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const typename T::MaskType& mask = T::MaskType::AllOnes, const T& src = 0)
 	{
-		return gather<typename T::ScalarType, T::LaneCount>(base, ind, mask, src);
+		return gather<typename T::ScalarType, T::LaneCount, Scale>(base, ind, mask, src);
 	}
 
 	template<typename S, size_t N, size_t Scale, typename I> void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskType& mask = SIMD_Vector<S, N>::MaskType::AllOnes);
