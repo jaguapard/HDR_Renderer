@@ -197,7 +197,7 @@ namespace AVXXY_NAMESPACE
 		using FromVector = SIMD_Vector<From, N>; using ToVector = SIMD_Vector<To, N>;
 		constexpr size_t MaxSize = std::max(sizeof(FromVector), sizeof(ToVector));
 		if constexpr (std::is_same_v<To, From>) return value; //if something tries to convert type to itself, it's just a NOP, so value can be passed back immediately
-		else if constexpr (sizeof(To) == sizeof(From) && std::is_integral_v<To> && std::is_integral_v<From>) return reinterpret<To>(value); //same sized integers, just reinterpret
+		else if constexpr (sizeof(To) == sizeof(From) && std::is_integral_v<To> && std::is_integral_v<From>) return reinterpret<SIMD_Vector<To, N>>(value); //same sized integers, just reinterpret
 		else if constexpr (MaxSize > 64) return concat(vec_cvt<To>(extract<0, 2>(value)), vec_cvt<To>(extract<1, 2>(value))); //break up too large vectors to halves
 
 		//if constexpr (N == 1) return insert<0,1,To,1>({},  )

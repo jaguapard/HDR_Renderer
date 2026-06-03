@@ -28,7 +28,9 @@ namespace AVXXY_NAMESPACE
 		static inline constexpr size_t LaneCount = _N;
 		using MaskType = SIMD_Mask<LaneCount>;
 		using Self = SIMD_Vector<ScalarType, LaneCount>;
+
 		static inline constexpr size_t ByteSize = sizeof(ScalarType) * LaneCount;
+		static inline constexpr bool IsSimdVector = true;
 
 		union
 		{
@@ -69,6 +71,11 @@ namespace AVXXY_NAMESPACE
 			return ret;
 		}
 
+		template<typename T>
+		SIMD_Vector(const SIMD_Vector<T, LaneCount>& other)
+		{
+			*this = vec_cvt<ScalarType, LaneCount>(other);
+		}
 		static __forceinline Self sequence()
 		{
 			Self ret;
@@ -77,10 +84,10 @@ namespace AVXXY_NAMESPACE
 		}
 
 		//Returns true if there's at least one element with it's most significant bit set, or false otherwise.
-		operator bool() const
+		/*operator bool() const
 		{
 			return reinterpret<IntScalarType>(*this) < 0;
-		}
+		}*/
 
 		//Returns a reference to scalar element in lane i
 		__forceinline const ScalarType& operator[](size_t i) const { return this->arr[i]; };

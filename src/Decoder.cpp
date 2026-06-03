@@ -20,12 +20,12 @@ Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 }
 
 [[gnu::target("avx512vbmi")]]
-Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const int32x16& packed)
+Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const u32x16& packed)
 {
-    std::array<__m512i, 8> lut;
-    for (int i = 0; i < 8; ++i) lut[i] = _mm512_load_si512(&LUTMan::tables.rgbToLinear_fp16[i * 32]);
+    std::array<u16x32, 8> lut;
+    for (int i = 0; i < 8; ++i) lut[i] = load<u16x32>(&LUTMan::tables.rgbToLinear_fp16[i * 32]);
     Vec4_f32x16 ret;
-    ret.a = float32x16(_mm512_cvtepu32_ps(packed >> 24)) * (1.f / 255); //alpha channel is linear already, not gamma encoded
+    ret.a = f32x16(packed >> 24) / 255; //alpha channel is linear already, not gamma encoded
     //zero-extend and split channels into halves, i.e. rgba,rgba,rgba,rgba is now r_r_r_r_g_g_g_g_, b and a in other
     //using setr16 for convinience. Doesn't matter what we put in upper bytes of each 16 byte word, since that will be zeroed out by zero-masking
     __m512i rg = _mm512_maskz_permutexvar_epi8(0x5555555555555555, _mm512_setr_epi16(0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61), packed);
