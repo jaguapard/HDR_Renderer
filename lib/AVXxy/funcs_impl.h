@@ -1121,6 +1121,54 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
+		requires (std::is_floating_point_v<S>)
+	__forceinline SIMD_Vector<S, N> floor(const SIMD_Vector<S, N>& a)
+	{
+		using T = SIMD_Vector<S, N>;
+		if constexpr (sizeof(T) > 64) return concat(floor(a.lo), floor(a.hi));
+		else if constexpr (inRange(sizeof(T), 33, 64))
+		{
+			if constexpr (std::is_same_v<S, double>) return _mm512_floor_pd(a);
+			if constexpr (std::is_same_v<S, float>) return _mm512_floor_ps(a);
+		}
+		else if constexpr (inRange(sizeof(T), 17, 32))
+		{
+			if constexpr (std::is_same_v<S, double>) return _mm256_floor_pd(a);
+			if constexpr (std::is_same_v<S, float>) return _mm256_floor_ps(a);
+		}
+		else if constexpr (inRange(sizeof(T), 0, 16))
+		{
+			if constexpr (std::is_same_v<S, double>) return _mm_floor_pd(a);
+			if constexpr (std::is_same_v<S, float>) return _mm_floor_ps(a);
+		}
+		else static_assert(always_false_v<S>, "floor");
+	}
+
+	template<typename S, size_t N>
+		requires (std::is_floating_point_v<S>)
+	__forceinline SIMD_Vector<S, N> ceil(const SIMD_Vector<S, N>& a)
+	{
+		using T = SIMD_Vector<S, N>;
+		if constexpr (sizeof(T) > 64) return concat(ceil(a.lo), ceil(a.hi));
+		else if constexpr (inRange(sizeof(T), 33, 64))
+		{
+			if constexpr (std::is_same_v<S, double>) return _mm512_ceil_pd(a);
+			if constexpr (std::is_same_v<S, float>) return _mm512_ceil_ps(a);
+		}
+		else if constexpr (inRange(sizeof(T), 17, 32))
+		{
+			if constexpr (std::is_same_v<S, double>) return _mm256_ceil_pd(a);
+			if constexpr (std::is_same_v<S, float>) return _mm256_ceil_ps(a);
+		}
+		else if constexpr (inRange(sizeof(T), 0, 16))
+		{
+			if constexpr (std::is_same_v<S, double>) return _mm_ceil_pd(a);
+			if constexpr (std::is_same_v<S, float>) return _mm_ceil_ps(a);
+		}
+		else static_assert(always_false_v<S>, "ceil");
+	}
+
+	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> min(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
@@ -1219,6 +1267,76 @@ namespace AVXXY_NAMESPACE
 	{
 		auto clampedLow = AVXXY_NAMESPACE::max(val, min);
 		return AVXXY_NAMESPACE::min(clampedLow, max);
+	}
+
+	template<typename S, size_t N>
+	SIMD_Vector<S, N> unpacklo(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	{
+		using T = SIMD_Vector<S, N>;
+		if constexpr (sizeof(T) > 64) return concat(unpacklo(a.lo, b.lo), unpacklo(a.hi, b.hi)); //TODO: verify
+		else if constexpr (inRange(sizeof(T), 33, 64))
+		{
+			if (std::is_same_v<S, double>) return _mm512_unpacklo_pd(a, b);
+			if (std::is_same_v<S, float>) return _mm512_unpacklo_ps(a, b);
+			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_unpacklo_epi64(a, b);
+			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_unpacklo_epi32(a, b);
+			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_unpacklo_epi16(a, b);
+			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_unpacklo_epi8(a, b);
+		}
+		else if constexpr (inRange(sizeof(T), 17, 32))
+		{
+			if (std::is_same_v<S, double>) return _mm256_unpacklo_pd(a, b);
+			if (std::is_same_v<S, float>) return _mm256_unpacklo_ps(a, b);
+			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_unpacklo_epi64(a, b);
+			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_unpacklo_epi32(a, b);
+			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_unpacklo_epi16(a, b);
+			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_unpacklo_epi8(a, b);
+		}
+		else if constexpr (inRange(sizeof(T), 0, 16))
+		{
+			if (std::is_same_v<S, double>) return _mm_unpacklo_pd(a, b);
+			if (std::is_same_v<S, float>) return _mm_unpacklo_ps(a, b);
+			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_unpacklo_epi64(a, b);
+			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_unpacklo_epi32(a, b);
+			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_unpacklo_epi16(a, b);
+			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_unpacklo_epi8(a, b);
+		}
+		else static_assert(always_false_v<S>, "unpacklo");
+	}
+
+	template<typename S, size_t N>
+	SIMD_Vector<S, N> unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	{
+		using T = SIMD_Vector<S, N>;
+		if constexpr (sizeof(T) > 64) return concat(unpackhi(a.lo, b.lo), unpackhi(a.hi, b.hi)); //TODO: verify
+		else if constexpr (inRange(sizeof(T), 33, 64))
+		{
+			if (std::is_same_v<S, double>) return _mm512_unpackhi_pd(a, b);
+			if (std::is_same_v<S, float>) return _mm512_unpackhi_ps(a, b);
+			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_unpackhi_epi64(a, b);
+			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_unpackhi_epi32(a, b);
+			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_unpackhi_epi16(a, b);
+			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_unpackhi_epi8(a, b);
+		}
+		else if constexpr (inRange(sizeof(T), 17, 32))
+		{
+			if (std::is_same_v<S, double>) return _mm256_unpackhi_pd(a, b);
+			if (std::is_same_v<S, float>) return _mm256_unpackhi_ps(a, b);
+			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_unpackhi_epi64(a, b);
+			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_unpackhi_epi32(a, b);
+			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_unpackhi_epi16(a, b);
+			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_unpackhi_epi8(a, b);
+		}
+		else if constexpr (inRange(sizeof(T), 0, 16))
+		{
+			if (std::is_same_v<S, double>) return _mm_unpackhi_pd(a, b);
+			if (std::is_same_v<S, float>) return _mm_unpackhi_ps(a, b);
+			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_unpackhi_epi64(a, b);
+			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_unpackhi_epi32(a, b);
+			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_unpackhi_epi16(a, b);
+			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_unpackhi_epi8(a, b);
+		}
+		else static_assert(always_false_v<S>, "unpackhi");
 	}
 
 	template<typename S, size_t N>

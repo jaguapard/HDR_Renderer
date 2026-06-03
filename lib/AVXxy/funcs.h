@@ -98,7 +98,12 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N> SIMD_Vector<S, N> mask2vec(const SIMD_Mask<N>& mask);
 
 	template<typename S, size_t N> SIMD_Vector<S, N> abs(const SIMD_Vector<S, N>& a);
+	template<typename S, size_t N> requires (std::is_floating_point_v<S>) SIMD_Vector<S, N> floor(const SIMD_Vector<S, N>& a);
+	template<typename S, size_t N> requires (std::is_floating_point_v<S>) SIMD_Vector<S, N> ceil(const SIMD_Vector<S, N>& a);
 	template<typename S, size_t N> SIMD_Vector<S, N> min(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
 	template<typename S, size_t N> SIMD_Vector<S, N> max(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
 	template<typename S, size_t N> SIMD_Vector<S, N> clamp(const SIMD_Vector<S, N>& val, const SIMD_Vector<S, N>& min, const SIMD_Vector<S, N>& max);
+
+	template<typename S, size_t N> SIMD_Vector<S, N> unpacklo(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
+	template<typename S, size_t N> SIMD_Vector<S, N> unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
 }
