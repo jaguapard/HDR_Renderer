@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
             for (auto& it : Statsman::statsmenForThreads) it.reset();
             if (!currentRenderer && !scheduledRendererChange)
             {
-                scheduledRendererChange = std::make_shared<HardwareRasterizingRenderer>();
+                scheduledRendererChange = std::make_shared<RasterizingRenderer>();
                 sceneReloadNeeded = true;
                 skipThisFrame = true;
                 //else if (dynamic_cast<RasterizingRenderer*>(currentRenderer.get())) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
