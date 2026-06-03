@@ -117,12 +117,12 @@ namespace Rasterizing
 
 		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret) const
 		{
-			int32x16 f = gather<int, 16>(this->normals.data(), ind, mask);
+			int32x16 f = gather<i32x16>(this->normals.data(), ind, mask);
 			int32x16 xy = f & 0xFFFFFFFE; //LSB of x (LSB of mantissa) holds the sign bit of z, so discard it before conversion
 			interleaved_ph_to_ps(xy, ret.x, ret.y);
-			float32x16 zsq = _mm512_max_ps(float32x16(0.f), float32x16(1) - (ret.x * ret.x) - (ret.y * ret.y));
+			float32x16 zsq = max(float32x16(0.f), float32x16(1) - (ret.x * ret.x) - (ret.y * ret.y));
 			float32x16 signless_z = sqrtf(zsq);
-			ret.z = _mm512_mask_mov_ps(signless_z, (f & ~0xFFFFFFFE) != 0, -signless_z);
+			ret.z = mask_mov(signless_z, (f & ~0xFFFFFFFE) != 0, -signless_z);
 		}
 	private:
 		std::vector<float> xyzp, normals; //xyzp = world coords + packed uv's
@@ -175,10 +175,10 @@ namespace Rasterizing
 			int32x16 v1_a = _mm512_unpackhi_epi64(v0v1_v0v1_x, v0v1_v0v1_y); //v1: 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15
 			int32x16 v2_a = _mm512_unpacklo_epi64(v2di_v2di_x, v2di_v2di_y);
 			int32x16 di_a = _mm512_unpackhi_epi64(v2di_v2di_x, v2di_v2di_y);
-			retVind0 = _mm512_permutexvar_epi32(int32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), v0_a);
-			retVind1 = _mm512_permutexvar_epi32(int32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), v1_a);
-			retVind2 = _mm512_permutexvar_epi32(int32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), v2_a);
-			retDiffMapInd = _mm512_permutexvar_epi32(int32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), di_a);
+			retVind0 = permx(v0_a, i32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15));
+			retVind1 = permx(v1_a, i32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15));
+			retVind2 = permx(v2_a, i32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15));
+			retDiffMapInd = permx(di_a, i32x16(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15));
 		}
 	private:
 		std::vector<uint32_t> vind_diffuseInd;

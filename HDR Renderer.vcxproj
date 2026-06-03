@@ -496,6 +496,7 @@
     <ClInclude Include="src\Vec.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ISSUES.md" />
     <None Include="src\Renderers\HardwareRasterizing\Shaders\cbuff.hlsli" />
   </ItemGroup>
   <ItemGroup>

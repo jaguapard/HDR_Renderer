@@ -431,7 +431,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			Vec4_f32x16 rotatedTranslated = currCmd.ctr.rotateAndTranslate(originalVertices[i].space);
 			Mask16 vertexBehindClippingPlane = rotatedTranslated.z < input.nearPlaneZ;
 			currOutput.behindNearPlaneMasks[i] = rotatedTranslated.z < input.nearPlaneZ;
-			behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, vertexBehindClippingPlane, behindNearPlaneCount, int32x16(1));
+			behindNearPlaneCount = mask_mov(behindNearPlaneCount, vertexBehindClippingPlane, behindNearPlaneCount + 1);
 			currOutputTriangle->vertices[i].space = rotatedTranslated;
 		}
 
@@ -442,8 +442,8 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 		{
 			int32x16 modelFlags;
 			const auto* flagsPtr = this->triangleStore.modelFlags.data();
-			if (input.stage == 1) modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + input.triangleIndices[0]);
-			else modelFlags = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), activeTriangles, input.triangleIndices, flagsPtr, 4);
+			if (input.stage == 1) modelFlags = load<i32x16>(flagsPtr + input.triangleIndices[0], activeTriangles);
+			else modelFlags = gather<i32x16>(flagsPtr, input.triangleIndices, activeTriangles);
 			
 			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutputTriangle->vertices[0].space, currOutputTriangle->vertices[1].space, currOutputTriangle->vertices[2].space);
 			float32x16 dot = currOutputTriangle->vertices[0].space.dot3d(transformedFaceNormals);
@@ -519,10 +519,10 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 				auto& currVertex = currOutputTriangle->vertices[i];
 				float32x16 zInv = fovMult / currVertex.space.z;
 				currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
-				minX = _mm512_min_ps(minX, currVertex.space.x);
-				minY = _mm512_min_ps(minY, currVertex.space.y);
-				maxX = _mm512_max_ps(maxX, currVertex.space.x);
-				maxY = _mm512_max_ps(maxY, currVertex.space.y);
+				minX = min(minX, currVertex.space.x);
+				minY = min(minY, currVertex.space.y);
+				maxX = max(maxX, currVertex.space.x);
+				maxY = max(maxY, currVertex.space.y);
 				if (input.stage == 2)
 				{
 					currVertex.space.z = zInv;
@@ -613,8 +613,8 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 				float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
 				auto& currOutput = transformedResults[cmdIndex];
 
-				int32x16 vecFirstThread = _mm512_cvttps_epi32(currTriangles.minY * rcpScreenHeightPerThread);
-				int32x16 vecLastThread = _mm512_cvttps_epi32(currTriangles.maxY * rcpScreenHeightPerThread);
+				int32x16 vecFirstThread = currTriangles.minY * rcpScreenHeightPerThread;
+				int32x16 vecLastThread = currTriangles.maxY * rcpScreenHeightPerThread;
 				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
 				if (!currActiveTriangles) continue;
 
