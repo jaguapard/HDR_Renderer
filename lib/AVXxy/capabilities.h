@@ -27,6 +27,8 @@ namespace AVXXY_NAMESPACE
 				bool VL = false;
 				bool CD = false;
 				bool F = false;
+
+				constexpr bool operator==(const _AVX512& other) const = default;
 			};
 			_AVX512 AVX512;
 
@@ -45,9 +47,11 @@ namespace AVXXY_NAMESPACE
 			bool SSE = false;
 			bool MMX = false;
 			//bool FPU = false;
+
+			constexpr bool operator==(const Arch& other) const = default;
 		};
 
-		constexpr Arch zen4 = []() {
+		static constexpr Arch zen4 = []() {
 			Arch a;
 			Arch::_AVX512 x;
 			x.BF16 = x.VAES = x.GFNI = x.VPCLMULQDQ = x.VNNI = x.BITALG = x.VPOPCNTDQ = x.VBMI2 = x.VBMI = x.IFMA = x.BW = x.DQ = x.VL = x.CD = x.F = true;
@@ -59,6 +63,6 @@ namespace AVXXY_NAMESPACE
 			return a;
 			}();
 
-		constexpr Arch current = zen4;
+		static constexpr Arch current = zen4;
 	}
 }

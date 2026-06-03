@@ -4,77 +4,125 @@
 #include "cvt.h"
 #include <bit>
 #include <iostream>
+#include "capabilities.h"
 namespace AVXXY_NAMESPACE
 {
+	//DO NOT forget elses, compilation is funky with constexpr trees, it's not like usual control flow that can easily return from the middle of a function
+
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> add(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(add(a.lo, b.lo), add(a.hi, b.hi));
-		else if constexpr (inRange(sizeof(T), 0, 16))
+		constexpr bool hasVectorVersion = (capabilities::current.SSE && (std::is_same_v<S, float>)) || capabilities::current.SSE2;
+		if constexpr (inRange(sizeof(T), 0, 16))
 		{
-			if constexpr (std::is_same_v<S, float>) return _mm_add_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm_add_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_add_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_add_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_add_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_add_epi8(a, b);
+			if constexpr (capabilities::current.SSE && std::is_same_v<S, float>) return _mm_add_ps(a, b);
+			else if constexpr (capabilities::current.SSE2)
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_add_pd(a, b);
+				else if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_add_epi64(a, b);
+				else if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_add_epi32(a, b);
+				else if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_add_epi16(a, b);
+				else if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_add_epi8(a, b);
+			}
 		}
 		else if constexpr (inRange(sizeof(T), 17, 32))
 		{
-			if constexpr (std::is_same_v<S, float>) return _mm256_add_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm256_add_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_add_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_add_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_add_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_add_epi8(a, b);
+			if constexpr (capabilities::current.AVX)
+			{
+				if constexpr (std::is_same_v<S, float>) return _mm256_add_ps(a, b);
+				else if constexpr (std::is_same_v<S, double>) return _mm256_add_pd(a, b);
+			}
+			else if constexpr (capabilities::current.AVX2)
+			{
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_add_epi64(a, b);
+				//TODO: can emulate this with FP add, although, SSE fallback is probably faster
+				else if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_add_epi32(a, b);
+				else if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_add_epi16(a, b);
+				else if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_add_epi8(a, b);
+			}
 		}
 		else if constexpr (inRange(sizeof(T), 33, 64))
 		{
-			if constexpr (std::is_same_v<S, float>) return _mm512_add_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm512_add_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_add_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_add_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_add_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_add_epi8(a, b);
+			if constexpr (capabilities::current.AVX512.F)
+			{
+				if constexpr (std::is_same_v<S, float>) return _mm512_add_ps(a, b);
+				else if constexpr (std::is_same_v<S, double>) return _mm512_add_pd(a, b);
+				else if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_add_epi64(a, b);
+				else if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_add_epi32(a, b);
+			}
+			else if constexpr (capabilities::current.AVX512.BW)
+			{
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_add_epi16(a, b);
+				else if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_add_epi8(a, b);
+			}
 		}
-		else static_assert(always_false_v<S>, "Unsupported type for SIMD add");
+
+		else if constexpr (!hasVectorVersion)
+		{
+			T ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = a[i] + b[i];
+			return ret;
+		}
+		else return concat(add(a.lo, b.lo), add(a.hi, b.hi));
 	}
 
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> sub(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(sub(a.lo, b.lo), sub(a.hi, b.hi));
-		else if constexpr (inRange(sizeof(T), 0, 16))
+		constexpr bool hasVectorVersion = (capabilities::current.SSE && (std::is_same_v<S, float>)) || capabilities::current.SSE2;
+		if constexpr (inRange(sizeof(T), 0, 16))
 		{
-			if constexpr (std::is_same_v<S, float>) return _mm_sub_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm_sub_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_sub_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_sub_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_sub_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_sub_epi8(a, b);
+			if constexpr (capabilities::current.SSE && std::is_same_v<S, float>) return _mm_sub_ps(a, b);
+			else if constexpr (capabilities::current.SSE2)
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_sub_pd(a, b);
+				else if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_sub_epi64(a, b);
+				else if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_sub_epi32(a, b);
+				else if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_sub_epi16(a, b);
+				else if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_sub_epi8(a, b);
+			}
 		}
 		else if constexpr (inRange(sizeof(T), 17, 32))
 		{
-			if constexpr (std::is_same_v<S, float>) return _mm256_sub_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm256_sub_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_sub_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_sub_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_sub_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_sub_epi8(a, b);
+			if constexpr (capabilities::current.AVX)
+			{
+				if constexpr (std::is_same_v<S, float>) return _mm256_sub_ps(a, b);
+				else if constexpr (std::is_same_v<S, double>) return _mm256_sub_pd(a, b);
+			}
+			else if constexpr (capabilities::current.AVX2)
+			{
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_sub_epi64(a, b);
+				//TODO: can emulate this with FP sub, although, SSE fallback is probably faster
+				else if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_sub_epi32(a, b);
+				else if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_sub_epi16(a, b);
+				else if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_sub_epi8(a, b);
+			}
 		}
 		else if constexpr (inRange(sizeof(T), 33, 64))
 		{
-			if constexpr (std::is_same_v<S, float>) return _mm512_sub_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm512_sub_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_sub_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_sub_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_sub_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_sub_epi8(a, b);
+			if constexpr (capabilities::current.AVX512.F)
+			{
+				if constexpr (std::is_same_v<S, float>) return _mm512_sub_ps(a, b);
+				else if constexpr (std::is_same_v<S, double>) return _mm512_sub_pd(a, b);
+				else if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_sub_epi64(a, b);
+				else if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_sub_epi32(a, b);
+			}
+			else if constexpr (capabilities::current.AVX512.BW)
+			{
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_sub_epi16(a, b);
+				else if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_sub_epi8(a, b);
+			}
 		}
 
-		else static_assert(always_false_v<S>, "Unsupported type for SIMD sub");
+		else if constexpr (!hasVectorVersion)
+		{
+			T ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = a[i] + b[i];
+			return ret;
+		}
+		else return concat(sub(a.lo, b.lo), sub(a.hi, b.hi));
 	}
 
 	template<typename S, size_t N>
@@ -84,31 +132,39 @@ namespace AVXXY_NAMESPACE
 		if constexpr (std::is_same_v<S, int8_t>) return vec_cvt<int8_t>(mul(vec_cvt<int16_t>(a), vec_cvt<int16_t>(b)));
 		else if constexpr (std::is_same_v<S, uint8_t>) return vec_cvt<uint8_t>(mul(vec_cvt<uint16_t>(a), vec_cvt<uint16_t>(b)));
 		else if constexpr (sizeof(T) > 64) return concat(mul(a.lo, b.lo), mul(a.hi, b.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		else if (capabilities::current.AVX512.BW)
 		{
-			if constexpr (std::is_same_v<S, float>) return _mm512_mul_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm512_mul_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_mullo_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_mullo_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_mullo_epi16(a, b);
+			if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_same_v<S, float>) return _mm512_mul_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm512_mul_pd(a, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_mullo_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_mullo_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_mullo_epi16(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_same_v<S, float>) return _mm256_mul_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm256_mul_pd(a, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_mullo_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_mullo_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_mullo_epi16(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_same_v<S, float>) return _mm_mul_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm_mul_pd(a, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_mullo_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_mullo_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_mullo_epi16(a, b);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, float>) return _mm256_mul_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm256_mul_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_mullo_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_mullo_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_mullo_epi16(a, b);
+			T ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = a[i] * b[i];
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_same_v<S, float>) return _mm_mul_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm_mul_pd(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_mullo_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_mullo_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_mullo_epi16(a, b);
-		}
-		else static_assert(always_false_v<S>, "Unsupported type for SIMD mul");
 	}
 
 	template<typename S, size_t N>
@@ -140,126 +196,185 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (std::is_integral_v<S> && sizeof(S) == 4) return vec_cvt<S>(div(vec_cvt<double>(a), vec_cvt<double>(b))); //for 32 bit ints via double division
 		//64 bit integers are too large, can't easily weasel our way out. TODO: implement 64-bit int div
 		else if constexpr (sz > 64) return concat(div(lower_half(a), lower_half(b)), div(upper_half(a), upper_half(b)));
-		else if constexpr (inRange(sz, 33, 64))
+		else if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_same_v<S, float>) return T(_mm512_div_ps(a, b));
-			if constexpr (std::is_same_v<S, double>) return T(_mm512_div_pd(a, b));
+			if constexpr (inRange(sz, 33, 64))
+			{
+				if constexpr (std::is_same_v<S, float>) return T(_mm512_div_ps(a, b));
+				if constexpr (std::is_same_v<S, double>) return T(_mm512_div_pd(a, b));
+			}
+			else if constexpr (inRange(sz, 17, 32))
+			{
+				if constexpr (std::is_same_v<S, float>) return T(_mm256_div_ps(a, b));
+				if constexpr (std::is_same_v<S, double>) return T(_mm256_div_pd(a, b));
+			}
+			else if constexpr (inRange(sz, 0, 16))
+			{
+				if constexpr (std::is_same_v<S, float>) return T(_mm_div_ps(a, b));
+				if constexpr (std::is_same_v<S, double>) return T(_mm_div_pd(a, b));
+			}
 		}
-		else if constexpr (inRange(sz, 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, float>) return T(_mm256_div_ps(a, b));
-			if constexpr (std::is_same_v<S, double>) return T(_mm256_div_pd(a, b));
+			SIMD_Vector<S, N> ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = a[i] / b[i];
+			return ret;
 		}
-		else if constexpr (inRange(sz, 0, 16))
-		{
-			if constexpr (std::is_same_v<S, float>) return T(_mm_div_ps(a, b));
-			if constexpr (std::is_same_v<S, double>) return T(_mm_div_pd(a, b));
-		}
-		else static_assert(always_false_v<S>, "Unsupported arguments for SIMD_Vector division");
 	}
 
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> logic_and(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(logic_and(a.lo, b.lo), logic_and(a.hi, b.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_integral_v<S>) return _mm512_and_si512(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm512_and_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm512_and_pd(a, b);
+			if constexpr (sizeof(T) > 64) return concat(logic_and(a.lo, b.lo), logic_and(a.hi, b.hi));
+			else if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm512_and_si512(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm512_and_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm512_and_pd(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm256_and_si256(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm256_and_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm256_and_pd(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm_and_si128(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm_and_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm_and_pd(a, b);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_integral_v<S>) return _mm256_and_si256(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm256_and_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm256_and_pd(a, b);
+			T ret;
+			for (size_t i = 0; i < N; ++i)
+			{
+				if constexpr (std::is_same_v<S, double>) ret[i] = std::bit_cast<double>(std::bit_cast<uint64_t>(a[i]) & std::bit_cast<uint64_t>(b[i]));
+				else if constexpr (std::is_same_v<S, float>) ret[i] = std::bit_cast<float>(std::bit_cast<uint32_t>(a[i]) & std::bit_cast<uint32_t>(b[i]));
+				else ret[i] = a[i] ^ b[i];
+			}
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_integral_v<S>) return _mm_and_si128(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm_and_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm_and_pd(a, b);
-		}
-		else static_assert("Unsupported arguments for logic_and");
 	}
 
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> logic_or(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(logic_or(a.lo, b.lo), logic_or(a.hi, b.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_integral_v<S>) return _mm512_or_si512(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm512_or_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm512_or_pd(a, b);
+			if constexpr (sizeof(T) > 64) return concat(logic_or(a.lo, b.lo), logic_or(a.hi, b.hi));
+			else if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm512_or_si512(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm512_or_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm512_or_pd(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm256_or_si256(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm256_or_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm256_or_pd(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm_or_si128(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm_or_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm_or_pd(a, b);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_integral_v<S>) return _mm256_or_si256(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm256_or_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm256_or_pd(a, b);
+			T ret;
+			for (size_t i = 0; i < N; ++i)
+			{
+				if constexpr (std::is_same_v<S, double>) ret[i] = std::bit_cast<double>(std::bit_cast<uint64_t>(a[i]) | std::bit_cast<uint64_t>(b[i]));
+				else if constexpr (std::is_same_v<S, float>) ret[i] = std::bit_cast<float>(std::bit_cast<uint32_t>(a[i]) | std::bit_cast<uint32_t>(b[i]));
+				else ret[i] = a[i] ^ b[i];
+			}
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_integral_v<S>) return _mm_or_si128(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm_or_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm_or_pd(a, b);
-		}
-		else static_assert("Unsupported arguments for logic_or");
 	}
 
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> logic_xor(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(logic_xor(a.lo, b.lo), logic_xor(a.hi, b.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_integral_v<S>) return _mm512_xor_si512(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm512_xor_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm512_xor_pd(a, b);
+			if constexpr (sizeof(T) > 64) return concat(logic_xor(a.lo, b.lo), logic_xor(a.hi, b.hi));
+			else if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm512_xor_si512(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm512_xor_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm512_xor_pd(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm256_xor_si256(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm256_xor_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm256_xor_pd(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm_xor_si128(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm_xor_ps(a, b);
+				if constexpr (std::is_same_v<S, double>) return _mm_xor_pd(a, b);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_integral_v<S>) return _mm256_xor_si256(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm256_xor_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm256_xor_pd(a, b);
+			T ret;
+			for (size_t i = 0; i < N; ++i)
+			{
+				if constexpr (std::is_same_v<S, double>) ret[i] = std::bit_cast<double>(std::bit_cast<uint64_t>(a[i]) ^ std::bit_cast<uint64_t>(b[i]));
+				else if constexpr (std::is_same_v<S, float>) ret[i] = std::bit_cast<float>(std::bit_cast<uint32_t>(a[i]) ^ std::bit_cast<uint32_t>(b[i]));
+				else ret[i] = a[i] ^ b[i];
+			}
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_integral_v<S>) return _mm_xor_si128(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm_xor_ps(a, b);
-			if constexpr (std::is_same_v<S, double>) return _mm_xor_pd(a, b);
-		}
-		else static_assert("Unsupported arguments for logic_xor");
 	}
 
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> logic_not(const SIMD_Vector<S, N>& a)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(logic_not(a.lo), logic_not(a.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_integral_v<S>) return _mm512_xor_si512(a, _mm512_set1_epi32(0xFFFFFFFF));
-			if constexpr (std::is_same_v<S, float>) return _mm512_xor_ps(a, _mm512_set1_ps(std::bit_cast<float>(0xFFFFFFFF)));
-			if constexpr (std::is_same_v<S, double>) return _mm512_xor_pd(a, _mm512_set1_pd(std::bit_cast<double>(0xFFFFFFFFFFFFFFFF)));
+			if constexpr (sizeof(T) > 64) return concat(logic_not(a.lo), logic_not(a.hi));
+			else if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm512_xor_si512(a, _mm512_set1_epi32(0xFFFFFFFF));
+				if constexpr (std::is_same_v<S, float>) return _mm512_xor_ps(a, _mm512_set1_ps(std::bit_cast<float>(0xFFFFFFFF)));
+				if constexpr (std::is_same_v<S, double>) return _mm512_xor_pd(a, _mm512_set1_pd(std::bit_cast<double>(0xFFFFFFFFFFFFFFFF)));
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm256_xor_si256(a, _mm256_set1_epi32(0xFFFFFFFF));
+				if constexpr (std::is_same_v<S, float>) return _mm256_xor_ps(a, _mm256_set1_ps(std::bit_cast<float>(0xFFFFFFFF)));
+				if constexpr (std::is_same_v<S, double>) return _mm256_xor_pd(a, _mm256_set1_pd(std::bit_cast<double>(0xFFFFFFFFFFFFFFFF)));
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_integral_v<S>) return _mm_xor_si128(a, _mm_set1_epi32(0xFFFFFFFF));
+				if constexpr (std::is_same_v<S, float>) return _mm_xor_ps(a, _mm_set1_ps(std::bit_cast<float>(0xFFFFFFFF)));
+				if constexpr (std::is_same_v<S, double>) return _mm_xor_pd(a, _mm_set1_pd(std::bit_cast<double>(0xFFFFFFFFFFFFFFFF)));
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_integral_v<S>) return _mm256_xor_si256(a, _mm256_set1_epi32(0xFFFFFFFF));
-			if constexpr (std::is_same_v<S, float>) return _mm256_xor_ps(a, _mm256_set1_ps(std::bit_cast<float>(0xFFFFFFFF)));
-			if constexpr (std::is_same_v<S, double>) return _mm256_xor_pd(a, _mm256_set1_pd(std::bit_cast<double>(0xFFFFFFFFFFFFFFFF)));
+			SIMD_Vector<S, N> ret;
+			for (size_t i = 0; i < N; ++i)
+			{
+				if constexpr (std::is_same_v<S, double>) ret[i] = std::bit_cast<double>(~std::bit_cast<uint64_t>(a[i]));
+				else if constexpr (std::is_same_v<S, float>) ret[i] = std::bit_cast<float>(~std::bit_cast<uint32_t>(a[i]));
+				else ret[i] = ~a[i];
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_integral_v<S>) return _mm_xor_si128(a, _mm_set1_epi32(0xFFFFFFFF));
-			if constexpr (std::is_same_v<S, float>) return _mm_xor_ps(a, _mm_set1_ps(std::bit_cast<float>(0xFFFFFFFF)));
-			if constexpr (std::is_same_v<S, double>) return _mm_xor_pd(a, _mm_set1_pd(std::bit_cast<double>(0xFFFFFFFFFFFFFFFF)));
-		}
-		else static_assert(always_false_v<S>, "invalid arguments for logic_not");
 	}
 
 	template<typename S, size_t N, typename I>
@@ -267,73 +382,90 @@ namespace AVXXY_NAMESPACE
 	__forceinline SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(shift_left(a.lo, amount.lo), shift_left(a.hi, amount.hi));
-		if constexpr (sizeof(S) == 1) //no 8 bit shifts in x86!
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			auto alo = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
-			auto ahi = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.hi));
-			auto shlo = vec_cvt<S>(shift_left(alo, amount.lo));
-			auto shhi = vec_cvt<S>(shift_left(ahi, amount.hi));
-			return concat(shlo, shhi);
-		}
+			if constexpr (sizeof(T) > 64) return concat(shift_left(a.lo, amount.lo), shift_left(a.hi, amount.hi));
+			if constexpr (sizeof(S) == 1) //no 8 bit shifts in x86!
+			{
+				auto alo = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
+				auto ahi = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.hi));
+				auto shlo = vec_cvt<S>(shift_left(alo, amount.lo));
+				auto shhi = vec_cvt<S>(shift_left(ahi, amount.hi));
+				return concat(shlo, shhi);
+			}
 
-		auto xa = vec_cvt<typename T::IntScalarType>(amount);
-		if constexpr (inRange(sizeof(T), 33, 64))
-		{
-			if constexpr (sizeof(S) == 8) return _mm512_sllv_epi64(a, xa);
-			if constexpr (sizeof(S) == 4) return _mm512_sllv_epi32(a, xa);
-			if constexpr (sizeof(S) == 2) return _mm512_sllv_epi16(a, xa);
+			auto xa = vec_cvt<typename T::IntScalarType>(amount);
+			if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (sizeof(S) == 8) return _mm512_sllv_epi64(a, xa);
+				if constexpr (sizeof(S) == 4) return _mm512_sllv_epi32(a, xa);
+				if constexpr (sizeof(S) == 2) return _mm512_sllv_epi16(a, xa);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (sizeof(S) == 8) return _mm256_sllv_epi64(a, xa);
+				if constexpr (sizeof(S) == 4) return _mm256_sllv_epi32(a, xa);
+				if constexpr (sizeof(S) == 2) return _mm256_sllv_epi16(a, xa);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (sizeof(S) == 8) return _mm_sllv_epi64(a, xa);
+				if constexpr (sizeof(S) == 4) return _mm_sllv_epi32(a, xa);
+				if constexpr (sizeof(S) == 2) return _mm_sllv_epi16(a, xa);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (sizeof(S) == 8) return _mm256_sllv_epi64(a, xa);
-			if constexpr (sizeof(S) == 4) return _mm256_sllv_epi32(a, xa);
-			if constexpr (sizeof(S) == 2) return _mm256_sllv_epi16(a, xa);
+			T ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = a[i] << amount[i];
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (sizeof(S) == 8) return _mm_sllv_epi64(a, xa);
-			if constexpr (sizeof(S) == 4) return _mm_sllv_epi32(a, xa);
-			if constexpr (sizeof(S) == 2) return _mm_sllv_epi16(a, xa);
-		}
-		else static_assert(always_false_v<S>, "invalid args shift_left");
 	}
 	template<typename S, size_t N, typename I>
 		requires (std::is_integral_v<I>&& std::is_integral_v<S>)
 	__forceinline SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(shift_right(a.lo, amount.lo), shift_right(a.hi, amount.hi));
-		else if constexpr (sizeof(S) == 1) //no 8 bit shifts in x86!
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			auto alo = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
-			auto ahi = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.hi));
-			auto shlo = vec_cvt<S>(shift_right(alo, amount.lo));
-			auto shhi = vec_cvt<S>(shift_right(ahi, amount.hi));
-			return concat(shlo, shhi);
-		}
-		else {
+			if constexpr (sizeof(T) > 64) return concat(shift_right(a.lo, amount.lo), shift_right(a.hi, amount.hi));
+			else if constexpr (sizeof(S) == 1) //no 8 bit shifts in x86!
+			{
+				auto alo = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
+				auto ahi = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.hi));
+				auto shlo = vec_cvt<S>(shift_right(alo, amount.lo));
+				auto shhi = vec_cvt<S>(shift_right(ahi, amount.hi));
+				return concat(shlo, shhi);
+			}
+			else {
 
-			auto xa = vec_cvt<typename T::IntScalarType>(amount);
-			if constexpr (inRange(sizeof(T), 33, 64))
-			{
-				if constexpr (sizeof(S) == 8) return _mm512_srlv_epi64(a, xa);
-				if constexpr (sizeof(S) == 4) return _mm512_srlv_epi32(a, xa);
-				if constexpr (sizeof(S) == 2) return _mm512_srlv_epi16(a, xa);
+				auto xa = vec_cvt<typename T::IntScalarType>(amount);
+				if constexpr (inRange(sizeof(T), 33, 64))
+				{
+					if constexpr (sizeof(S) == 8) return _mm512_srlv_epi64(a, xa);
+					if constexpr (sizeof(S) == 4) return _mm512_srlv_epi32(a, xa);
+					if constexpr (sizeof(S) == 2) return _mm512_srlv_epi16(a, xa);
+				}
+				else if constexpr (inRange(sizeof(T), 17, 32))
+				{
+					if constexpr (sizeof(S) == 8) return _mm256_srlv_epi64(a, xa);
+					if constexpr (sizeof(S) == 4) return _mm256_srlv_epi32(a, xa);
+					if constexpr (sizeof(S) == 2) return _mm256_srlv_epi16(a, xa);
+				}
+				else if constexpr (inRange(sizeof(T), 0, 16))
+				{
+					if constexpr (sizeof(S) == 8) return _mm_srlv_epi64(a, xa);
+					if constexpr (sizeof(S) == 4) return _mm_srlv_epi32(a, xa);
+					if constexpr (sizeof(S) == 2) return _mm_srlv_epi16(a, xa);
+				}
+				else static_assert(always_false_v<S>, "invalid args shift_right");
 			}
-			else if constexpr (inRange(sizeof(T), 17, 32))
-			{
-				if constexpr (sizeof(S) == 8) return _mm256_srlv_epi64(a, xa);
-				if constexpr (sizeof(S) == 4) return _mm256_srlv_epi32(a, xa);
-				if constexpr (sizeof(S) == 2) return _mm256_srlv_epi16(a, xa);
-			}
-			else if constexpr (inRange(sizeof(T), 0, 16))
-			{
-				if constexpr (sizeof(S) == 8) return _mm_srlv_epi64(a, xa);
-				if constexpr (sizeof(S) == 4) return _mm_srlv_epi32(a, xa);
-				if constexpr (sizeof(S) == 2) return _mm_srlv_epi16(a, xa);
-			}
-			else static_assert(always_false_v<S>, "invalid args shift_right");
+		}
+		else
+		{
+			T ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = a[i] >> amount[i];
+			return ret;
 		}
 	}
 
@@ -343,35 +475,43 @@ namespace AVXXY_NAMESPACE
 		requires (sizeof(SIMD_Vector<S, N>) <= 64) //for now, don't emulate, just route to native permutex
 	{
 		using T = SIMD_Vector<S, N>;
-		auto xind = vec_cvt<typename T::IntScalarType>(ind); //TODO: when implementing larger permutes: can overflow
-		if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm512_permutexvar_pd(xind, a);
-			if constexpr (std::is_same_v<S, float>) return _mm512_permutexvar_ps(xind, a);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_permutexvar_epi64(xind, a);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_permutexvar_epi32(xind, a);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_permutexvar_epi16(xind, a);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_permutexvar_epi8(xind, a);
+			auto xind = vec_cvt<typename T::IntScalarType>(ind); //TODO: when implementing larger permutes: can overflow
+			if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm512_permutexvar_pd(xind, a);
+				if constexpr (std::is_same_v<S, float>) return _mm512_permutexvar_ps(xind, a);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_permutexvar_epi64(xind, a);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_permutexvar_epi32(xind, a);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_permutexvar_epi16(xind, a);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_permutexvar_epi8(xind, a);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm256_permutexvar_pd(xind, a);
+				if constexpr (std::is_same_v<S, float>) return _mm256_permutexvar_ps(xind, a);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_permutexvar_epi64(xind, a);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_permutexvar_epi32(xind, a);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_permutexvar_epi16(xind, a);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_permutexvar_epi8(xind, a);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_permutexvar_pd(xind, a);
+				if constexpr (std::is_same_v<S, float>) return _mm_permutexvar_ps(xind, a);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_permutexvar_epi64(xind, a);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_permutexvar_epi32(xind, a);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_permutexvar_epi16(xind, a);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_permutexvar_epi8(xind, a);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm256_permutexvar_pd(xind, a);
-			if constexpr (std::is_same_v<S, float>) return _mm256_permutexvar_ps(xind, a);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_permutexvar_epi64(xind, a);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_permutexvar_epi32(xind, a);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_permutexvar_epi16(xind, a);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_permutexvar_epi8(xind, a);
+			T ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = a[ind[i] & (N - 1)];
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_same_v<S, double>) return _mm_permutexvar_pd(xind, a);
-			if constexpr (std::is_same_v<S, float>) return _mm_permutexvar_ps(xind, a);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_permutexvar_epi64(xind, a);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_permutexvar_epi32(xind, a);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_permutexvar_epi16(xind, a);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_permutexvar_epi8(xind, a);
-		}
-		else static_assert(always_false_v<S>, "permx");
 	}
 
 	template<typename S, size_t N, typename I>
@@ -380,35 +520,47 @@ namespace AVXXY_NAMESPACE
 		requires (sizeof(SIMD_Vector<S, N>) <= 64)
 	{
 		using T = SIMD_Vector<S, N>;
-		auto xind = vec_cvt<typename T::IntScalarType>(ind);
-		if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm512_permutex2var_pd(a, xind, b);
-			if constexpr (std::is_same_v<S, float>) return _mm512_permutex2var_ps(a, xind, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_permutex2var_epi64(a, xind, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_permutex2var_epi32(a, xind, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_permutex2var_epi16(a, xind, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_permutex2var_epi8(a, xind, b);
+			auto xind = vec_cvt<typename T::IntScalarType>(ind);
+			if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm512_permutex2var_pd(a, xind, b);
+				if constexpr (std::is_same_v<S, float>) return _mm512_permutex2var_ps(a, xind, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_permutex2var_epi64(a, xind, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_permutex2var_epi32(a, xind, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_permutex2var_epi16(a, xind, b);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_permutex2var_epi8(a, xind, b);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm256_permutex2var_pd(a, xind, b);
+				if constexpr (std::is_same_v<S, float>) return _mm256_permutex2var_ps(a, xind, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_permutex2var_epi64(a, xind, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_permutex2var_epi32(a, xind, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_permutex2var_epi16(a, xind, b);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_permutex2var_epi8(a, xind, b);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_permutex2var_pd(a, xind, b);
+				if constexpr (std::is_same_v<S, float>) return _mm_permutex2var_ps(a, xind, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_permutex2var_epi64(a, xind, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_permutex2var_epi32(a, xind, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_permutex2var_epi16(a, xind, b);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_permutex2var_epi8(a, xind, b);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm256_permutex2var_pd(a, xind, b);
-			if constexpr (std::is_same_v<S, float>) return _mm256_permutex2var_ps(a, xind, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_permutex2var_epi64(a, xind, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_permutex2var_epi32(a, xind, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_permutex2var_epi16(a, xind, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_permutex2var_epi8(a, xind, b);
+			T ret;
+			for (size_t i = 0; i < N; ++i)
+			{
+				auto j = ind[i] & (2 * N - 1);
+				ret[i] = j < N ? a[ind[j]] : b[ind[j - N]];
+			}
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_same_v<S, double>) return _mm_permutex2var_pd(a, xind, b);
-			if constexpr (std::is_same_v<S, float>) return _mm_permutex2var_ps(a, xind, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_permutex2var_epi64(a, xind, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_permutex2var_epi32(a, xind, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_permutex2var_epi16(a, xind, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_permutex2var_epi8(a, xind, b);
-		}
-		else static_assert(always_false_v<S>, "permx2");
 	}
 	/*
 	template<typename S, size_t N, typename I>
@@ -535,34 +687,42 @@ namespace AVXXY_NAMESPACE
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(mask_mov(ifBitClear.lo, mask.lo(), ifBitSet.lo), mask_mov(ifBitClear.hi, mask.hi(), ifBitSet.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		else if constexpr (capabilities::current.AVX512.F)
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm512_mask_mov_pd(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, float>) return _mm512_mask_mov_ps(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm512_mask_mov_epi64(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm512_mask_mov_epi32(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm512_mask_mov_epi16(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm512_mask_mov_epi8(ifBitClear, mask, ifBitSet);
+			if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm512_mask_mov_pd(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, float>) return _mm512_mask_mov_ps(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm512_mask_mov_epi64(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm512_mask_mov_epi32(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm512_mask_mov_epi16(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm512_mask_mov_epi8(ifBitClear, mask, ifBitSet);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm256_mask_mov_pd(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, float>) return _mm256_mask_mov_ps(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm256_mask_mov_epi64(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm256_mask_mov_epi32(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm256_mask_mov_epi16(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm256_mask_mov_epi8(ifBitClear, mask, ifBitSet);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_mask_mov_pd(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, float>) return _mm_mask_mov_ps(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm_mask_mov_epi64(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm_mask_mov_epi32(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm_mask_mov_epi16(ifBitClear, mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm_mask_mov_epi8(ifBitClear, mask, ifBitSet);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm256_mask_mov_pd(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, float>) return _mm256_mask_mov_ps(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm256_mask_mov_epi64(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm256_mask_mov_epi32(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm256_mask_mov_epi16(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm256_mask_mov_epi8(ifBitClear, mask, ifBitSet);
+			SIMD_Vector<S, N> ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = mask[i] ? ifBitSet[i] : ifBitClear[i];
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_same_v<S, double>) return _mm_mask_mov_pd(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, float>) return _mm_mask_mov_ps(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm_mask_mov_epi64(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm_mask_mov_epi32(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm_mask_mov_epi16(ifBitClear, mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm_mask_mov_epi8(ifBitClear, mask, ifBitSet);
-		}
-		else static_assert(always_false_v<S>, "Unsupported arguments for mask SIMD_Vector mask_mov");
 	}
 
 	template<typename S, size_t N>
@@ -616,34 +776,46 @@ namespace AVXXY_NAMESPACE
 			size_t addr = size_t(p) + sz / 2;
 			return concat(load(p, mask.lo(), src.lo), load((const void*)(addr), mask.hi(), src.hi));
 		}
-		else if constexpr (inRange(sz, 33, 64))
+		if constexpr (capabilities::current.AVX512.F)
 		{
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_mask_loadu_epi8(src, mask, p);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_mask_loadu_epi16(src, mask, p);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_mask_loadu_epi32(src, mask, p);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_mask_loadu_epi64(src, mask, p);
-			if constexpr (std::is_same_v<S, float>) return _mm512_mask_loadu_ps(src, mask, p);
-			if constexpr (std::is_same_v<S, double>) return _mm512_mask_loadu_pd(src, mask, p);
+			if constexpr (inRange(sz, 33, 64))
+			{
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_mask_loadu_epi8(src, mask, p);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_mask_loadu_epi16(src, mask, p);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_mask_loadu_epi32(src, mask, p);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_mask_loadu_epi64(src, mask, p);
+				if constexpr (std::is_same_v<S, float>) return _mm512_mask_loadu_ps(src, mask, p);
+				if constexpr (std::is_same_v<S, double>) return _mm512_mask_loadu_pd(src, mask, p);
+			}
+			else if constexpr (inRange(sz, 17, 32))
+			{
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_mask_loadu_epi8(src, mask, p);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_mask_loadu_epi16(src, mask, p);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_mask_loadu_epi32(src, mask, p);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_mask_loadu_epi64(src, mask, p);
+				if constexpr (std::is_same_v<S, float>) return _mm256_mask_loadu_ps(src, mask, p);
+				if constexpr (std::is_same_v<S, double>) return _mm256_mask_loadu_pd(src, mask, p);
+			}
+			else if constexpr (inRange(sz, 0, 16))
+			{
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_mask_loadu_epi8(src, mask, p);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_mask_loadu_epi16(src, mask, p);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_mask_loadu_epi32(src, mask, p);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_mask_loadu_epi64(src, mask, p);
+				if constexpr (std::is_same_v<S, float>) return _mm_mask_loadu_ps(src, mask, p);
+				if constexpr (std::is_same_v<S, double>) return _mm_mask_loadu_pd(src, mask, p);
+			}
 		}
-		else if constexpr (inRange(sz, 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_mask_loadu_epi8(src, mask, p);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_mask_loadu_epi16(src, mask, p);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_mask_loadu_epi32(src, mask, p);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_mask_loadu_epi64(src, mask, p);
-			if constexpr (std::is_same_v<S, float>) return _mm256_mask_loadu_ps(src, mask, p);
-			if constexpr (std::is_same_v<S, double>) return _mm256_mask_loadu_pd(src, mask, p);
+			//TODO: move before recursion
+			SIMD_Vector<S, N> ret;
+			const S* sp = (const S*)p;
+			for (size_t i = 0; i < N; ++i)
+				ret[i] = mask[i] ? sp[i] : src[i];
+			return ret;
 		}
-		else if constexpr (inRange(sz, 0, 16))
-		{
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_mask_loadu_epi8(src, mask, p);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_mask_loadu_epi16(src, mask, p);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_mask_loadu_epi32(src, mask, p);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_mask_loadu_epi64(src, mask, p);
-			if constexpr (std::is_same_v<S, float>) return _mm_mask_loadu_ps(src, mask, p);
-			if constexpr (std::is_same_v<S, double>) return _mm_mask_loadu_pd(src, mask, p);
-		}
-		else static_assert(always_false_v<S>, "Unsupported arguments for SIMD_Vector load.");
+		//else static_assert(always_false_v<S>, "Unsupported arguments for SIMD_Vector load.");
 	}
 
 	template<typename S, size_t N>
@@ -657,34 +829,46 @@ namespace AVXXY_NAMESPACE
 			store(v.lo, p, mask.lo());
 			store(v.hi, (void*)addr, mask.hi());
 		}
-		else if constexpr (inRange(sz, 33, 64))
+		else if constexpr (capabilities::current.AVX512.F)
 		{
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_mask_storeu_epi8(p, mask, v);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_mask_storeu_epi16(p, mask, v);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_mask_storeu_epi32(p, mask, v);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_mask_storeu_epi64(p, mask, v);
-			if constexpr (std::is_same_v<S, float>) return _mm512_mask_storeu_ps(p, mask, v);
-			if constexpr (std::is_same_v<S, double>) return _mm512_mask_storeu_pd(p, mask, v);
+			if constexpr (inRange(sz, 33, 64))
+			{
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_mask_storeu_epi8(p, mask, v);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_mask_storeu_epi16(p, mask, v);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_mask_storeu_epi32(p, mask, v);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_mask_storeu_epi64(p, mask, v);
+				if constexpr (std::is_same_v<S, float>) return _mm512_mask_storeu_ps(p, mask, v);
+				if constexpr (std::is_same_v<S, double>) return _mm512_mask_storeu_pd(p, mask, v);
+			}
+			else if constexpr (inRange(sz, 17, 32))
+			{
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_mask_storeu_epi8(p, mask, v);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_mask_storeu_epi16(p, mask, v);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_mask_storeu_epi32(p, mask, v);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_mask_storeu_epi64(p, mask, v);
+				if constexpr (std::is_same_v<S, float>) return _mm256_mask_storeu_ps(p, mask, v);
+				if constexpr (std::is_same_v<S, double>) return _mm256_mask_storeu_pd(p, mask, v);
+			}
+			else if constexpr (inRange(sz, 0, 16))
+			{
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_mask_storeu_epi8(p, mask, v);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_mask_storeu_epi16(p, mask, v);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_mask_storeu_epi32(p, mask, v);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_mask_storeu_epi64(p, mask, v);
+				if constexpr (std::is_same_v<S, float>) return _mm_mask_storeu_ps(p, mask, v);
+				if constexpr (std::is_same_v<S, double>) return _mm_mask_storeu_pd(p, mask, v);
+			}
 		}
-		else if constexpr (inRange(sz, 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_mask_storeu_epi8(p, mask, v);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_mask_storeu_epi16(p, mask, v);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_mask_storeu_epi32(p, mask, v);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_mask_storeu_epi64(p, mask, v);
-			if constexpr (std::is_same_v<S, float>) return _mm256_mask_storeu_ps(p, mask, v);
-			if constexpr (std::is_same_v<S, double>) return _mm256_mask_storeu_pd(p, mask, v);
+			//TODO: move this scalar fallback on top, before recursive splitting
+			S* sp = (S*)p;
+			for (size_t i = 0; i < N; ++i)
+			{
+				if (mask[i]) sp[i] = v[i];
+			}
 		}
-		else if constexpr (inRange(sz, 0, 16))
-		{
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_mask_storeu_epi8(p, mask, v);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_mask_storeu_epi16(p, mask, v);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_mask_storeu_epi32(p, mask, v);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_mask_storeu_epi64(p, mask, v);
-			if constexpr (std::is_same_v<S, float>) return _mm_mask_storeu_ps(p, mask, v);
-			if constexpr (std::is_same_v<S, double>) return _mm_mask_storeu_pd(p, mask, v);
-		}
-		else static_assert(always_false_v<S>, "Unsupported arguments for SIMD_Vector load.");
+		//else static_assert(always_false_v<S>, "Unsupported arguments for SIMD_Vector load.");
 	}
 
 	template<typename S, size_t N, size_t Scale, typename I>
