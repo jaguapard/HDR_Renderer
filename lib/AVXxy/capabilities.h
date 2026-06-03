@@ -63,6 +63,6 @@ namespace AVXXY_NAMESPACE
 			return a;
 			}();
 
-		static constexpr Arch current = zen4;
+		static constexpr Arch current = Arch();
 	}
 }

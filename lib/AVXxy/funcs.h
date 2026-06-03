@@ -69,7 +69,7 @@ namespace AVXXY_NAMESPACE
 
 	template<typename S, size_t N> SIMD_Vector<S, N> load(const void* p, const typename SIMD_Vector<S, N>::MaskType& mask = SIMD_Vector<S, N>::MaskType::AllOnes, const SIMD_Vector<S, N>& src = 0);
 	template<typename T> requires (T::IsSimdVector)
-	T load(const void* p, const typename T::MaskType& mask = T::MaskType::AllOnes, const T& src = 0) 
+	__forceinline T load(const void* p, const typename T::MaskType& mask = T::MaskType::AllOnes, const T& src = 0) 
 	{
 		return load<typename T::ScalarType, T::LaneCount>(p, mask, src);
 	}
@@ -80,7 +80,7 @@ namespace AVXXY_NAMESPACE
 
 	template <typename T, size_t Scale = sizeof(typename T::ScalarType), typename I>
 		requires (T::IsSimdVector)
-	T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const typename T::MaskType& mask = T::MaskType::AllOnes, const T& src = 0)
+	__forceinline T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const typename T::MaskType& mask = T::MaskType::AllOnes, const T& src = 0)
 	{
 		return gather<typename T::ScalarType, T::LaneCount, Scale>(base, ind, mask, src);
 	}

@@ -581,21 +581,37 @@ namespace AVXXY_NAMESPACE
 	__forceinline SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a)
 	{
 		auto x = vec_cvt<float>(a);
-		if constexpr (sizeof(x) > 64) return concat(sqrtf(x.lo), sqrtf(x.hi));
-		else if constexpr (inRange(sizeof(x), 33, 64)) return _mm512_sqrt_ps(x);
-		else if constexpr (inRange(sizeof(x), 17, 32)) return _mm256_sqrt_ps(x);
-		else if constexpr (inRange(sizeof(x), 0, 16)) return _mm_sqrt_ps(x);
-		else static_assert(always_false_v<S>, "invalid arguments for SIMD_Vector sqrtf");
+		if constexpr (capabilities::current == capabilities::zen4)
+		{
+			if constexpr (sizeof(x) > 64) return concat(sqrtf(x.lo), sqrtf(x.hi));
+			else if constexpr (inRange(sizeof(x), 33, 64)) return _mm512_sqrt_ps(x);
+			else if constexpr (inRange(sizeof(x), 17, 32)) return _mm256_sqrt_ps(x);
+			else if constexpr (inRange(sizeof(x), 0, 16)) return _mm_sqrt_ps(x);
+		}
+		else
+		{
+			SIMD_Vector<float, N> ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = std::sqrtf(a[i]);
+			return ret;
+		}
 	}
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<double, N> sqrtd(const SIMD_Vector<S, N>& a)
 	{
 		auto x = vec_cvt<double>(a);
-		if constexpr (sizeof(x) > 64) return concat(sqrtd(x.lo), sqrtd(x.hi));
-		else if constexpr (inRange(sizeof(x), 33, 64)) return _mm512_sqrt_pd(x);
-		else if constexpr (inRange(sizeof(x), 17, 32)) return _mm256_sqrt_pd(x);
-		else if constexpr (inRange(sizeof(x), 0, 16)) return _mm_sqrt_pd(x);
-		else static_assert(always_false_v<S>, "invalid arguments for SIMD_Vector sqrtd");
+		if constexpr (capabilities::current == capabilities::zen4)
+		{
+			if constexpr (sizeof(x) > 64) return concat(sqrtd(x.lo), sqrtd(x.hi));
+			else if constexpr (inRange(sizeof(x), 33, 64)) return _mm512_sqrt_pd(x);
+			else if constexpr (inRange(sizeof(x), 17, 32)) return _mm256_sqrt_pd(x);
+			else if constexpr (inRange(sizeof(x), 0, 16)) return _mm_sqrt_pd(x);
+		}
+		else
+		{
+			SIMD_Vector<float, N> ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = std::sqrt<double>(a[i]);
+			return ret;
+		}
 	}
 
 	/*
@@ -722,35 +738,43 @@ namespace AVXXY_NAMESPACE
 	__forceinline SIMD_Vector<S, N> maskz_mov(const typename SIMD_Vector<S, N>::MaskType& mask, const SIMD_Vector<S, N>& ifBitSet)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(maskz_mov(mask.lo(), ifBitSet.lo), maskz_mov(mask.hi(), ifBitSet.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm512_maskz_mov_pd(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, float>) return _mm512_maskz_mov_ps(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm512_maskz_mov_epi64(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm512_maskz_mov_epi32(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm512_maskz_mov_epi16(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm512_maskz_mov_epi8(mask, ifBitSet);
+			if constexpr (sizeof(T) > 64) return concat(maskz_mov(mask.lo(), ifBitSet.lo), maskz_mov(mask.hi(), ifBitSet.hi));
+			else if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm512_maskz_mov_pd(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, float>) return _mm512_maskz_mov_ps(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm512_maskz_mov_epi64(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm512_maskz_mov_epi32(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm512_maskz_mov_epi16(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm512_maskz_mov_epi8(mask, ifBitSet);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm256_maskz_mov_pd(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, float>) return _mm256_maskz_mov_ps(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm256_maskz_mov_epi64(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm256_maskz_mov_epi32(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm256_maskz_mov_epi16(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm256_maskz_mov_epi8(mask, ifBitSet);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_maskz_mov_pd(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, float>) return _mm_maskz_mov_ps(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm_maskz_mov_epi64(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm_maskz_mov_epi32(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm_maskz_mov_epi16(mask, ifBitSet);
+				if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm_maskz_mov_epi8(mask, ifBitSet);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm256_maskz_mov_pd(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, float>) return _mm256_maskz_mov_ps(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm256_maskz_mov_epi64(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm256_maskz_mov_epi32(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm256_maskz_mov_epi16(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm256_maskz_mov_epi8(mask, ifBitSet);
+			SIMD_Vector<S, N> ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = mask[i] ? ifBitSet[i] : 0;
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_same_v<S, double>) return _mm_maskz_mov_pd(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, float>) return _mm_maskz_mov_ps(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint64_t> || std::is_same_v<S, int64_t>) return _mm_maskz_mov_epi64(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint32_t> || std::is_same_v<S, int32_t>) return _mm_maskz_mov_epi32(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint16_t> || std::is_same_v<S, int16_t>) return _mm_maskz_mov_epi16(mask, ifBitSet);
-			if constexpr (std::is_same_v<S, uint8_t> || std::is_same_v<S, int8_t>) return _mm_maskz_mov_epi8(mask, ifBitSet);
-		}
-		else static_assert(always_false_v<S>, "Unsupported arguments for maskz SIMD_Vector maskz_mov");
 	}
 
 	template<typename S, size_t N>
@@ -764,14 +788,14 @@ namespace AVXXY_NAMESPACE
 	{
 		using T = SIMD_Vector<S, N>;
 		constexpr size_t sz = sizeof(T);
-		if constexpr (sz > 64)
-		{
-			size_t addr = size_t(p) + sz / 2;
-			return concat(load(p, mask.lo(), src.lo), load((const void*)(addr), mask.hi(), src.hi));
-		}
 		if constexpr (capabilities::current.AVX512.F)
 		{
-			if constexpr (inRange(sz, 33, 64))
+			if constexpr (sz > 64)
+			{
+				size_t addr = size_t(p) + sz / 2;
+				return concat(load(p, mask.lo(), src.lo), load((const void*)(addr), mask.hi(), src.hi));
+			}
+			else if constexpr (inRange(sz, 33, 64))
 			{
 				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_mask_loadu_epi8(src, mask, p);
 				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_mask_loadu_epi16(src, mask, p);
@@ -816,15 +840,15 @@ namespace AVXXY_NAMESPACE
 	{
 		using T = SIMD_Vector<S, N>;
 		constexpr size_t sz = sizeof(T);
-		if constexpr (sz > 64)
+		if constexpr (capabilities::current.AVX512.F)
 		{
-			size_t addr = size_t(p) + sz / 2;
-			store(v.lo, p, mask.lo());
-			store(v.hi, (void*)addr, mask.hi());
-		}
-		else if constexpr (capabilities::current.AVX512.F)
-		{
-			if constexpr (inRange(sz, 33, 64))
+			if constexpr (sz > 64)
+			{
+				size_t addr = size_t(p) + sz / 2;
+				store(v.lo, p, mask.lo());
+				store(v.hi, (void*)addr, mask.hi());
+			}
+			else if constexpr (inRange(sz, 33, 64))
 			{
 				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_mask_storeu_epi8(p, mask, v);
 				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_mask_storeu_epi16(p, mask, v);
@@ -868,178 +892,196 @@ namespace AVXXY_NAMESPACE
 		requires (std::is_integral_v<I> && sizeof(I) <= 8)
 	__forceinline SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskType& mask, const SIMD_Vector<S, N>& src)
 	{
-		if constexpr (sizeof(S) < 4)
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			//TODO: make aligned version that skips this check
-			size_t baseAddr = size_t(base);
-			SIMD_Vector<S, N> ret;
-			size_t modAddr = baseAddr % 4;
-			if (modAddr == 0)
+			if constexpr (sizeof(S) < 4)
 			{
-				constexpr size_t indShift = sizeof(S) == 2 ? 1 : 2;
-				auto dwords = gather<int32_t, N, Scale>(base, ind >> indShift, mask);
-				auto shifts = ind & (indShift == 1 ? 1 : 3);
-				auto prefab = dwords >> (shifts << 3); //shift into proper places
-				ret = vec_cvt<S>(prefab);
-			}
-			else [[unlikely]] //unaligned pointer, nothing we can do but read scalarly
-			{
-				// x86 provides gathers only for 32-bit and 64-bit elements.
-				// Emulating byte/word gathers via widened accesses is not universally safe:
-				// a valid 1- or 2-byte element may reside at the end of a mapped page,
-				// while a widened 4-byte read crosses into an unmapped page and faults.
-				//
-				// Without additional guarantees (tail padding or known-safe overread),
-				// exact-width scalar loads are the only fully-correct implementation.
+				//TODO: make aligned version that skips this check
+				size_t baseAddr = size_t(base);
 				SIMD_Vector<S, N> ret;
-				for (size_t i = 0; i < N; ++i)
+				size_t modAddr = baseAddr % 4;
+				if (modAddr == 0)
 				{
-					if (!mask[i]) continue;
-					size_t a = baseAddr + Scale * ind[i];
-					ret[i] = *((const S*)(a));
+					constexpr size_t indShift = sizeof(S) == 2 ? 1 : 2;
+					auto dwords = gather<int32_t, N, Scale>(base, ind >> indShift, mask);
+					auto shifts = ind & (indShift == 1 ? 1 : 3);
+					auto prefab = dwords >> (shifts << 3); //shift into proper places
+					ret = vec_cvt<S>(prefab);
+				}
+				else [[unlikely]] //unaligned pointer, nothing we can do but read scalarly
+				{
+					// x86 provides gathers only for 32-bit and 64-bit elements.
+					// Emulating byte/word gathers via widened accesses is not universally safe:
+					// a valid 1- or 2-byte element may reside at the end of a mapped page,
+					// while a widened 4-byte read crosses into an unmapped page and faults.
+					//
+					// Without additional guarantees (tail padding or known-safe overread),
+					// exact-width scalar loads are the only fully-correct implementation.
+					SIMD_Vector<S, N> ret;
+					for (size_t i = 0; i < N; ++i)
+					{
+						if (!mask[i]) continue;
+						size_t a = baseAddr + Scale * ind[i];
+						ret[i] = *((const S*)(a));
+					}
+				}
+				return mask_mov(src, mask, ret);
+			}
+
+			using CanonicalIndex_t = std::conditional_t<(sizeof(I) <= 4), int32_t, int64_t>;
+			//progressively sanitize inputs. There're no gathers for small indices, so first, need to extend them.
+			//TODO: can unite this check with Scale and use smaller indices?
+			if constexpr (!std::is_same_v<I, CanonicalIndex_t>) return gather<S, N, Scale>(base, vec_cvt<CanonicalIndex_t>(ind), mask, src);
+
+			//if we get here, means that indices are already in good format (4-byte or 8-byte)
+			using RetVec_t = SIMD_Vector<S, N>;
+			using IndVec_t = SIMD_Vector<I, N>;
+			constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
+
+			//break up large gather into halves
+			if constexpr (MaxSize > 64) return concat(
+				gather<S, N / 2, Scale, I>(base, ind.lo, mask.lo(), src.lo),
+				gather<S, N / 2, Scale, I>(base, ind.hi, mask.hi(), src.hi));
+
+			//if scale is natively supported, we may already gather if inputs are clean enough, or sanitize further.
+			//This is the main gather engine, everything funnels into here
+			if constexpr (Scale == 1 || Scale == 2 || Scale == 4 || Scale == 8)
+			{
+				//dispatch to native gathers, since small gathers all non-native gathers already processed
+				if constexpr (sizeof(S) == 4 || sizeof(S) == 8)
+				{
+					if constexpr (inRange(MaxSize, 33, 64))
+					{
+						if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm512_mask_i64gather_pd(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm512_mask_i64gather_ps(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return  _mm512_mask_i64gather_epi64(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm512_mask_i64gather_epi32(src, mask, ind, base, Scale);
+
+						if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm512_mask_i32gather_pd(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm512_mask_i32gather_ps(src, mask, reinterpret<__m512i>(ind), base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return  _mm512_mask_i32gather_epi64(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return  _mm512_mask_i32gather_epi32(src, mask, ind, base, Scale);
+					}
+					//TODO: when making older gather versions, they use mask vectors instead of registers and _mm256_mask_* instead of mmask
+					else if constexpr (inRange(MaxSize, 17, 32))
+					{
+						if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm256_mmask_i64gather_pd(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm256_mmask_i64gather_ps(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return  _mm256_mmask_i64gather_epi64(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return  _mm256_mmask_i64gather_epi32(src, mask, ind, base, Scale);
+
+						if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm256_mmask_i32gather_pd(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm256_mmask_i32gather_ps(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm256_mmask_i32gather_epi64(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm256_mmask_i32gather_epi32(src, mask, ind, base, Scale);
+					}
+					else if constexpr (inRange(MaxSize, 0, 16))
+					{
+						if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm_mmask_i64gather_pd(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm_mmask_i64gather_ps(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm_mmask_i64gather_epi64(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm_mmask_i64gather_epi32(src, mask, ind, base, Scale);
+
+						if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return  _mm_mmask_i32gather_pd(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm_mmask_i32gather_ps(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm_mmask_i32gather_epi64(src, mask, ind, base, Scale);
+						if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm_mmask_i32gather_epi32(src, mask, ind, base, Scale);
+					}
+					else static_assert(always_false_v<S>, "Native gather case got to failure branch. This should never happen");
 				}
 			}
-			return mask_mov(src, mask, ret);
-		}
-
-		using CanonicalIndex_t = std::conditional_t<(sizeof(I) <= 4), int32_t, int64_t>;
-		//progressively sanitize inputs. There're no gathers for small indices, so first, need to extend them.
-		//TODO: can unite this check with Scale and use smaller indices?
-		if constexpr (!std::is_same_v<I, CanonicalIndex_t>) return gather<S, N, Scale>(base, vec_cvt<CanonicalIndex_t>(ind), mask, src);
-
-		//if we get here, means that indices are already in good format (4-byte or 8-byte)
-		using RetVec_t = SIMD_Vector<S, N>;
-		using IndVec_t = SIMD_Vector<I, N>;
-		constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
-
-		//break up large gather into halves
-		if constexpr (MaxSize > 64) return concat(
-			gather<S,N/2,Scale,I>(base, ind.lo, mask.lo(), src.lo), 
-			gather<S,N/2,Scale,I>(base, ind.hi, mask.hi(), src.hi));
-
-		//if scale is natively supported, we may already gather if inputs are clean enough, or sanitize further.
-		//This is the main gather engine, everything funnels into here
-		if constexpr (Scale == 1 || Scale == 2 || Scale == 4 || Scale == 8)
-		{
-			//dispatch to native gathers, since small gathers all non-native gathers already processed
-			if constexpr (sizeof(S) == 4 || sizeof(S) == 8)
+			else
 			{
-				if constexpr (inRange(MaxSize, 33, 64))
-				{
-					if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm512_mask_i64gather_pd(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm512_mask_i64gather_ps(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return  _mm512_mask_i64gather_epi64(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm512_mask_i64gather_epi32(src, mask, ind, base, Scale);
-
-					if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm512_mask_i32gather_pd(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm512_mask_i32gather_ps(src, mask, reinterpret<__m512i>(ind), base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return  _mm512_mask_i32gather_epi64(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return  _mm512_mask_i32gather_epi32(src, mask, ind, base, Scale);
-				}
-				//TODO: when making older gather versions, they use mask vectors instead of registers and _mm256_mask_* instead of mmask
-				else if constexpr (inRange(MaxSize, 17, 32))
-				{
-					if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm256_mmask_i64gather_pd(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm256_mmask_i64gather_ps(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return  _mm256_mmask_i64gather_epi64(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return  _mm256_mmask_i64gather_epi32(src, mask, ind, base, Scale);
-
-					if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm256_mmask_i32gather_pd(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm256_mmask_i32gather_ps(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm256_mmask_i32gather_epi64(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm256_mmask_i32gather_epi32(src, mask, ind, base, Scale);
-				}
-				else if constexpr (inRange(MaxSize, 0, 16))
-				{
-					if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm_mmask_i64gather_pd(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm_mmask_i64gather_ps(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm_mmask_i64gather_epi64(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm_mmask_i64gather_epi32(src, mask, ind, base, Scale);
-
-					if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return  _mm_mmask_i32gather_pd(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm_mmask_i32gather_ps(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm_mmask_i32gather_epi64(src, mask, ind, base, Scale);
-					if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm_mmask_i32gather_epi32(src, mask, ind, base, Scale);
-				}
-				else static_assert(always_false_v<S>, "Native gather case got to failure branch. This should never happen");
+				//if scale is not native, emulate it by gathering with scale 1 and manually calculated byte offsets. 
+				//TODO: Can optimize a little by checking if Scale*maxint(I) fits into smaller sizes
+				return gather<S, N, 1>(base, mul(vec_cvt<int64_t>(ind), Scale), mask, src);
 			}
 		}
 		else
 		{
-			//if scale is not native, emulate it by gathering with scale 1 and manually calculated byte offsets. 
-			//TODO: Can optimize a little by checking if Scale*maxint(I) fits into smaller sizes
-			return gather<S, N, 1>(base, mul(vec_cvt<int64_t>(ind), Scale), mask, src);
+			SIMD_Vector<S, N> ret;
+			size_t baseAddr = size_t(base);
+			for (size_t i = 0; i < N; ++i) ret[i] = mask[i] ? *(const S*)(baseAddr + Scale * ind[i]) : src[i];
+			return ret;
 		}
 	}
 
 	template<typename S, size_t N, size_t Scale, typename I>
 	__forceinline void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskType& mask)
 	{
-		if constexpr (sizeof(S) < 4)
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			//Scalar fallback for small elements. In theory, you can gather, replace needed bytes and scatter back, but that's a whole other can of worms.
-			//Plus, that may not actually be faster than just scalarizing, especially on CPUs with bad gather
-			size_t baseAddr = size_t(base);
-			for (size_t i = 0; i < N; ++i)
+			if constexpr (sizeof(S) < 4)
 			{
-				if (!mask[i]) continue;
-				size_t a = baseAddr + Scale * ind[i];
-				*((S*)(a)) = vec[i];
+				//Scalar fallback for small elements. In theory, you can gather, replace needed bytes and scatter back, but that's a whole other can of worms.
+				//Plus, that may not actually be faster than just scalarizing, especially on CPUs with bad gather
+				size_t baseAddr = size_t(base);
+				for (size_t i = 0; i < N; ++i)
+				{
+					if (!mask[i]) continue;
+					size_t a = baseAddr + Scale * ind[i];
+					*((S*)(a)) = vec[i];
+				}
+				return;
 			}
+
+			if constexpr (!(Scale == 1 || Scale == 2 || Scale == 4 || Scale == 8)) return scatter<S, N, 1>(vec, base, vec_cvt<int64_t>(ind) * Scale, mask);
+
+			using CanonInd_t = std::conditional_t<sizeof(I) <= 4, int32_t, int64_t>;
+			if (!std::is_same_v<CanonInd_t, I>) return scatter<S, N, Scale>(vec, base, vec_cvt<CanonInd_t>(ind), mask);
+
+			using IndVec_t = SIMD_Vector<I, N>;
+			using RetVec_t = SIMD_Vector<S, N>;
+			constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
+			if constexpr (MaxSize > 64)
+			{
+				scatter(vec.lo, base, ind.lo, mask);
+				scatter(vec.hi, base, ind.hi, mask);
+				return;
+			}
+			else if constexpr (inRange(MaxSize, 33, 64))
+			{
+				if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm512_mask_i64scatter_pd(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm512_mask_i64scatter_ps(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm512_mask_i64scatter_epi64(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm512_mask_i64scatter_epi32(base, mask, ind, vec, Scale);
+
+				if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm512_mask_i32scatter_pd(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm512_mask_i32scatter_ps(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm512_mask_i32scatter_epi64(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm512_mask_i32scatter_epi32(base, mask, ind, vec, Scale);
+			}
+			else if constexpr (inRange(MaxSize, 17, 32))
+			{
+				if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm256_mask_i64scatter_pd(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm256_mask_i64scatter_ps(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm256_mask_i64scatter_epi64(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm256_mask_i64scatter_epi32(base, mask, ind, vec, Scale);
+
+				if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm256_mask_i32scatter_pd(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm256_mask_i32scatter_ps(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm256_mask_i32scatter_epi64(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm256_mask_i32scatter_epi32(base, mask, ind, vec, Scale);
+			}
+			else if constexpr (inRange(MaxSize, 0, 16))
+			{
+				if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm_mask_i64scatter_pd(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm_mask_i64scatter_ps(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm_mask_i64scatter_epi64(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm_mask_i64scatter_epi32(base, mask, ind, vec, Scale);
+
+				if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm_mask_i32scatter_pd(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm_mask_i32scatter_ps(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm_mask_i32scatter_epi64(base, mask, ind, vec, Scale);
+				if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm_mask_i32scatter_epi32(base, mask, ind, vec, Scale);
+			}
+		}
+		else
+		{
+			size_t baseAddr = size_t(base);
+			for (size_t i = 0; i < N; ++i) if (mask[i]) *(S*)(baseAddr + Scale * ind[i]) = vec[i];
 			return;
 		}
-
-		if constexpr (!(Scale == 1 || Scale == 2 || Scale == 4 || Scale == 8)) return scatter<S, N, 1>(vec, base, vec_cvt<int64_t>(ind) * Scale, mask);
-
-		using CanonInd_t = std::conditional_t<sizeof(I) <= 4, int32_t, int64_t>;
-		if (!std::is_same_v<CanonInd_t, I>) return scatter<S, N, Scale>(vec, base, vec_cvt<CanonInd_t>(ind), mask);
-
-		using IndVec_t = SIMD_Vector<I, N>;
-		using RetVec_t = SIMD_Vector<S, N>;
-		constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
-		if constexpr (MaxSize > 64)
-		{
-			scatter(vec.lo, base, ind.lo, mask);
-			scatter(vec.hi, base, ind.hi, mask);
-			return;
-		}
-		else if constexpr (inRange(MaxSize, 33, 64))
-		{
-			if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm512_mask_i64scatter_pd(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm512_mask_i64scatter_ps(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm512_mask_i64scatter_epi64(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm512_mask_i64scatter_epi32(base, mask, ind, vec, Scale);
-
-			if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm512_mask_i32scatter_pd(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm512_mask_i32scatter_ps(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm512_mask_i32scatter_epi64(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm512_mask_i32scatter_epi32(base, mask, ind, vec, Scale);
-		}
-		else if constexpr (inRange(MaxSize, 17, 32))
-		{
-			if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm256_mask_i64scatter_pd(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm256_mask_i64scatter_ps(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm256_mask_i64scatter_epi64(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm256_mask_i64scatter_epi32(base, mask, ind, vec, Scale);
-
-			if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm256_mask_i32scatter_pd(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm256_mask_i32scatter_ps(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm256_mask_i32scatter_epi64(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm256_mask_i32scatter_epi32(base, mask, ind, vec, Scale);
-		}
-		else if constexpr (inRange(MaxSize, 0, 16))
-		{
-			if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, double>) return _mm_mask_i64scatter_pd(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && std::is_same_v<S, float>) return _mm_mask_i64scatter_ps(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm_mask_i64scatter_epi64(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int64_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm_mask_i64scatter_epi32(base, mask, ind, vec, Scale);
-
-			if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, double>) return _mm_mask_i32scatter_pd(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && std::is_same_v<S, float>) return _mm_mask_i32scatter_ps(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>)) return _mm_mask_i32scatter_epi64(base, mask, ind, vec, Scale);
-			if constexpr (std::is_same_v<I, int32_t> && (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>)) return _mm_mask_i32scatter_epi32(base, mask, ind, vec, Scale);
-		}
-		else static_assert("SIMD_Vector scatter");
 	}
 
 	template<typename S, size_t N>
