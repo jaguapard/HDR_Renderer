@@ -4,16 +4,15 @@
 
 Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 {
-    int32x16 r = packed & 1023;
-    int32x16 g = _mm512_srli_epi32(packed, 10);
-    g &= 2047;
-    int32x16 b = _mm512_srli_epi32(packed, 21);
-    b &= 1023;
+    u32x16 up = vec_cvt<uint32_t>(packed);
+    u32x16 r = up & 1023;
+    u32x16 g = (up >> 10) & 2047;
+    u32x16 b = (up >> 21) & 1023;
 
-    float32x16 fr = _mm512_cvtepu32_ps(r);
-    float32x16 fg = _mm512_cvtepu32_ps(g);
-    float32x16 fb = _mm512_cvtepu32_ps(b);
-    float32x16 fa = _mm512_maskz_mov_ps(packed < 0, float32x16(1)); //if uppermost bit is 1 (i.e. sign bit is 1, i.e negative), then alpha is 1
+    float32x16 fr = vec_cvt<float>(r);
+    float32x16 fg = vec_cvt<float>(g);
+    float32x16 fb = vec_cvt<float>(b);
+    float32x16 fa = maskz_mov(packed < 0, float32x16(1)); //if uppermost bit is 1 (i.e. sign bit is 1, i.e negative), then alpha is 1
     fr *= 1.f / 1023;
     fg *= 1.f / 2047;
     fb *= 1.f / 1023;
