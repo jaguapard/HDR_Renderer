@@ -112,7 +112,7 @@ namespace Rasterizing
 			if (!mask) return;
 			std::array<float32x16, 4> a = aos2soa_gather_and_transpose<float32x16, 4>(this->xyzp.data(), ind, mask);
 			for (int i = 0; i < 3; ++i) retXYZ[i] = a[i];
-			interleaved_ph_to_ps(_mm512_castps_si512(a[3]), retU, retV);
+			interleaved_ph_to_ps(reinterpret<u32x16>(a[3]), retU, retV);
 			/*
 			for (int i = 0; i < 4; ++i)
 			{
