@@ -83,6 +83,7 @@ namespace AVXXY_NAMESPACE
 		using T = SIMD_Vector<S, N>;
 		if constexpr (std::is_same_v<S, int8_t>) return vec_cvt<int8_t>(mul(vec_cvt<int16_t>(a), vec_cvt<int16_t>(b)));
 		else if constexpr (std::is_same_v<S, uint8_t>) return vec_cvt<uint8_t>(mul(vec_cvt<uint16_t>(a), vec_cvt<uint16_t>(b)));
+		else if constexpr (sizeof(T) > 64) return concat(mul(a.lo, b.lo), mul(a.hi, b.hi));
 		else if constexpr (inRange(sizeof(T), 33, 64))
 		{
 			if constexpr (std::is_same_v<S, float>) return _mm512_mul_ps(a, b);
@@ -111,7 +112,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N * 2> concat(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N>& what)
+	__forceinline SIMD_Vector<S, N * 2> concat(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N>& what)
 	{
 		SIMD_Vector<S, N * 2> ret;
 		ret.lo = to;
@@ -121,7 +122,7 @@ namespace AVXXY_NAMESPACE
 
 	template<size_t N>
 		requires (N * 2 <= 64)
-	SIMD_Mask<N * 2> concat_masks(const SIMD_Mask<N>& to, const SIMD_Mask<N>& what)
+	__forceinline SIMD_Mask<N * 2> concat_masks(const SIMD_Mask<N>& to, const SIMD_Mask<N>& what)
 	{
 		using T = SIMD_Mask<N * 2>;
 		using U = typename T::UintType;
@@ -158,7 +159,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N> logic_and(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline SIMD_Vector<S, N> logic_and(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(logic_and(a.lo, b.lo), logic_and(a.hi, b.hi));
@@ -184,7 +185,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N> logic_or(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline SIMD_Vector<S, N> logic_or(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(logic_or(a.lo, b.lo), logic_or(a.hi, b.hi));
@@ -210,7 +211,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N> logic_xor(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline SIMD_Vector<S, N> logic_xor(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(logic_xor(a.lo, b.lo), logic_xor(a.hi, b.hi));
@@ -236,7 +237,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N> logic_not(const SIMD_Vector<S, N>& a)
+	__forceinline SIMD_Vector<S, N> logic_not(const SIMD_Vector<S, N>& a)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(logic_not(a.lo), logic_not(a.hi));
@@ -263,7 +264,7 @@ namespace AVXXY_NAMESPACE
 
 	template<typename S, size_t N, typename I>
 		requires (std::is_integral_v<I>&& std::is_integral_v<S>)
-	SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount)
+	__forceinline SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(shift_left(a.lo, amount.lo), shift_left(a.hi, amount.hi));
@@ -299,11 +300,11 @@ namespace AVXXY_NAMESPACE
 	}
 	template<typename S, size_t N, typename I>
 		requires (std::is_integral_v<I>&& std::is_integral_v<S>)
-	SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount)
+	__forceinline SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(shift_right(a.lo, amount.lo), shift_right(a.hi, amount.hi));
-		if constexpr (sizeof(S) == 1) //no 8 bit shifts in x86!
+		else if constexpr (sizeof(S) == 1) //no 8 bit shifts in x86!
 		{
 			auto alo = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.lo)); //treat as unsigned bytes to avoid sign spillover
 			auto ahi = vec_cvt<uint16_t>(vec_cvt<uint8_t>(a.hi));
@@ -311,32 +312,34 @@ namespace AVXXY_NAMESPACE
 			auto shhi = vec_cvt<S>(shift_right(ahi, amount.hi));
 			return concat(shlo, shhi);
 		}
+		else {
 
-		auto xa = vec_cvt<typename T::IntScalarType>(amount);
-		if constexpr (inRange(sizeof(T), 33, 64))
-		{
-			if constexpr (sizeof(S) == 8) return _mm512_srlv_epi64(a, xa);
-			if constexpr (sizeof(S) == 4) return _mm512_srlv_epi32(a, xa);
-			if constexpr (sizeof(S) == 2) return _mm512_srlv_epi16(a, xa);
+			auto xa = vec_cvt<typename T::IntScalarType>(amount);
+			if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (sizeof(S) == 8) return _mm512_srlv_epi64(a, xa);
+				if constexpr (sizeof(S) == 4) return _mm512_srlv_epi32(a, xa);
+				if constexpr (sizeof(S) == 2) return _mm512_srlv_epi16(a, xa);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (sizeof(S) == 8) return _mm256_srlv_epi64(a, xa);
+				if constexpr (sizeof(S) == 4) return _mm256_srlv_epi32(a, xa);
+				if constexpr (sizeof(S) == 2) return _mm256_srlv_epi16(a, xa);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (sizeof(S) == 8) return _mm_srlv_epi64(a, xa);
+				if constexpr (sizeof(S) == 4) return _mm_srlv_epi32(a, xa);
+				if constexpr (sizeof(S) == 2) return _mm_srlv_epi16(a, xa);
+			}
+			else static_assert(always_false_v<S>, "invalid args shift_right");
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
-		{
-			if constexpr (sizeof(S) == 8) return _mm256_srlv_epi64(a, xa);
-			if constexpr (sizeof(S) == 4) return _mm256_srlv_epi32(a, xa);
-			if constexpr (sizeof(S) == 2) return _mm256_srlv_epi16(a, xa);
-		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (sizeof(S) == 8) return _mm_srlv_epi64(a, xa);
-			if constexpr (sizeof(S) == 4) return _mm_srlv_epi32(a, xa);
-			if constexpr (sizeof(S) == 2) return _mm_srlv_epi16(a, xa);
-		}
-		else static_assert(always_false_v<S>, "invalid args shift_right");
 	}
 
 	template<typename S, size_t N, typename I>
 	[[gnu::target("avx512vbmi")]] //todo: change this later
-	SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
+	__forceinline SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
 		requires (sizeof(SIMD_Vector<S, N>) <= 64) //for now, don't emulate, just route to native permutex
 	{
 		using T = SIMD_Vector<S, N>;
@@ -373,7 +376,7 @@ namespace AVXXY_NAMESPACE
 
 	template<typename S, size_t N, typename I>
 	[[gnu::target("avx512vbmi")]] //todo: change this later
-	SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind, const SIMD_Vector<S, N>& b)
+	__forceinline SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind, const SIMD_Vector<S, N>& b)
 		requires (sizeof(SIMD_Vector<S, N>) <= 64)
 	{
 		using T = SIMD_Vector<S, N>;
@@ -430,7 +433,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a)
+	__forceinline SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a)
 	{
 		auto x = vec_cvt<float>(a);
 		if constexpr (sizeof(x) > 64) return concat(sqrtf(x.lo), sqrtf(x.hi));
@@ -440,7 +443,7 @@ namespace AVXXY_NAMESPACE
 		else static_assert(always_false_v<S>, "invalid arguments for SIMD_Vector sqrtf");
 	}
 	template<typename S, size_t N>
-	SIMD_Vector<double, N> sqrtd(const SIMD_Vector<S, N>& a)
+	__forceinline SIMD_Vector<double, N> sqrtd(const SIMD_Vector<S, N>& a)
 	{
 		auto x = vec_cvt<double>(a);
 		if constexpr (sizeof(x) > 64) return concat(sqrtd(x.lo), sqrtd(x.hi));
@@ -464,7 +467,7 @@ namespace AVXXY_NAMESPACE
 	}*/
 
 	template<typename T, typename S, size_t N>
-	T reinterpret(const SIMD_Vector<S, N>& value)
+	__forceinline T reinterpret(const SIMD_Vector<S, N>& value)
 	{
 		T ret;
 		std::memcpy(&ret, &value, std::min(sizeof(ret), sizeof(value)));
@@ -472,7 +475,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<size_t Part, size_t PartCount, typename S, size_t N>
-	SIMD_Vector<S, N / PartCount> extract(const SIMD_Vector<S, N>& value)
+	__forceinline SIMD_Vector<S, N / PartCount> extract(const SIMD_Vector<S, N>& value)
 	{
 		static_assert(N % PartCount == 0, "extract: number elements not divisible by part count");
 		static_assert(Part < PartCount, "extract: part number to extract is greater or equal to part count");
@@ -498,7 +501,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<size_t Part, size_t N2, typename S, size_t N>
-	SIMD_Vector<S, N> insert(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N2>& what)
+	__forceinline SIMD_Vector<S, N> insert(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N2>& what)
 	{
 		static_assert(N2 <= N, "insert: attempting to insert value to a vector that is smaller than it");
 		static_assert(N % N2 == 0, "insert: attempting to insert value to a vector which has size not divisible by insertee's size");
@@ -793,7 +796,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N, size_t Scale, typename I>
-	void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskType& mask)
+	__forceinline void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskType& mask)
 	{
 		if constexpr (sizeof(S) < 4)
 		{
@@ -864,7 +867,7 @@ namespace AVXXY_NAMESPACE
 
 	template<typename S, size_t N>
 		requires (N <= 64)
-	typename SIMD_Vector<S, N>::MaskType cmp_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline typename SIMD_Vector<S, N>::MaskType cmp_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat_masks(cmp_equal(a.lo, b.lo), cmp_equal(a.hi, b.hi));
@@ -911,7 +914,7 @@ namespace AVXXY_NAMESPACE
 	}
 	template<typename S, size_t N>
 		requires (N <= 64)
-	typename SIMD_Vector<S, N>::MaskType cmp_not_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline typename SIMD_Vector<S, N>::MaskType cmp_not_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat_masks(cmp_not_equal(a.lo, b.lo), cmp_not_equal(a.hi, b.hi));
@@ -958,7 +961,7 @@ namespace AVXXY_NAMESPACE
 	}
 	template<typename S, size_t N>
 		requires (N <= 64)
-	typename SIMD_Vector<S, N>::MaskType cmp_greater(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline typename SIMD_Vector<S, N>::MaskType cmp_greater(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat_masks(cmp_greater(a.lo, b.lo), cmp_greater(a.hi, b.hi));
@@ -1005,7 +1008,7 @@ namespace AVXXY_NAMESPACE
 	}
 	template<typename S, size_t N>
 		requires (N <= 64)
-	typename SIMD_Vector<S, N>::MaskType cmp_greater_or_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline typename SIMD_Vector<S, N>::MaskType cmp_greater_or_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat_masks(cmp_greater_or_equal(a.lo, b.lo), cmp_greater_or_equal(a.hi, b.hi));
@@ -1052,7 +1055,7 @@ namespace AVXXY_NAMESPACE
 	}
 	template<typename S, size_t N>
 		requires (N <= 64)
-	SIMD_Vector<S, N> mask2vec(const SIMD_Mask<N>& mask)
+	__forceinline SIMD_Vector<S, N> mask2vec(const SIMD_Mask<N>& mask)
 	{
 		constexpr size_t RetSize = sizeof(S) * N;
 		if constexpr (RetSize > 64) return concat(mask2vec(mask.lo()), mask2vec(mask.hi()));
@@ -1080,7 +1083,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N> abs(const SIMD_Vector<S, N>& a)
+	__forceinline SIMD_Vector<S, N> abs(const SIMD_Vector<S, N>& a)
 	{
 		if constexpr (std::is_unsigned_v<S>) return a;
 		using T = SIMD_Vector<S, N>;
@@ -1118,7 +1121,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N> min(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline SIMD_Vector<S, N> min(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(min(a.lo, b.lo), min(a.hi, b.hi));
@@ -1165,7 +1168,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N> max(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline SIMD_Vector<S, N> max(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat(max(a.lo, b.lo), max(a.hi, b.hi));
@@ -1212,7 +1215,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	SIMD_Vector<S, N> clamp(const SIMD_Vector<S, N>& val, const SIMD_Vector<S, N>& min, const SIMD_Vector<S, N>& max)
+	__forceinline SIMD_Vector<S, N> clamp(const SIMD_Vector<S, N>& val, const SIMD_Vector<S, N>& min, const SIMD_Vector<S, N>& max)
 	{
 		auto clampedLow = AVXXY_NAMESPACE::max(val, min);
 		return AVXXY_NAMESPACE::min(clampedLow, max);
@@ -1220,7 +1223,7 @@ namespace AVXXY_NAMESPACE
 
 	template<typename S, size_t N>
 		requires (N <= 64)
-	typename SIMD_Vector<S, N>::MaskType cmp_less(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline typename SIMD_Vector<S, N>::MaskType cmp_less(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat_masks(cmp_less(a.lo, b.lo), cmp_less(a.hi, b.hi));
@@ -1268,7 +1271,7 @@ namespace AVXXY_NAMESPACE
 
 	template<typename S, size_t N>
 		requires (N <= 64)
-	typename SIMD_Vector<S, N>::MaskType cmp_less_or_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	__forceinline typename SIMD_Vector<S, N>::MaskType cmp_less_or_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
 		if constexpr (sizeof(T) > 64) return concat_masks(cmp_less_or_equal(a.lo, b.lo), cmp_less_or_equal(a.hi, b.hi));
