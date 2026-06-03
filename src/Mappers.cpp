@@ -22,12 +22,12 @@ void WrappingMapper::wrapInts(int32x16& x, int32x16& y) const
 
 int32x16 WrappingMapper::wrapIntWithRcp(int32x16 x, uint64_t rcp, uint32_t v)
 {
-	int32x16 ax = _mm512_abs_epi32(x);
+	int32x16 ax = abs(x);
 	int32x16 rem = wrapPositiveIntWithRcp(ax, rcp, v);
 	//TODO: some of these steps may be too cautious and can be removed?
-	rem = _mm512_mask_mov_epi32(int32x16(v) - rem, x >= 0, rem);
-	rem = _mm512_mask_sub_epi32(rem, rem >= v, rem, int32x16(v));
-	rem = _mm512_mask_add_epi32(rem, rem < 0, rem, int32x16(v));
+	rem = mask_mov(int32x16(v) - rem, x >= 0, rem);
+	rem = mask_mov(rem, rem >= v, rem - int32x16(v));
+	rem = mask_mov(rem, rem < 0, rem + int32x16(v));
 	return rem;
 }
 
