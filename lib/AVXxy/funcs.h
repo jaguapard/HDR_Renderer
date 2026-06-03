@@ -77,6 +77,14 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N> void store(SIMD_Vector<S, N>& v, const void* p, const typename SIMD_Vector<S, N>::MaskType& mask = SIMD_Vector<S, N>::MaskType::AllOnes);
 	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (std::is_integral_v<I> && sizeof(I) <= 8)
 	SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskType& mask = SIMD_Vector<S, N>::MaskType::AllOnes, const SIMD_Vector<S, N>& src = 0);
+
+	template <typename T, size_t Scale = sizeof(typename T::ScalarType), typename I>
+		requires (T::IsSimdVector)
+	T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const typename T::MaskType& mask = T::MaskType::AllOnes, const T& src = 0)
+	{
+		return gather<typename T::ScalarType, T::LaneCount>(base, ind, mask, src);
+	}
+
 	template<typename S, size_t N, size_t Scale, typename I> void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskType& mask = SIMD_Vector<S, N>::MaskType::AllOnes);
 
 	template<typename S, size_t N> typename SIMD_Vector<S, N>::MaskType cmp_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);

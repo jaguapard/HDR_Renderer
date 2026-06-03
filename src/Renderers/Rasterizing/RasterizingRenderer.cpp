@@ -699,7 +699,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				int32x16 intX = vec_cvt<int>(x);
 				int32x16 intY = vec_cvt<int>(y);
 				int32x16 zbufferGatherInd = intY * w + intX;
-				float32x16 currDepthValues = gather<float, 16>(zBuffer, zbufferGatherInd, scavengerBounds);
+				float32x16 currDepthValues = gather<f32x16>(zBuffer, zbufferGatherInd, scavengerBounds);
 
 				//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
 				//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
@@ -964,8 +964,8 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 							Mask16 inShadowMapBounds = xBoundsMask & ssx >= 0.f & ssy >= 0.f & ssx < smapW & ssy < smapH;
 							if (inShadowMapBounds)
 							{
-								int32x16 gatherInd = int32x16(vec_cvt<int>(ssy)) * this->drawCommands[1].renderW + int32x16(vec_cvt<int>(ssx));
-								float32x16 shadowMapDepths = gather<float, 16>(shadowMap_zBuffer, gatherInd, inShadowMapBounds, FLT_MAX);
+								int32x16 gatherInd = vec_cvt<int>(ssy) * this->drawCommands[1].renderW + vec_cvt<int>(ssx);
+								float32x16 shadowMapDepths = gather<f32x16>(shadowMap_zBuffer, gatherInd, inShadowMapBounds, FLT_MAX);
 								if (Statsman::ENABLED)
 								{
 									MyStatsman.rasterizing.shadowMapGatherLanes += 16;

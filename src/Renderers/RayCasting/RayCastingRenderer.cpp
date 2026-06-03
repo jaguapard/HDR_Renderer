@@ -137,7 +137,7 @@ float32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, 
 	// t < epsilon means that there is a line intersection but not a ray intersection.
 	float32x8 t = inv_det * edge2.dot3d(s_cross_e1);
 	retT = t;
-	return activeRays & mask2vec<float>(t > epsilon); // Ray intersection
+	return activeRays & (t > epsilon); // Ray intersection
 }
 void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 {

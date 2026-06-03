@@ -52,7 +52,7 @@ Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32
         int32x16 sampleX = startX + sx, sampleY = startY + sy;
         this->mapper.wrapInts(sampleX, sampleY);
 
-        int32x16 samples = gather<int, 16>(this->colors.data(), sampleY * p.w + sampleX, mask);
+        u32x16 samples = gather<u32x16>(this->colors.data(), sampleY * p.w + sampleX, mask);
         linear[i] = Decoder::RGBA8888_to_linear_using_FP16_LUT(samples);
     }
 
@@ -72,7 +72,7 @@ float32x16 MipLevel::gatherA(const float32x16& u, const float32x16& v, Mask16 ma
     int32x16 ind = sy * this->mapper.getParams().w + sx;
     int32x16 gatherInd = ind >> 5;
     int32x16 shifts = ind & 31;
-    int32x16 gathered = gather<int, 16>(this->opacityMap.data(), gatherInd, mask);
+    int32x16 gathered = gather<i32x16>(this->opacityMap.data(), gatherInd, mask);
     gathered &= int32x16(1) << shifts;
     return _mm512_mask_mov_ps(float32x16(0.f), gathered != 0, float32x16(1.f));
 }

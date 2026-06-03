@@ -335,6 +335,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N, typename I>
+	[[gnu::target("avx512vbmi")]] //todo: change this later
 	SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
 		requires (sizeof(SIMD_Vector<S, N>) <= 64) //for now, don't emulate, just route to native permutex
 	{
@@ -342,35 +343,36 @@ namespace AVXXY_NAMESPACE
 		auto xind = vec_cvt<typename T::IntScalarType>(ind); //TODO: when implementing larger permutes: can overflow
 		if constexpr (inRange(sizeof(T), 33, 64))
 		{
-			if (std::is_same_v<S, double>) return _mm512_permutexvar_pd(xind, a);
-			if (std::is_same_v<S, float>) return _mm512_permutexvar_ps(xind, a);
-			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_permutexvar_epi64(xind, a);
-			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_permutexvar_epi32(xind, a);
-			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_permutexvar_epi16(xind, a);
-			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_permutexvar_epi8(xind, a);
+			if constexpr (std::is_same_v<S, double>) return _mm512_permutexvar_pd(xind, a);
+			if constexpr (std::is_same_v<S, float>) return _mm512_permutexvar_ps(xind, a);
+			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_permutexvar_epi64(xind, a);
+			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_permutexvar_epi32(xind, a);
+			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_permutexvar_epi16(xind, a);
+			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_permutexvar_epi8(xind, a);
 		}
 		else if constexpr (inRange(sizeof(T), 17, 32))
 		{
-			if (std::is_same_v<S, double>) return _mm256_permutexvar_pd(xind, a);
-			if (std::is_same_v<S, float>) return _mm256_permutexvar_ps(xind, a);
-			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_permutexvar_epi64(xind, a);
-			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_permutexvar_epi32(xind, a);
-			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_permutexvar_epi16(xind, a);
-			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_permutexvar_epi8(xind, a);
+			if constexpr (std::is_same_v<S, double>) return _mm256_permutexvar_pd(xind, a);
+			if constexpr (std::is_same_v<S, float>) return _mm256_permutexvar_ps(xind, a);
+			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_permutexvar_epi64(xind, a);
+			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_permutexvar_epi32(xind, a);
+			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_permutexvar_epi16(xind, a);
+			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_permutexvar_epi8(xind, a);
 		}
 		else if constexpr (inRange(sizeof(T), 0, 16))
 		{
-			if (std::is_same_v<S, double>) return _mm_permutexvar_pd(xind, a);
-			if (std::is_same_v<S, float>) return _mm_permutexvar_ps(xind, a);
-			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_permutexvar_epi64(xind, a);
-			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_permutexvar_epi32(xind, a);
-			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_permutexvar_epi16(xind, a);
-			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_permutexvar_epi8(xind, a);
+			if constexpr (std::is_same_v<S, double>) return _mm_permutexvar_pd(xind, a);
+			if constexpr (std::is_same_v<S, float>) return _mm_permutexvar_ps(xind, a);
+			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_permutexvar_epi64(xind, a);
+			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_permutexvar_epi32(xind, a);
+			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_permutexvar_epi16(xind, a);
+			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_permutexvar_epi8(xind, a);
 		}
 		else static_assert(always_false_v<S>, "permx");
 	}
 
 	template<typename S, size_t N, typename I>
+	[[gnu::target("avx512vbmi")]] //todo: change this later
 	SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind, const SIMD_Vector<S, N>& b)
 		requires (sizeof(SIMD_Vector<S, N>) <= 64)
 	{
@@ -378,31 +380,32 @@ namespace AVXXY_NAMESPACE
 		auto xind = vec_cvt<typename T::IntScalarType>(ind);
 		if constexpr (inRange(sizeof(T), 33, 64))
 		{
-			if (std::is_same_v<S, double>) return _mm512_permutex2var_pd(a, xind, b);
-			if (std::is_same_v<S, float>) return _mm512_permutex2var_ps(a, xind, b);
-			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_permutex2var_epi64(a, xind, b);
-			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_permutex2var_epi32(a, xind, b);
-			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_permutex2var_epi16(a, xind, b);
-			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_permutex2var_epi8(a, xind, b);
+			if constexpr (std::is_same_v<S, double>) return _mm512_permutex2var_pd(a, xind, b);
+			if constexpr (std::is_same_v<S, float>) return _mm512_permutex2var_ps(a, xind, b);
+			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_permutex2var_epi64(a, xind, b);
+			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_permutex2var_epi32(a, xind, b);
+			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_permutex2var_epi16(a, xind, b);
+			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_permutex2var_epi8(a, xind, b);
 		}
-		if constexpr (inRange(sizeof(T), 17, 32))
+		else if constexpr (inRange(sizeof(T), 17, 32))
 		{
-			if (std::is_same_v<S, double>) return _mm256_permutex2var_pd(a, xind, b);
-			if (std::is_same_v<S, float>) return _mm256_permutex2var_ps(a, xind, b);
-			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_permutex2var_epi64(a, xind, b);
-			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_permutex2var_epi32(a, xind, b);
-			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_permutex2var_epi16(a, xind, b);
-			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_permutex2var_epi8(a, xind, b);
+			if constexpr (std::is_same_v<S, double>) return _mm256_permutex2var_pd(a, xind, b);
+			if constexpr (std::is_same_v<S, float>) return _mm256_permutex2var_ps(a, xind, b);
+			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_permutex2var_epi64(a, xind, b);
+			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_permutex2var_epi32(a, xind, b);
+			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_permutex2var_epi16(a, xind, b);
+			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_permutex2var_epi8(a, xind, b);
 		}
-		if constexpr (inRange(sizeof(T), 0, 16))
+		else if constexpr (inRange(sizeof(T), 0, 16))
 		{
-			if (std::is_same_v<S, double>) return _mm_permutex2var_pd(a, xind, b);
-			if (std::is_same_v<S, float>) return _mm_permutex2var_ps(a, xind, b);
-			if (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_permutex2var_epi64(a, xind, b);
-			if (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_permutex2var_epi32(a, xind, b);
-			if (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_permutex2var_epi16(a, xind, b);
-			if (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_permutex2var_epi8(a, xind, b);
+			if constexpr (std::is_same_v<S, double>) return _mm_permutex2var_pd(a, xind, b);
+			if constexpr (std::is_same_v<S, float>) return _mm_permutex2var_ps(a, xind, b);
+			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_permutex2var_epi64(a, xind, b);
+			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_permutex2var_epi32(a, xind, b);
+			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_permutex2var_epi16(a, xind, b);
+			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_permutex2var_epi8(a, xind, b);
 		}
+		else static_assert(always_false_v<S>, "permx2");
 	}
 	/*
 	template<typename S, size_t N, typename I>
