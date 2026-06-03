@@ -46,8 +46,8 @@ Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const u32x16& packed)
         fp16_ba = mask_mov(fp16_ba, (ba > (j * 64)) & (ba < (j * 64 + 64)), perm_ba);
     }
 
-    ret.r = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(fp16_rg, 0));
-    ret.g = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(fp16_rg, 1));
-    ret.b = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(fp16_ba, 0));
+    ret.r = _mm512_cvtph_ps(fp16_rg.lo);
+    ret.g = _mm512_cvtph_ps(fp16_rg.hi);
+    ret.b = _mm512_cvtph_ps(fp16_ba.lo);
     return ret;
 }

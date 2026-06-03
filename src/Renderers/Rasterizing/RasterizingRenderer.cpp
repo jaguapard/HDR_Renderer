@@ -662,10 +662,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		if (!currActiveTriangles) break; //yes, break, not continue. If first triangle is invalid, then all are (at least in current pipeline)
 
 		//TODO: doubling triangles if they are clipped!
-		float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), currTriangles.minX);
-		float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), currTriangles.minY);
-		float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), currTriangles.maxX);
-		float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), currTriangles.maxY);
+		float32x16 group_xBeg = max(f32x16(my_xMin), currTriangles.minX);
+		float32x16 group_yBeg = max(f32x16(my_yMin), currTriangles.minY);
+		float32x16 group_xEnd = min(f32x16(my_xMax), currTriangles.maxX);
+		float32x16 group_yEnd = min(f32x16(my_yMax), currTriangles.maxY);
 		const VertexPack16& v0 = currTriangles.vertices[0];
 		const VertexPack16& v1 = currTriangles.vertices[1];
 		const VertexPack16& v2 = currTriangles.vertices[2];
@@ -684,8 +684,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 			{
 				const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
 				Mask16 scavengerBounds = int32x16::sequence() + scavengeInd < scavenger.size;
-				float32x16 x = _mm512_loadu_ps(&scavenger.x[scavengeInd]);
-				float32x16 y = _mm512_loadu_ps(&scavenger.y[scavengeInd]);
+				float32x16 x = load<f32x16>(&scavenger.x[scavengeInd]);
+				float32x16 y = load<f32x16>(&scavenger.y[scavengeInd]);
 				float32x16 dx = x - group_xBeg[i];
 				float32x16 dy = y - group_yBeg[i];
 
