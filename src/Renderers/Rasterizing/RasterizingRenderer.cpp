@@ -825,15 +825,6 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 		}
 	}
 }
-__m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512i ptrs8_15, int attrOffsetInRenderJob, Mask16 mask)
-{
-	__m512i addr0_7 = _mm512_add_epi64(ptrs0_7, _mm512_set1_epi64(attrOffsetInRenderJob));
-	__m512i addr8_15 = _mm512_add_epi64(ptrs8_15, _mm512_set1_epi64(attrOffsetInRenderJob));
-	__m256 attr0 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask, addr0_7, nullptr, 1);
-	__m256 attr1 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask >> 8, addr8_15, nullptr, 1);
-	return _mm512_insertf32x8(_mm512_castps256_ps512(attr0), attr1, 1);
-}
-
 
 void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 {
