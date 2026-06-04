@@ -14,14 +14,12 @@ public:
 	union {
 		bob::_SSE_Vec4_float val[4];
 		float elements[4][4];
-		struct { __m128 xmm0, xmm1, xmm2, xmm3; };
-		struct { __m256 ymm0, ymm1; };
-		__m512 zmm;
+		AVXXY_NAMESPACE::f32x16 zmm;
 	};
 
-	Matrix4() = default;
+	Matrix4() {};
 	Matrix4(const std::initializer_list<bob::_SSE_Vec4_float> lst);
-	Matrix4(__m512 m);
+	Matrix4(const AVXXY_NAMESPACE::f32x16& m);
 
 	__forceinline Matrix4 operator*(const float other) const;
 	__forceinline Matrix4 operator-(const Matrix4& other) const;
@@ -33,7 +31,7 @@ public:
 	__forceinline bob::Vec4_f32x16 operator*(const bob::Vec4_f32x16& v) const
 	{
 		bob::Vec4_f32x16 ret = 0;
-		AVXxy::f32x16 mat = _mm512_loadu_ps(this);
+		AVXXY_NAMESPACE::f32x16 mat = _mm512_loadu_ps(this);
 		for (int i = 0; i < 4; ++i)
 		{
 			for (int j = 0; j < 4; ++j)
