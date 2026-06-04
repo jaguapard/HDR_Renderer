@@ -1691,7 +1691,7 @@ namespace AVXXY_NAMESPACE
 
 	template<typename S, size_t N>
 	requires (sizeof(S) == 2)
-	SIMD_Vector<float, N> vec_cvt_ph2ps(const SIMD_Vector<S, N>& a)
+	__forceinline SIMD_Vector<float, N> vec_cvt_ph2ps(const SIMD_Vector<S, N>& a)
 	{
 		using T = SIMD_Vector<float, N>;
 		constexpr auto c = capabilities::current;
@@ -1806,7 +1806,7 @@ namespace AVXXY_NAMESPACE
 		return sign | half_exp | half_frac;
 	}
 	template<size_t N>
-	SIMD_Vector<uint16_t, N> vec_cvt_ps2ph(const SIMD_Vector<float, N>& a)
+	__forceinline SIMD_Vector<uint16_t, N> vec_cvt_ps2ph(const SIMD_Vector<float, N>& a)
 	{
 		using T = SIMD_Vector<float, N>;
 		constexpr auto c = capabilities::current;

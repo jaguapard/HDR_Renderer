@@ -31,7 +31,7 @@ public:
 	__forceinline bob::Vec4_f32x16 operator*(const bob::Vec4_f32x16& v) const
 	{
 		bob::Vec4_f32x16 ret = 0;
-		AVXXY_NAMESPACE::f32x16 mat = _mm512_loadu_ps(this);
+		AVXXY_NAMESPACE::f32x16 mat = AVXXY_NAMESPACE::load<AVXXY_NAMESPACE::f32x16>(this);
 		for (int i = 0; i < 4; ++i)
 		{
 			for (int j = 0; j < 4; ++j)
