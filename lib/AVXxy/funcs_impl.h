@@ -1855,12 +1855,11 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (inRange(sizeof(T), 0, 16) && c.AVX512.VL && c.AVX512.VBMI2 && sizeof(S) == 1) return _mm_mask_compress_epi8(src, mask, a);
 		else //Can't be just recursively split into halves. Scalar fallback TODO: implement faster version if possible
 		{
-			SIMD_Vector<S, N> ret;
+			SIMD_Vector<S, N> ret = src;
 			size_t j = 0;
 			for (size_t i = 0; i < N; ++i)
 			{
 				if (mask[i]) ret[j++] = a[i];
-				else ret[i] = src[i];
 			}
 			return ret;
 		}
