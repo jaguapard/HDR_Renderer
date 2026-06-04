@@ -1580,35 +1580,54 @@ namespace AVXXY_NAMESPACE
 	__forceinline SIMD_Vector<S, N> unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(unpackhi(a.lo, b.lo), unpackhi(a.hi, b.hi)); //TODO: verify
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm512_unpackhi_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm512_unpackhi_ps(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_unpackhi_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_unpackhi_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_unpackhi_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_unpackhi_epi8(a, b);
+			if constexpr (sizeof(T) > 64) return concat(unpackhi(a.lo, b.lo), unpackhi(a.hi, b.hi)); //TODO: verify
+			else if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm512_unpackhi_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm512_unpackhi_ps(a, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm512_unpackhi_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm512_unpackhi_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm512_unpackhi_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm512_unpackhi_epi8(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm256_unpackhi_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm256_unpackhi_ps(a, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_unpackhi_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_unpackhi_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_unpackhi_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_unpackhi_epi8(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_unpackhi_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm_unpackhi_ps(a, b);
+				if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_unpackhi_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_unpackhi_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_unpackhi_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_unpackhi_epi8(a, b);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm256_unpackhi_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm256_unpackhi_ps(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm256_unpackhi_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm256_unpackhi_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm256_unpackhi_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm256_unpackhi_epi8(a, b);
+			T ret;
+			constexpr size_t pairs_per_xmm = 8 / sizeof(S); //8, since unpack only processes lower/upper half of each input
+			constexpr size_t elements_per_xmm = 16 / sizeof(S); //how much elements of type S fit into one 128 bit lane
+			constexpr size_t xmm_count = sizeof(ret) / 16;
+			for (size_t xmm_i = 0; xmm_i < xmm_count; ++xmm_i) //for each 128-bit lane
+			{
+				for (size_t i = 0; i < elements_per_xmm; i += 2)
+				{
+					size_t srcI = xmm_i * elements_per_xmm + i / 2 + elements_per_xmm / 2;
+					ret[xmm_i * elements_per_xmm + i] = a[srcI];
+					ret[xmm_i * elements_per_xmm + i + 1] = b[srcI];
+				}
+			}
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_same_v<S, double>) return _mm_unpackhi_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm_unpackhi_ps(a, b);
-			if constexpr (std::is_same_v<S, int64_t> || std::is_same_v<S, uint64_t>) return _mm_unpackhi_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t> || std::is_same_v<S, uint32_t>) return _mm_unpackhi_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t> || std::is_same_v<S, uint16_t>) return _mm_unpackhi_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t> || std::is_same_v<S, uint8_t>) return _mm_unpackhi_epi8(a, b);
-		}
-		else static_assert(always_false_v<S>, "unpackhi");
 	}
 
 	template<typename S, size_t N>
