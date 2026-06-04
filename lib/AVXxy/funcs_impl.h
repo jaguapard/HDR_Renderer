@@ -1409,94 +1409,110 @@ namespace AVXXY_NAMESPACE
 	__forceinline SIMD_Vector<S, N> min(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(min(a.lo, b.lo), min(a.hi, b.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm512_min_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm512_min_ps(a, b);
-			if constexpr (std::is_same_v<S, uint64_t>) return _mm512_min_epu64(a, b);
-			if constexpr (std::is_same_v<S, uint32_t>) return _mm512_min_epu32(a, b);
-			if constexpr (std::is_same_v<S, uint16_t>) return _mm512_min_epu16(a, b);
-			if constexpr (std::is_same_v<S, uint8_t>) return _mm512_min_epu8(a, b);
-			if constexpr (std::is_same_v<S, int64_t>) return _mm512_min_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t>) return _mm512_min_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t>) return _mm512_min_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t>) return _mm512_min_epi8(a, b);
+			if constexpr (sizeof(T) > 64) return concat(min(a.lo, b.lo), min(a.hi, b.hi));
+			else if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm512_min_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm512_min_ps(a, b);
+				if constexpr (std::is_same_v<S, uint64_t>) return _mm512_min_epu64(a, b);
+				if constexpr (std::is_same_v<S, uint32_t>) return _mm512_min_epu32(a, b);
+				if constexpr (std::is_same_v<S, uint16_t>) return _mm512_min_epu16(a, b);
+				if constexpr (std::is_same_v<S, uint8_t>) return _mm512_min_epu8(a, b);
+				if constexpr (std::is_same_v<S, int64_t>) return _mm512_min_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t>) return _mm512_min_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t>) return _mm512_min_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t>) return _mm512_min_epi8(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm256_min_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm256_min_ps(a, b);
+				if constexpr (std::is_same_v<S, uint64_t>) return _mm256_min_epu64(a, b);
+				if constexpr (std::is_same_v<S, uint32_t>) return _mm256_min_epu32(a, b);
+				if constexpr (std::is_same_v<S, uint16_t>) return _mm256_min_epu16(a, b);
+				if constexpr (std::is_same_v<S, uint8_t>) return _mm256_min_epu8(a, b);
+				if constexpr (std::is_same_v<S, int64_t>) return _mm256_min_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t>) return _mm256_min_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t>) return _mm256_min_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t>) return _mm256_min_epi8(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_min_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm_min_ps(a, b);
+				if constexpr (std::is_same_v<S, uint64_t>) return _mm_min_epu64(a, b);
+				if constexpr (std::is_same_v<S, uint32_t>) return _mm_min_epu32(a, b);
+				if constexpr (std::is_same_v<S, uint16_t>) return _mm_min_epu16(a, b);
+				if constexpr (std::is_same_v<S, uint8_t>) return _mm_min_epu8(a, b);
+				if constexpr (std::is_same_v<S, int64_t>) return _mm_min_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t>) return _mm_min_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t>) return _mm_min_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t>) return _mm_min_epi8(a, b);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm256_min_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm256_min_ps(a, b);
-			if constexpr (std::is_same_v<S, uint64_t>) return _mm256_min_epu64(a, b);
-			if constexpr (std::is_same_v<S, uint32_t>) return _mm256_min_epu32(a, b);
-			if constexpr (std::is_same_v<S, uint16_t>) return _mm256_min_epu16(a, b);
-			if constexpr (std::is_same_v<S, uint8_t>) return _mm256_min_epu8(a, b);
-			if constexpr (std::is_same_v<S, int64_t>) return _mm256_min_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t>) return _mm256_min_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t>) return _mm256_min_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t>) return _mm256_min_epi8(a, b);
+			T ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = std::min(a[i], b[i]);
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_same_v<S, double>) return _mm_min_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm_min_ps(a, b);
-			if constexpr (std::is_same_v<S, uint64_t>) return _mm_min_epu64(a, b);
-			if constexpr (std::is_same_v<S, uint32_t>) return _mm_min_epu32(a, b);
-			if constexpr (std::is_same_v<S, uint16_t>) return _mm_min_epu16(a, b);
-			if constexpr (std::is_same_v<S, uint8_t>) return _mm_min_epu8(a, b);
-			if constexpr (std::is_same_v<S, int64_t>) return _mm_min_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t>) return _mm_min_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t>) return _mm_min_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t>) return _mm_min_epi8(a, b);
-		}
-		else static_assert(always_false_v<S>, "min");
 	}
 
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> max(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using T = SIMD_Vector<S, N>;
-		if constexpr (sizeof(T) > 64) return concat(max(a.lo, b.lo), max(a.hi, b.hi));
-		else if constexpr (inRange(sizeof(T), 33, 64))
+		if constexpr (capabilities::current == capabilities::zen4)
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm512_max_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm512_max_ps(a, b);
-			if constexpr (std::is_same_v<S, uint64_t>) return _mm512_max_epu64(a, b);
-			if constexpr (std::is_same_v<S, uint32_t>) return _mm512_max_epu32(a, b);
-			if constexpr (std::is_same_v<S, uint16_t>) return _mm512_max_epu16(a, b);
-			if constexpr (std::is_same_v<S, uint8_t>) return _mm512_max_epu8(a, b);
-			if constexpr (std::is_same_v<S, int64_t>) return _mm512_max_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t>) return _mm512_max_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t>) return _mm512_max_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t>) return _mm512_max_epi8(a, b);
+			if constexpr (sizeof(T) > 64) return concat(max(a.lo, b.lo), max(a.hi, b.hi));
+			else if constexpr (inRange(sizeof(T), 33, 64))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm512_max_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm512_max_ps(a, b);
+				if constexpr (std::is_same_v<S, uint64_t>) return _mm512_max_epu64(a, b);
+				if constexpr (std::is_same_v<S, uint32_t>) return _mm512_max_epu32(a, b);
+				if constexpr (std::is_same_v<S, uint16_t>) return _mm512_max_epu16(a, b);
+				if constexpr (std::is_same_v<S, uint8_t>) return _mm512_max_epu8(a, b);
+				if constexpr (std::is_same_v<S, int64_t>) return _mm512_max_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t>) return _mm512_max_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t>) return _mm512_max_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t>) return _mm512_max_epi8(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 17, 32))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm256_max_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm256_max_ps(a, b);
+				if constexpr (std::is_same_v<S, uint64_t>) return _mm256_max_epu64(a, b);
+				if constexpr (std::is_same_v<S, uint32_t>) return _mm256_max_epu32(a, b);
+				if constexpr (std::is_same_v<S, uint16_t>) return _mm256_max_epu16(a, b);
+				if constexpr (std::is_same_v<S, uint8_t>) return _mm256_max_epu8(a, b);
+				if constexpr (std::is_same_v<S, int64_t>) return _mm256_max_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t>) return _mm256_max_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t>) return _mm256_max_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t>) return _mm256_max_epi8(a, b);
+			}
+			else if constexpr (inRange(sizeof(T), 0, 16))
+			{
+				if constexpr (std::is_same_v<S, double>) return _mm_max_pd(a, b);
+				if constexpr (std::is_same_v<S, float>) return _mm_max_ps(a, b);
+				if constexpr (std::is_same_v<S, uint64_t>) return _mm_max_epu64(a, b);
+				if constexpr (std::is_same_v<S, uint32_t>) return _mm_max_epu32(a, b);
+				if constexpr (std::is_same_v<S, uint16_t>) return _mm_max_epu16(a, b);
+				if constexpr (std::is_same_v<S, uint8_t>) return _mm_max_epu8(a, b);
+				if constexpr (std::is_same_v<S, int64_t>) return _mm_max_epi64(a, b);
+				if constexpr (std::is_same_v<S, int32_t>) return _mm_max_epi32(a, b);
+				if constexpr (std::is_same_v<S, int16_t>) return _mm_max_epi16(a, b);
+				if constexpr (std::is_same_v<S, int8_t>) return _mm_max_epi8(a, b);
+			}
 		}
-		else if constexpr (inRange(sizeof(T), 17, 32))
+		else
 		{
-			if constexpr (std::is_same_v<S, double>) return _mm256_max_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm256_max_ps(a, b);
-			if constexpr (std::is_same_v<S, uint64_t>) return _mm256_max_epu64(a, b);
-			if constexpr (std::is_same_v<S, uint32_t>) return _mm256_max_epu32(a, b);
-			if constexpr (std::is_same_v<S, uint16_t>) return _mm256_max_epu16(a, b);
-			if constexpr (std::is_same_v<S, uint8_t>) return _mm256_max_epu8(a, b);
-			if constexpr (std::is_same_v<S, int64_t>) return _mm256_max_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t>) return _mm256_max_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t>) return _mm256_max_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t>) return _mm256_max_epi8(a, b);
+			T ret;
+			for (size_t i = 0; i < N; ++i) ret[i] = std::max(a[i], b[i]);
+			return ret;
 		}
-		else if constexpr (inRange(sizeof(T), 0, 16))
-		{
-			if constexpr (std::is_same_v<S, double>) return _mm_max_pd(a, b);
-			if constexpr (std::is_same_v<S, float>) return _mm_max_ps(a, b);
-			if constexpr (std::is_same_v<S, uint64_t>) return _mm_max_epu64(a, b);
-			if constexpr (std::is_same_v<S, uint32_t>) return _mm_max_epu32(a, b);
-			if constexpr (std::is_same_v<S, uint16_t>) return _mm_max_epu16(a, b);
-			if constexpr (std::is_same_v<S, uint8_t>) return _mm_max_epu8(a, b);
-			if constexpr (std::is_same_v<S, int64_t>) return _mm_max_epi64(a, b);
-			if constexpr (std::is_same_v<S, int32_t>) return _mm_max_epi32(a, b);
-			if constexpr (std::is_same_v<S, int16_t>) return _mm_max_epi16(a, b);
-			if constexpr (std::is_same_v<S, int8_t>) return _mm_max_epi8(a, b);
-		}
-		else static_assert(always_false_v<S>, "max");
 	}
 
 	template<typename S, size_t N>
