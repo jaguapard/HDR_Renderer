@@ -178,7 +178,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	int w = settings.outputTextureW;
 	int h = settings.outputTextureH;
-	uint64_t skyColorFP16 = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_TO_NEAREST_INT), 0);
+	uint64_t skyColorFP16 = reinterpret<uint64_t>(vec_cvt_ps2ph(load<f32x4>(&this->skyColor)));
 	this->depthBufMain.resize(w, h);
 	this->triangleIndexBuf.resize(w, h);
 	this->frameBuf = Buffer<uint64_t>((uint64_t*)this->currGs->graphicsOutputBuffer, w, h, skyColorFP16);
