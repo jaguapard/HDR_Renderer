@@ -60,18 +60,11 @@ __forceinline __m512i _mm512_setr_epi16(int16_t i0, int16_t i1, int16_t i2, int1
 }
 #endif
 
-__forceinline void interleaved_ph_to_ps(__m512i inp, __m512& retLow, __m512& retHigh)
-{
-	int32x16 x = _mm512_permutexvar_epi16(_mm512_setr_epi16(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31), inp);
-	retLow = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(x, 0));
-	retHigh = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(x, 1));
-}
-
 __forceinline void interleaved_ph_to_ps(__m512i inp, float32x16& retLow, float32x16& retHigh)
 {
-	int32x16 x = _mm512_permutexvar_epi16(_mm512_setr_epi16(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31), inp);
-	retLow = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(x, 0));
-	retHigh = _mm512_cvtph_ps(_mm512_extracti32x8_epi32(x, 1));
+	u16x32 x = permx(u16x32(inp), u16x32(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31));
+	retLow = vec_cvt_ph2ps(x.lo);
+	retHigh = vec_cvt_ph2ps(x.hi);
 }
 
 //Returns 64 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 000011112222...dddd
@@ -87,7 +80,7 @@ __forceinline __m512i helper_mm512_setr_epi8(int8_t i0, int8_t i1, int8_t i2, in
 	return _mm512_set_epi8(i63, i62, i61, i60, i59, i58, i57, i56, i55, i54, i53, i52, i51, i50, i49, i48, i47, i46, i45, i44, i43, i42, i41, i40, i39, i38, i37, i36, i35, i34, i33, i32, i31, i30, i29, i28, i27, i26, i25, i24, i23, i22, i21, i20, i19, i18, i17, i16, i15, i14, i13, i12, i11, i10, i9, i8, i7, i6, i5, i4, i3, i2, i1, i0);
 }
 
-//Returns 64 bit mask that has all bits of m duplicated three times, i.e: mask with bits 0123456789abcd will become 000111222...ddd. Returned mask's bits 48-63 are set to zero
+//Returns 64 bit mask that has all bits of m duplicated three times, i.e: mask with bits 0123456789abcdef will become 000111222...eeefff. Returned mask's bits 48-63 are set to zero
 __forceinline __mmask64 duplicate_mmask_bits_16_to_48(__mmask16 m)
 {
 	__m512i a = _mm512_movm_epi32(m);
@@ -99,7 +92,7 @@ __forceinline __mmask64 duplicate_mmask_bits_16_to_48(__mmask16 m)
 	return _mm512_movepi8_mask(b);*/
 }
 
-//Returns 32 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 001122...dd
+//Returns 32 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcdef will become 001122...ddeeff
 __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
 {
 	__m256i a = _mm256_movm_epi16(m);
