@@ -6,18 +6,18 @@ void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack
 	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
 	//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
 	//Second - 4-7, third - 8-11, fourth - 12-15
-	__m256i ph_r = _mm512_cvtps_ph(pack.r, _MM_FROUND_TO_NEAREST_INT);
-	__m256i ph_g = _mm512_cvtps_ph(pack.g, _MM_FROUND_TO_NEAREST_INT);
-	__m256i ph_b = _mm512_cvtps_ph(pack.b, _MM_FROUND_TO_NEAREST_INT);
-	__m256i ph_a = _mm512_cvtps_ph(pack.a, _MM_FROUND_TO_NEAREST_INT);
+	u16x16 ph_r = vec_cvt_ps2ph(pack.r);
+	u16x16 ph_g = vec_cvt_ps2ph(pack.g);
+	u16x16 ph_b = vec_cvt_ps2ph(pack.b);
+	u16x16 ph_a = vec_cvt_ps2ph(pack.a);
 	for (int i = 0; i < 16; i += 4)
 	{
-		__m256i rg_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0));
-		__m256i ba_ind = _mm256_add_epi16(_mm256_set1_epi16(i), _mm256_setr_epi16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19));
-		__m256i rgxx = _mm256_permutex2var_epi16(ph_r, rg_ind, ph_g);
-		__m256i xxba = _mm256_permutex2var_epi16(ph_b, ba_ind, ph_a);
-		__m256i rgba = _mm256_mask_mov_epi16(rgxx, 0b1100110011001100, xxba);
-		_mm256_mask_storeu_epi64((int64_t*)frameBuffer + y * w + x + i, mask >> i, rgba);
+		u16x16 rg_ind = u16x16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0) + i;
+		u16x16 ba_ind = u16x16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19) + i;
+		u16x16 rgxx = permx2(ph_r, rg_ind, ph_g);
+		u16x16 xxba = permx2(ph_b, ba_ind, ph_a);
+		u16x16 rgba = mask_mov(rgxx, 0b1100110011001100, xxba);
+		store(reinterpret<u64x4>(rgba), (int64_t*)frameBuffer + y * w + x + i, mask >> i);
 	}
 }
 
