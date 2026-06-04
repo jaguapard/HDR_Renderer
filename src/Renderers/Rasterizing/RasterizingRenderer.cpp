@@ -927,8 +927,6 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
 				float32x16 zInv = float32x16(this->currGs->cameraPlane_zDist) / sunWorldPositions.z;
 				Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
-				//sunScreenPositions.x = _mm512_roundscale_ps(sunScreenPositions.x, _MM_FROUND_TO_NEAREST_INT);
-				//sunScreenPositions.y = _mm512_roundscale_ps(sunScreenPositions.y, _MM_FROUND_TO_NEAREST_INT);
 				sunScreenPositions.z = zInv;
 				float smapW = currentShadowMap.renderW, smapH = currentShadowMap.renderH;
 
@@ -1005,9 +1003,6 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			{
 				texturePixels[i] = mask_mov(texturePixels[i], filledPixels, texturePixels[i] * (shadowMult * normalShadingMult + this->ambientLightIntensity));//unfilled pixels (sky) is invulnerable to lighting!
 			}
-			/*
-			for (int i = 0; i < 3; ++i) totalLight[i] *= shadowMult;//_mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
-			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!*/
 			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
 		}
 	}

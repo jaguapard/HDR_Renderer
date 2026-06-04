@@ -295,7 +295,6 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					float32x16 normalShadingMult = max(f32x16(0), hits.normals.dot3d(lightDir));
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
 					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true, threadIndexFake);
-					//float32x16 shadowMult = _mm512_maskz_mov_ps(~shadowTrace.raysHit, float32x16(1));
 					float32x16 totalMult = ambientLightIntensity + maskz_mov(~shadowTrace.raysHit, normalShadingMult);
 					for (int i = 0; i < 3; ++i)
 					{
