@@ -771,9 +771,9 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					//this branch may acually be slower than just letting 0 entries get written to scavenger. The scavenger does prevent execution falling through further already
 					//if (!pointsInsideTriangleMask) continue;
 
-					float32x16 cx = _mm512_maskz_compress_ps(pointsInsideTriangleMask, x);
-					float32x16 cy = _mm512_maskz_compress_ps(pointsInsideTriangleMask, y);
-					int32x16 ci = _mm512_maskz_compress_epi32(pointsInsideTriangleMask, _mm512_set1_epi32(i));
+					float32x16 cx = compress(pointsInsideTriangleMask, x);
+					float32x16 cy = compress(pointsInsideTriangleMask, y);
+					int32x16 ci = compress(pointsInsideTriangleMask, i32x16(i));
 					store(cx, &scavenger.x[scavenger.size]);
 					store(cy, &scavenger.y[scavenger.size]);
 					store(ci, &scavenger.inBatchInd[scavenger.size]);

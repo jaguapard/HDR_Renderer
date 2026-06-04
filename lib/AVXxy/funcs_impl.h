@@ -1824,6 +1824,49 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
+	SIMD_Vector<S, N> compress(const typename SIMD_Vector<S, N>::MaskType& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src)
+	{
+		using T = SIMD_Vector<S, N>;
+		constexpr auto c = capabilities::current;
+		/*
+		constexpr bool simple512 = sizeof(T) > 32 && c.AVX512.F && sizeof(S) >= 4;
+		constexpr bool small = sizeof(T) <= 32 && c.AVX512.VL && c.AVX512.F && sizeof(S) >= 4;
+		constexpr bool vbmi2 = sizeof(T) > 32 && c.AVX512.VBMI2 && sizeof(S) <= 2);
+		constexpr bool small_vbmi2 = sizeof(T) <= 32 && c.AVX512.VL && c.AVX512.VBMI2 && sizeof(S) <= 2);
+		constexpr bool hasVectorVersion = simple512 || small || vbmi2 || small_vbmi2;*/
+
+		if constexpr (inRange(sizeof(T), 33, 64) && c.AVX512.F && std::is_same_v<S, double>) return _mm512_mask_compress_pd(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 33, 64) && c.AVX512.F && std::is_same_v<S, float>) return _mm512_mask_compress_ps(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 33, 64) && c.AVX512.F && sizeof(S) == 8) return _mm512_mask_compress_epi64(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 33, 64) && c.AVX512.F && sizeof(S) == 4) return _mm512_mask_compress_epi32(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 33, 64) && c.AVX512.VBMI2 && sizeof(S) == 2) return _mm512_mask_compress_epi16(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 33, 64) && c.AVX512.VBMI2 && sizeof(S) == 1) return _mm512_mask_compress_epi8(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 17, 32) && c.AVX512.VL && c.AVX512.F && std::is_same_v<S, double>) return _mm256_mask_compress_pd(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 17, 32) && c.AVX512.VL && c.AVX512.F && std::is_same_v<S, float>) return _mm256_mask_compress_ps(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 17, 32) && c.AVX512.VL && c.AVX512.F && sizeof(S) == 8) return _mm256_mask_compress_epi64(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 17, 32) && c.AVX512.VL && c.AVX512.F && sizeof(S) == 4) return _mm256_mask_compress_epi32(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 17, 32) && c.AVX512.VL && c.AVX512.VBMI2 && sizeof(S) == 2) return _mm256_mask_compress_epi16(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 17, 32) && c.AVX512.VL && c.AVX512.VBMI2 && sizeof(S) == 1) return _mm256_mask_compress_epi8(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 0, 16) && c.AVX512.VL && c.AVX512.F && std::is_same_v<S,double>) return _mm_mask_compress_pd(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 0, 16) && c.AVX512.VL && c.AVX512.F && std::is_same_v<S,float>) return _mm_mask_compress_ps(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 0, 16) && c.AVX512.VL && c.AVX512.F && sizeof(S) == 8) return _mm_mask_compress_epi64(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 0, 16) && c.AVX512.VL && c.AVX512.F && sizeof(S) == 4) return _mm_mask_compress_epi32(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 0, 16) && c.AVX512.VL && c.AVX512.VBMI2 && sizeof(S) == 2) return _mm_mask_compress_epi16(src, mask, a);
+		else if constexpr (inRange(sizeof(T), 0, 16) && c.AVX512.VL && c.AVX512.VBMI2 && sizeof(S) == 1) return _mm_mask_compress_epi8(src, mask, a);
+		else //Can't be just recursively split into halves. Scalar fallback TODO: implement faster version if possible
+		{
+			SIMD_Vector<S, N> ret;
+			size_t j = 0;
+			for (size_t i = 0; i < N; ++i)
+			{
+				if (mask[i]) ret[j++] = a[i];
+				else ret[i] = src[i];
+			}
+			return ret;
+		}
+	}
+
+	template<typename S, size_t N>
 		requires (N <= 64)
 	__forceinline typename SIMD_Vector<S, N>::MaskType cmp_less(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
