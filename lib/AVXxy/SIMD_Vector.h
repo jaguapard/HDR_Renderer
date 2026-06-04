@@ -2,12 +2,15 @@
 #include "namespace.h"
 #include "SIMD_Mask.h"
 #include "infer.h"
+#include "utils.h"
+
 namespace AVXXY_NAMESPACE
 {
 	template <typename T, typename... Ts>
 	inline constexpr bool is_any_of_v =
 		(std::is_same_v<T, Ts> || ...);
 
+	using namespace utils;
 	template<typename T> concept IsScalarType = is_any_of_v<T, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float, double>;
 	template<typename T> concept IsIntrinsicVector = is_any_of_v<T, __m128i, __m128, __m128d, __m256i, __m256, __m256d, __m512i, __m512, __m512d>;
 	template<typename _S, size_t _N> concept IsValid_SIMD_Vector = _N <= 64 && isPowerOf2(_N) && IsScalarType<_S>; //for now, bigger than 64 lanes vectors are not supported (mainly due to mask type not being ready for it)

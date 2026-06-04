@@ -58,6 +58,13 @@ namespace AVXXY_NAMESPACE
 			*this = *this ^ other;
 			return *this;
 		}
+
+		void setBit(size_t i, bool bit = true)
+		{
+			bits &= ~(UintType(1) << i);
+			bits |= UintType(bit) << i;
+			bits &= AllOnes; //avoid putting garbage int upper bits
+		}
 	private:
 		UintType bits;
 	};

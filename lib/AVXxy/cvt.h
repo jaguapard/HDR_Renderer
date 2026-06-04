@@ -7,6 +7,7 @@ namespace AVXXY_NAMESPACE
 	//Various internal functions of the library that are not meant to be used by the users.
 	namespace internals
 	{
+		using namespace utils;
 		//This function is used internally and lacks upstream input sanitization. If you're looking for vector conversions, use vec_cvt instead
 		template<typename To, size_t N, typename From>
 		__forceinline SIMD_Vector<To, N> zmm_cvt(const SIMD_Vector<From, N>& value)
