@@ -74,7 +74,7 @@ float32x16 MipLevel::gatherA(const float32x16& u, const float32x16& v, Mask16 ma
     int32x16 shifts = ind & 31;
     int32x16 gathered = gather<i32x16>(this->opacityMap.data(), gatherInd, mask);
     gathered &= int32x16(1) << shifts;
-    return _mm512_mask_mov_ps(float32x16(0.f), gathered != 0, float32x16(1.f));
+    return mask_mov(float32x16(0.f), gathered != 0, float32x16(1.f));
 }
 
 
@@ -110,7 +110,7 @@ Texture::Texture(const SDL_Surface* s)
                         int32x16 dstB = (srcUint32 >> 16) & 0xFF;
                         int32x16 dstA = (srcUint32 >> 24) & 0xFF;
                         int32x16 dstFull = dstR | (dstG << 8) | (dstB << 16) | (dstA << 24);
-                        _mm512_mask_storeu_epi32(&this->mipLevels[0].colors[y * w + x], boundsMask, dstFull);
+                        store(dstFull, &this->mipLevels[0].colors[y * w + x], boundsMask);
                     }
                 }
             }
@@ -122,8 +122,8 @@ Texture::Texture(const SDL_Surface* s)
         {
             Mask16 boundsMask1 = (int32x16::sequence() + i) < totalPixels;
             Mask16 boundsMask2 = (int32x16::sequence() + i + 16) < totalPixels;
-            int32x16 packed1 = _mm512_maskz_loadu_epi32(boundsMask1, &this->mipLevels[0].colors[i]);
-            int32x16 packed2 = _mm512_maskz_loadu_epi32(boundsMask2, &this->mipLevels[0].colors[i + 16]);
+            i32x16 packed1 = load<i32x16>(&this->mipLevels[0].colors[i], boundsMask1);
+            i32x16 packed2 = load<i32x16>(&this->mipLevels[0].colors[i+16], boundsMask2);
             Vec4_f32x16 p1, p2;
             p1 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed1);
             p2 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed2);
