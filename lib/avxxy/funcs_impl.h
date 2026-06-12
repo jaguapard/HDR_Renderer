@@ -121,7 +121,7 @@ namespace AVXXY_NAMESPACE
 	{
 		return AVXXY_NAMESPACE::max(min, AVXXY_NAMESPACE::min(val, max));
 	}
-	
+
 	template<typename T, typename S, size_t N>
 	//	requires (T::IsSimdVector)
 	inline T vcast(const SIMD_Vector<S, N>& value)
@@ -152,7 +152,7 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	inline SIMD_Vector<S, N> load(const void* p, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& src)
 	{
-		return internals::DefaultDispatcher::run(internals::op_load<S,N>{}, p, mask, src);
+		return internals::DefaultDispatcher::run(internals::op_load<S, N>{}, p, mask, src);
 	}
 
 	template<typename S, size_t N>
@@ -174,54 +174,54 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	inline SIMD_BitMask<N> AVXXY_NAMESPACE::cmp_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	inline SIMD_BitMask<N> cmp_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		return internals::DefaultDispatcher::run(internals::op_cmpeq{}, a, b);
 	}
 	template<typename S, size_t N>
-	inline SIMD_BitMask<N> AVXXY_NAMESPACE::cmp_not_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	inline SIMD_BitMask<N> cmp_not_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		return internals::DefaultDispatcher::run(internals::op_cmpneq{}, a, b);
 	}
 	template<typename S, size_t N>
-	inline SIMD_BitMask<N> AVXXY_NAMESPACE::cmp_less(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	inline SIMD_BitMask<N> cmp_less(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		return internals::DefaultDispatcher::run(internals::op_cmplt{}, a, b);
 	}
 	template<typename S, size_t N>
-	inline SIMD_BitMask<N> AVXXY_NAMESPACE::cmp_less_or_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	inline SIMD_BitMask<N> cmp_less_or_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		return internals::DefaultDispatcher::run(internals::op_cmple{}, a, b);
 	}
 	template<typename S, size_t N>
-	inline SIMD_BitMask<N> AVXXY_NAMESPACE::cmp_greater(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	inline SIMD_BitMask<N> cmp_greater(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		return internals::DefaultDispatcher::run(internals::op_cmpgt{}, a, b);
 	}
 	template<typename S, size_t N>
-	inline SIMD_BitMask<N> AVXXY_NAMESPACE::cmp_greater_or_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	inline SIMD_BitMask<N> cmp_greater_or_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		return internals::DefaultDispatcher::run(internals::op_cmpge{}, a, b);
 	}
 
 	template<typename S, size_t N>
-	inline SIMD_Vector<S, N> AVXXY_NAMESPACE::unpacklo(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	inline SIMD_Vector<S, N> unpacklo(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		return internals::DefaultDispatcher::run(internals::op_unpacklo{}, a, b);
 	}
 	template<typename S, size_t N>
-	inline SIMD_Vector<S, N> AVXXY_NAMESPACE::unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	inline SIMD_Vector<S, N> unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		return internals::DefaultDispatcher::run(internals::op_unpackhi{}, a, b);
 	}
 
 	template<typename S, size_t N>
-	inline SIMD_Vector<float, N> AVXXY_NAMESPACE::vcvt_fp16_fp32(const SIMD_Vector<uint16_t, N>& a)
+	inline SIMD_Vector<float, N> vcvt_fp16_fp32(const SIMD_Vector<uint16_t, N>& a)
 	{
 		return internals::DefaultDispatcher::run(internals::op_fp16_to_fp32{}, a);
 	}
 	template<typename S, size_t N>
-	inline SIMD_Vector<uint16_t, N> AVXXY_NAMESPACE::vcvt_fp32_fp16(const SIMD_Vector<float, N>& a)
+	inline SIMD_Vector<uint16_t, N> vcvt_fp32_fp16(const SIMD_Vector<float, N>& a)
 	{
 		return internals::DefaultDispatcher::run(internals::op_fp32_to_fp16{}, a);
 	}
