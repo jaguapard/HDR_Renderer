@@ -3,12 +3,14 @@
 #include "../tags.h"
 #include "../SIMD_BitMask.h"
 #include "../SIMD_Vector.h"
+#include "../FeatureSet.h"
 namespace AVXXY_NAMESPACE
 {
 	namespace internals
 	{
 		namespace ISA
 		{
+			template<internals::FeatureSet FS>
 			struct Scalar
 			{
 				template<typename S, size_t N>
