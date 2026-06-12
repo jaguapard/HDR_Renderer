@@ -312,7 +312,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					u16x16 fp16_rg = permx2(fp16_r, u16x16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0) + packY * 4, fp16_g);
 					u16x16 fp16_ba = permx2(fp16_b, u16x16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19) + packY * 4, fp16_a);
 					u16x16 toStore = mask_mov(fp16_rg, 0b1100110011001100, fp16_ba);
-					store(reinterpret<u64x4>(toStore), (uint64_t*)(settings.graphicsOutputBuffer) + (yStart + packY) * bufW + xInt, bounds >> 4 * packY);
+					store(vcast<u64x4>(toStore), (uint64_t*)(settings.graphicsOutputBuffer) + (yStart + packY) * bufW + xInt, bounds >> 4 * packY);
 				}
 			}
 		};

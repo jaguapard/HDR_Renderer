@@ -37,7 +37,7 @@ int32x16 WrappingMapper::wrapPositiveIntWithRcp(u32x16 x, uint64_t rcp, uint32_t
 	auto x64 = vcvt<uint64_t>(x);
 	auto div = (x64 * rcp) >> 32;
 	auto rem = x64 - (div * v);
-	return permx2(reinterpret<u32x16>(rem.lo), u32x16(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30), reinterpret<u32x16>(rem.hi));
+	return permx2(vcast<u32x16>(rem.lo), u32x16(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30), vcast<u32x16>(rem.hi));
 }
 
 std::pair<float, float> WrappingMapper::wrapUV(float u, float v)
