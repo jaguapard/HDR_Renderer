@@ -33,10 +33,10 @@ Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* fra
 	u16x32 b0_15_a0_15_ph = permx2(rgba0_7, u16x32(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63), rgba8_15);
 
 	Vec4_f32x16 ret;
-	ret.r = vec_cvt_ph2ps(r0_15_g0_15_ph.lo);
-	ret.g = vec_cvt_ph2ps(r0_15_g0_15_ph.hi);
-	ret.b = vec_cvt_ph2ps(b0_15_a0_15_ph.lo);
-	ret.a = vec_cvt_ph2ps(b0_15_a0_15_ph.hi);
+	ret.r = vcvt_fp16_fp32(r0_15_g0_15_ph.lo);
+	ret.g = vcvt_fp16_fp32(r0_15_g0_15_ph.hi);
+	ret.b = vcvt_fp16_fp32(b0_15_a0_15_ph.lo);
+	ret.a = vcvt_fp16_fp32(b0_15_a0_15_ph.hi);
 	return ret;
 }
 
