@@ -2,6 +2,8 @@
 #include <bob/Vec2.h>
 #include <bob/SSE_Vec4.h>
 #include <bob/VectorPack.h>
+#undef min
+#undef max
 #include <AVXxy/AVXxy.h>
 
 //typedef bob::_Vec2<double, double> Vec2d;
