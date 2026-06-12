@@ -102,7 +102,7 @@ Texture::Texture(const SDL_Surface* s)
                     for (int x = 0; x < w; x += 16)
                     {
                         //alpha is binary, all values above 0 considered fully opaque. TODO: when implementing transparency, change this
-                        Mask16 boundsMask = (int32x16::sequence() + x) < w;
+                        Mask16 boundsMask = (int32x16::iota() + x) < w;
                         int32x16 srcUint32 = load<i32x16>(srcRow + x, boundsMask);
 
                         int32x16 dstR = srcUint32 & 0xFF;
@@ -120,8 +120,8 @@ Texture::Texture(const SDL_Surface* s)
         int totalPixels = w * h;
         for (int i = 0; i < totalPixels; i += 32)
         {
-            Mask16 boundsMask1 = (int32x16::sequence() + i) < totalPixels;
-            Mask16 boundsMask2 = (int32x16::sequence() + i + 16) < totalPixels;
+            Mask16 boundsMask1 = (int32x16::iota() + i) < totalPixels;
+            Mask16 boundsMask2 = (int32x16::iota() + i + 16) < totalPixels;
             i32x16 packed1 = load<i32x16>(&this->mipLevels[0].colors[i], boundsMask1);
             i32x16 packed2 = load<i32x16>(&this->mipLevels[0].colors[i+16], boundsMask2);
             Vec4_f32x16 p1, p2;

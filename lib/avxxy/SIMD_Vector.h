@@ -34,6 +34,7 @@ namespace AVXXY_NAMESPACE
 		const ScalarType& operator[](size_t i) const { return arr[i]; }
 		ScalarType& operator[](size_t i) { return arr[i]; }
 
+		//Returns vector filled with sequential values (value == lane index, like 0, 1, 2, ..., N-1)
 		static SIMD_Vector<_S, _N> iota()
 		{
 			SIMD_Vector<_S, _N> ret;
