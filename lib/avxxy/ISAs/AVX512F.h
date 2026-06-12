@@ -85,6 +85,25 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (any_i32<S>) return _mm512_mask_loadu_epi32(src, mask, p);
 					else static_assert(always_false_v<S>);
 				}
+
+				template<typename S, size_t N>
+					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) > 32)
+				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes)
+				{
+					using namespace concepts;
+					using T = SIMD_Vector<S, N>;
+					SIMD_Vector<S, N> ret;
+					const S* sp = (const S*)p;
+					if constexpr (sizeof(T) > 64) { 
+						store(vec.lo(), p, mask.lo()); 
+						store(vec.hi(), sp + N / 2, mask.hi()); 
+					}
+					else if constexpr (is_f64<S>) return _mm512_mask_storeu_pd(p, mask, vec);
+					else if constexpr (is_f32<S>) return _mm512_mask_storeu_ps(p, mask, vec);
+					else if constexpr (any_i64<S>) return _mm512_mask_storeu_epi64(p, mask, vec);
+					else if constexpr (any_i32<S>) return _mm512_mask_storeu_epi32(p, mask, vec);
+					else static_assert(always_false_v<S>);
+				}
 			};
 		}
 	}
