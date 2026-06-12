@@ -25,12 +25,12 @@ namespace AVXXY_NAMESPACE
 	template <typename S, size_t N, typename T> __forceinline SIMD_Vector<S, N>& operator<<=(SIMD_Vector<S, N>& a, const T& b) { a = a << b; return a; }
 	template <typename S, size_t N, typename T> __forceinline SIMD_Vector<S, N>& operator>>=(SIMD_Vector<S, N>& a, const T& b) { a = a >> b; return a; }
 
-	template <typename T, typename S, size_t N> __forceinline typename SIMD_Vector<S, N>::MaskType operator==(const SIMD_Vector<S, N>& a, const T& b) { return cmp_equal(a, SIMD_Vector<S, N>(b)); }
-	template <typename T, typename S, size_t N> __forceinline typename SIMD_Vector<S, N>::MaskType operator!=(const SIMD_Vector<S, N>& a, const T& b) { return cmp_not_equal(a, SIMD_Vector<S, N>(b)); }
-	template <typename T, typename S, size_t N> __forceinline typename SIMD_Vector<S, N>::MaskType operator>(const SIMD_Vector<S, N>& a, const T& b) { return cmp_greater(a, SIMD_Vector<S, N>(b)); }
-	template <typename T, typename S, size_t N> __forceinline typename SIMD_Vector<S, N>::MaskType operator<(const SIMD_Vector<S, N>& a, const T& b) { return cmp_less(a, SIMD_Vector<S, N>(b)); }
-	template <typename T, typename S, size_t N> __forceinline typename SIMD_Vector<S, N>::MaskType operator<=(const SIMD_Vector<S, N>& a, const T& b) { return cmp_less_or_equal(a, SIMD_Vector<S, N>(b)); }
-	template <typename T, typename S, size_t N> __forceinline typename SIMD_Vector<S, N>::MaskType operator>=(const SIMD_Vector<S, N>& a, const T& b) { return cmp_greater_or_equal(a, SIMD_Vector<S, N>(b)); }
+	template <typename T, typename S, size_t N> __forceinline SIMD_BitMask<N> operator==(const SIMD_Vector<S, N>& a, const T& b) { return cmp_equal(a, SIMD_Vector<S, N>(b)); }
+	template <typename T, typename S, size_t N> __forceinline SIMD_BitMask<N> operator!=(const SIMD_Vector<S, N>& a, const T& b) { return cmp_not_equal(a, SIMD_Vector<S, N>(b)); }
+	template <typename T, typename S, size_t N> __forceinline SIMD_BitMask<N> operator>(const SIMD_Vector<S, N>& a, const T& b) { return cmp_greater(a, SIMD_Vector<S, N>(b)); }
+	template <typename T, typename S, size_t N> __forceinline SIMD_BitMask<N> operator<(const SIMD_Vector<S, N>& a, const T& b) { return cmp_less(a, SIMD_Vector<S, N>(b)); }
+	template <typename T, typename S, size_t N> __forceinline SIMD_BitMask<N> operator<=(const SIMD_Vector<S, N>& a, const T& b) { return cmp_less_or_equal(a, SIMD_Vector<S, N>(b)); }
+	template <typename T, typename S, size_t N> __forceinline SIMD_BitMask<N> operator>=(const SIMD_Vector<S, N>& a, const T& b) { return cmp_greater_or_equal(a, SIMD_Vector<S, N>(b)); }
 
 	template<typename S, size_t N> __forceinline SIMD_Vector<S, N> operator-(const SIMD_Vector<S, N>& a) { return sub(SIMD_Vector<S, N>(S(0)), a); }
 }

@@ -10,7 +10,7 @@ namespace AVXXY_NAMESPACE
 	{
 	public:
 		static_assert(N >= 2);
-		static_assert(N < 64);
+		static_assert(N <= 64);
 		static_assert(utils::isPowerOf2(N));
 
 		static inline constexpr size_t BitCount = N;
