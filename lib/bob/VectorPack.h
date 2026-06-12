@@ -520,6 +520,6 @@ namespace bob
 	}
 
 	//typedef VectorPack<float32x8> Vec4_f32x8;
-	typedef VectorPack<AVXxy::f32x16> Vec4_f32x16;
-	typedef VectorPack<AVXxy::f32x8> Vec4_f32x8;
+	typedef VectorPack<AVXXY_NAMESPACE::f32x16> Vec4_f32x16;
+	typedef VectorPack<AVXXY_NAMESPACE::f32x8> Vec4_f32x8;
 }

@@ -68,16 +68,16 @@ private:
 class alignas(64) MatrixPack16_4x4
 {
 public:
-	AVXxy::f32x16 elements[4][4];
-	static MatrixPack16_4x4 rotationX(AVXxy::f32x16 theta);
-	static MatrixPack16_4x4 rotationY(AVXxy::f32x16 theta);
-	static MatrixPack16_4x4 rotationZ(AVXxy::f32x16 theta);
+	AVXXY_NAMESPACE::f32x16 elements[4][4];
+	static MatrixPack16_4x4 rotationX(AVXXY_NAMESPACE::f32x16 theta);
+	static MatrixPack16_4x4 rotationY(AVXXY_NAMESPACE::f32x16 theta);
+	static MatrixPack16_4x4 rotationZ(AVXXY_NAMESPACE::f32x16 theta);
 	static MatrixPack16_4x4 rotationXYZ(const bob::Vec4_f32x16& angle);
 
 	//These function return very fast low quality approximations for the rotation matrices. Use only if inaccuracies don't matter
-	static MatrixPack16_4x4 fast_rotationX(AVXxy::f32x16 theta);
-	static MatrixPack16_4x4 fast_rotationY(AVXxy::f32x16 theta);
-	static MatrixPack16_4x4 fast_rotationZ(AVXxy::f32x16 theta);
+	static MatrixPack16_4x4 fast_rotationX(AVXXY_NAMESPACE::f32x16 theta);
+	static MatrixPack16_4x4 fast_rotationY(AVXXY_NAMESPACE::f32x16 theta);
+	static MatrixPack16_4x4 fast_rotationZ(AVXXY_NAMESPACE::f32x16 theta);
 	static MatrixPack16_4x4 fast_rotationXYZ(const bob::Vec4_f32x16& angle);
 
 	static MatrixPack16_4x4 identity();
