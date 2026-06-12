@@ -303,10 +303,10 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				}
 				size_t xInt = x[0];
 
-				u16x16 fp16_r = vec_cvt_ps2ph(textureColors.r);
-				u16x16 fp16_g = vec_cvt_ps2ph(textureColors.g);
-				u16x16 fp16_b = vec_cvt_ps2ph(textureColors.b);
-				u16x16 fp16_a = vec_cvt_ps2ph(textureColors.a); //TODO: can be forced to 1 and moved later
+				u16x16 fp16_r = vcvt_fp32_fp16(textureColors.r);
+				u16x16 fp16_g = vcvt_fp32_fp16(textureColors.g);
+				u16x16 fp16_b = vcvt_fp32_fp16(textureColors.b);
+				u16x16 fp16_a = vcvt_fp32_fp16(textureColors.a); //TODO: can be forced to 1 and moved later
 				for (int packY = 0; packY < 4; ++packY)
 				{
 					u16x16 fp16_rg = permx2(fp16_r, u16x16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0) + packY * 4, fp16_g);

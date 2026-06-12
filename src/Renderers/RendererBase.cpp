@@ -6,10 +6,10 @@ void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack
 	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
 	//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
 	//Second - 4-7, third - 8-11, fourth - 12-15
-	u16x16 ph_r = vec_cvt_ps2ph(pack.r);
-	u16x16 ph_g = vec_cvt_ps2ph(pack.g);
-	u16x16 ph_b = vec_cvt_ps2ph(pack.b);
-	u16x16 ph_a = vec_cvt_ps2ph(pack.a);
+	u16x16 ph_r = vcvt_fp32_fp16(pack.r);
+	u16x16 ph_g = vcvt_fp32_fp16(pack.g);
+	u16x16 ph_b = vcvt_fp32_fp16(pack.b);
+	u16x16 ph_a = vcvt_fp32_fp16(pack.a);
 	for (int i = 0; i < 16; i += 4)
 	{
 		u16x16 rg_ind = u16x16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0) + i;
@@ -44,10 +44,10 @@ Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* fra
 void RendererBase::scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, Mask16 mask, void* frameBuf, int framebufW)
 {
 	int32x16 scatterInd = y * framebufW + x;
-	u16x16 fp16_r = vec_cvt_ps2ph(colors.r);
-	u16x16 fp16_g = vec_cvt_ps2ph(colors.g);
-	u16x16 fp16_b = vec_cvt_ps2ph(colors.b);
-	u16x16 fp16_a = vec_cvt_ps2ph(colors.a); //TODO: can be forced to 1 and moved later
+	u16x16 fp16_r = vcvt_fp32_fp16(colors.r);
+	u16x16 fp16_g = vcvt_fp32_fp16(colors.g);
+	u16x16 fp16_b = vcvt_fp32_fp16(colors.b);
+	u16x16 fp16_a = vcvt_fp32_fp16(colors.a); //TODO: can be forced to 1 and moved later
 
 	u16x32 fp16_rg = concat(fp16_r, fp16_g);
 	u16x32 fp16_ba = concat(fp16_b, fp16_a);
