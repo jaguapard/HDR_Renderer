@@ -37,8 +37,8 @@ Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const u32x16& packed)
     for (int j = 0; j < 4; ++j)
     {
         //no need to change index, permutex2var already ignores upper bits.
-        u16x32 perm_rg = permx2(lut[2 * j], rg, lut[2 * j + 1]);
-        u16x32 perm_ba = permx2(lut[2 * j], ba, lut[2 * j + 1]);
+        u16x32 perm_rg = permx2(lut[2 * j], lut[2 * j + 1], rg);
+        u16x32 perm_ba = permx2(lut[2 * j], lut[2 * j + 1], ba);
 
         //only update positions that are part of this LUT slice
         int lo = j * 64, hi = lo + 64;
@@ -46,8 +46,8 @@ Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const u32x16& packed)
         fp16_ba = mask_mov(fp16_ba, ba >= lo & ba < hi, perm_ba);
     }
 
-    ret.r = vcvt_fp16_fp32(fp16_rg.lo);
-    ret.g = vcvt_fp16_fp32(fp16_rg.hi);
-    ret.b = vcvt_fp16_fp32(fp16_ba.lo);
+    ret.r = vcvt_fp16_fp32(fp16_rg.lo());
+    ret.g = vcvt_fp16_fp32(fp16_rg.hi());
+    ret.b = vcvt_fp16_fp32(fp16_ba.lo());
     return ret;
 }

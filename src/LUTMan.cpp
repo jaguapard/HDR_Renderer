@@ -19,8 +19,8 @@ float32x16 LUTMan::cos(float32x16 x)
 	float32x16 lut0 = load<f32x16>(&tables.cos_fp32[0]);
 	float32x16 lut1 = load<f32x16>(&tables.cos_fp32[16]);
 	//permutes already cut off MSB's, so we can use them without change
-	float32x16 v1 = permx2(lut0, lutIndexFirst, lut1);
-	float32x16 v2 = permx2(lut0, lutIndexSecond, lut1);
+	float32x16 v1 = permx2(lut0, lut1, lutIndexFirst);
+	float32x16 v2 = permx2(lut0, lut1, lutIndexSecond);
 	float32x16 lerpT = lutIndex - floor(lutIndex);
 	return v1 + (v2 - v1) * lerpT;
 }

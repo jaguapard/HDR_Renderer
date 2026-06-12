@@ -93,7 +93,7 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N> SIMD_Vector<S, N> unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
 
 	//Converts vector of half-precision (FP16) floating point numbers to single precision (FP32)
-	template <typename S, size_t N> SIMD_Vector<float, N> vcvt_fp16_fp32(const SIMD_Vector<uint16_t, N>& a);
+	template <size_t N> SIMD_Vector<float, N> vcvt_fp16_fp32(const SIMD_Vector<uint16_t, N>& a);
 	//Converts vector of single precision floating point numbers (FP32) to half-precision (FP16)
 	template <size_t N> SIMD_Vector<uint16_t, N> vcvt_fp32_fp16(const SIMD_Vector<float, N>& a);
 

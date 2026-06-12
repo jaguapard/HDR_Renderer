@@ -215,12 +215,12 @@ namespace AVXXY_NAMESPACE
 		return internals::DefaultDispatcher::run(internals::op_unpackhi{}, a, b);
 	}
 
-	template<typename S, size_t N>
+	template<size_t N>
 	inline SIMD_Vector<float, N> vcvt_fp16_fp32(const SIMD_Vector<uint16_t, N>& a)
 	{
 		return internals::DefaultDispatcher::run(internals::op_fp16_to_fp32{}, a);
 	}
-	template<typename S, size_t N>
+	template<size_t N>
 	inline SIMD_Vector<uint16_t, N> vcvt_fp32_fp16(const SIMD_Vector<float, N>& a)
 	{
 		return internals::DefaultDispatcher::run(internals::op_fp32_to_fp16{}, a);
