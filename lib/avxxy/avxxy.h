@@ -4,6 +4,7 @@
 #include "Dispatcher.h" //TODO: remove this from releases?
 #include "funcs.h"
 #include "funcs_impl.h"
+#include "operators.h"
 
 namespace AVXXY_NAMESPACE
 {

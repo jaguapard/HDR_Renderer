@@ -17,6 +17,7 @@ namespace AVXXY_NAMESPACE
 		using UintT = typename concepts::bits_to_uint_t<N>::type;
 		static inline constexpr UintT AllOnes = (N == sizeof(UintT) * 8) ? ~UintT(0) : ((UintT(1) << N) - 1);
 
+		SIMD_BitMask() {};
 		SIMD_BitMask(UintT value);
 
 		//Constructs mask from instrinsic vector of floating point type 

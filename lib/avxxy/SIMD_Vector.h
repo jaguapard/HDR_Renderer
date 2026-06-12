@@ -63,6 +63,9 @@ namespace AVXXY_NAMESPACE
 			return arr[1];
 		}
 
+		//Constructs this vector from other vector. If vector scalar types mismatch, the input is converted to this vector's scalar type before assignment
+		template<typename T>
+		SIMD_Vector(const SIMD_Vector<T, LaneCount>& other) { *this = vcvt<ScalarType>(other); }
 		//Broadcasts a scalar value to all lanes of a vector. The input value is converted to vector's scalar type before broadcasting
 		template<typename T> requires concepts::IsScalarType<T>
 		__forceinline SIMD_Vector(const T& s) { for (size_t i = 0; i < LaneCount; ++i) (*this)[i] = s; }

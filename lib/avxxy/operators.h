@@ -6,11 +6,7 @@ namespace AVXXY_NAMESPACE
 {
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator+(const SIMD_Vector<S, N>& a, const T& b) { return add(a, SIMD_Vector<S, N>(b)); };
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator-(const SIMD_Vector<S, N>& a, const T& b) { return sub(a, SIMD_Vector<S, N>(b)); };
-
-
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator*(const SIMD_Vector<S, N>& a, const T& b) { return mul(a, SIMD_Vector<S, N>(b)); };
-
-
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator/(const SIMD_Vector<S, N>& a, const T& b) { return div(a, SIMD_Vector<S, N>(b)); };
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator&(const SIMD_Vector<S, N>& a, const T& b) { return logic_and(a, SIMD_Vector<S, N>(b)); };
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator|(const SIMD_Vector<S, N>& a, const T& b) { return logic_or(a, SIMD_Vector<S, N>(b)); };
