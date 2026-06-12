@@ -87,6 +87,12 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
+	SIMD_Vector<S, N * 2> concat(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N>& what)
+	{
+		return { to, what };
+	}
+
+	template<typename S, size_t N>
 	SIMD_Vector<S, N> abs(const SIMD_Vector<S, N>& a)
 	{
 		return internals::DefaultDispatcher::run(internals::op_abs{}, a);

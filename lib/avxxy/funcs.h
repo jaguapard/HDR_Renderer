@@ -31,7 +31,7 @@ namespace AVXXY_NAMESPACE
 	//For integer to bigger integer conversions, the input vector is sign or zero extended, depending on input signedness
 	//For integer to smaller integer conversions, the input vector is wrapped around small integer's max value (TODO: is it true?)
 	template<typename To, size_t N, typename From> SIMD_Vector<To, N> vcvt(const SIMD_Vector<From, N>& value);
-	//template<typename S, size_t N> SIMD_Vector<S, N * 2> concat(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N>& what);
+	template<typename S, size_t N> SIMD_Vector<S, N * 2> concat(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N>& what);
 	//template<size_t N> SIMD_BitMask<N * 2> concat_masks(const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& to, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& what);
 
 	//Reinterprets value as vector of other type and returns the result.
@@ -63,7 +63,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N> void store(const SIMD_Vector<S, N>& v, void* p, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask = SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>::AllOnes);
-	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (std::is_integral_v<I> && sizeof(I) <= 8)
+	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (std::is_integral_v<I> && sizeof(I) <= 8 && concepts::IsScalarType<S>)
 		SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask = SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>::AllOnes, const SIMD_Vector<S, N>& src = 0);
 
 	template <typename T, size_t Scale = sizeof(typename T::ScalarType), typename I>
