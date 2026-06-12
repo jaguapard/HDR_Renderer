@@ -39,6 +39,7 @@ namespace AVXXY_NAMESPACE
 		{
 			SIMD_Vector<_S, _N> ret;
 			for (size_t i = 0; i < _N; ++i) ret[i] = i;
+			return ret;
 		}
 		//Copies and returns lower half of this vector
 		SIMD_Vector<ScalarType, LaneCount / 2> lo() const
