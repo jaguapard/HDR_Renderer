@@ -1,10 +1,10 @@
 #pragma once
 #include "FeatureSet.h"
 #include <tuple>
-#include "ISAs/scalar.h"
-#include "ISAs/AVX512F.h"
-#include "ISAs/AVX512BW.h"
-#include "ISAs/AVX512VL.h"
+#include "ISAs/Scalar.h"
+#include "ISAs/AVX512_F.h"
+#include "ISAs/AVX512_BW.h"
+#include "ISAs/AVX512_VL.h"
 
 namespace AVXXY_NAMESPACE
 {
@@ -20,9 +20,9 @@ namespace AVXXY_NAMESPACE
 		public:
 			static inline constexpr FeatureSet FeatureSet = FS;
 			using order = std::tuple<
-				std::conditional_t<FS.AVX512.VL, ISA::AVX512VL<FS>, Dummy>,
-				std::conditional_t<FS.AVX512.BW, ISA::AVX512BW<FS>, Dummy>,
-				std::conditional_t<FS.AVX512.F, ISA::AVX512F<FS>, Dummy>, 
+				std::conditional_t<FS.has(AVX512_VL), ISA::AVX512VL<FS>, Dummy>,
+				std::conditional_t<FS.has(AVX512_BW), ISA::AVX512BW<FS>, Dummy>,
+				std::conditional_t<FS.has(AVX512_F), ISA::AVX512F<FS>, Dummy>,
 				ISA::Scalar<FS>>;
 
 			//Dispatches operation through this dispatcher. Attempts to pick best available implementation for target operation respecting template argument feature set limitations
