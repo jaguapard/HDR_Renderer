@@ -236,47 +236,12 @@
     <ClInclude Include="src\Renderers\HardwareRasterizingRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="lib\AVXxy\AVXxy.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\cvt.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\funcs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\funcs_impl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\infer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\namespace.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\operators.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\SIMD_Mask.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\SIMD_Mask_impl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\SIMD_Vector.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\SIMD_Vector_impl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\AVXxy\capabilities.h">
-      <Filter>Header Files\lib\avxxy</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\Renderers\HardwareRasterizing\Shaders\cbuff.hlsli">
       <Filter>Header Files\Renderers\Hardware\Shaders</Filter>
     </None>
+    <None Include="ISSUES.md" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="src\Renderers\HardwareRasterizing\Shaders\MainPS.hlsl">

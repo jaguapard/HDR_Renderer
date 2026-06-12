@@ -443,18 +443,6 @@
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="lib\AVXxy\AVXxy.h" />
-    <ClInclude Include="lib\AVXxy\capabilities.h" />
-    <ClInclude Include="lib\AVXxy\cvt.h" />
-    <ClInclude Include="lib\AVXxy\funcs.h" />
-    <ClInclude Include="lib\AVXxy\funcs_impl.h" />
-    <ClInclude Include="lib\AVXxy\infer.h" />
-    <ClInclude Include="lib\AVXxy\namespace.h" />
-    <ClInclude Include="lib\AVXxy\operators.h" />
-    <ClInclude Include="lib\AVXxy\SIMD_Mask.h" />
-    <ClInclude Include="lib\AVXxy\SIMD_Mask_impl.h" />
-    <ClInclude Include="lib\AVXxy\SIMD_Vector.h" />
-    <ClInclude Include="lib\AVXxy\SIMD_Vector_impl.h" />
     <ClInclude Include="lib\bob\Matrix4.h" />
     <ClInclude Include="lib\bob\SSE_Vec4.h" />
     <ClInclude Include="lib\bob\Timer.h" />
