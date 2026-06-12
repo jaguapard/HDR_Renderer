@@ -117,5 +117,6 @@ float32x8 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x8 rayOrigins, Vec4_f32
 	float32x8 tmax_total = min(tmax_z, min(tmax_x, tmax_y));
 	ret_tMin = tmin_total;
 	ret_tMax = tmax_total;
-	return mask2vec<float>(tmin_total <= tmax_total); //TODO: should this have equality?
+	return maskz_mov(tmin_total <= tmax_total, f32x8(std::bit_cast<float>(0xFFFFFFFF))); //TODO: workaround for movm right now
+	//return mask2vec<float>(tmin_total <= tmax_total); //TODO: should this have equality?
 }
