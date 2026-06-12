@@ -63,15 +63,17 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N> void store(const SIMD_Vector<S, N>& v, void* p, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask = SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>::AllOnes);
-	//HACK: garbageParameterToPreventCircularTemplateDontTouchThis only for template resoltion to not get confused (it was confused)
-	template<typename S, size_t N, size_t Scale = sizeof(S), typename I, bool garbageParameterToPreventCircularTemplateDontTouchThis = false> requires (std::is_integral_v<I> && sizeof(I) <= 8 && concepts::IsScalarType<S>)
-		SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask = SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>::AllOnes, const SIMD_Vector<S, N>& src = 0);
+	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (std::is_integral_v<I> && sizeof(I) <= 8 && concepts::IsScalarType<S>)
+	__forceinline SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask = SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>::AllOnes, const SIMD_Vector<S, N>& src = 0)
+	{
+		return __gather_impl<S, N, Scale>(base, ind, mask, src);
+	}
 
 	template <typename T, size_t Scale = sizeof(typename T::ScalarType), typename I>
 		requires (T::IsSimdVector)
 	__forceinline T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const SIMD_BitMask<T::LaneCount>& mask = SIMD_BitMask<T::LaneCount>::AllOnes, const T& src = 0)
 	{
-		return gather<typename T::ScalarType, T::LaneCount, Scale, I, true>(base, ind, mask, src);
+		return __gather_impl<typename T::ScalarType, T::LaneCount, Scale>(base, ind, mask, src);
 	}
 
 	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask = SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>::AllOnes);
