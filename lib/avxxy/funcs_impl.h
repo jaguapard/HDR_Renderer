@@ -83,7 +83,13 @@ namespace AVXXY_NAMESPACE
 	template<typename To, size_t N, typename From>
 	__forceinline SIMD_Vector<To, N> vcvt(const SIMD_Vector<From, N>& value)
 	{
-		return internals::DefaultDispatcher::run(internals::op_cvt<To>{}, value);
+		if constexpr (std::is_same_v<To, From>) return value; //same type, return immediately
+		//same sized integers reinterpret
+		else if constexpr (std::is_integral_v<To> && std::is_integral_v<From> && sizeof(To) == sizeof(From)) return vcast<SIMD_Vector<To, N>>(value);
+		//TODO: only for non-scalar! Scalar can convert directly (at least from the code PoV)
+		//small integers have no direct path to floating point conversions, so route them through 32-bit integers of samed signedness
+		//from small integer to double or float
+		else return internals::DefaultDispatcher::run(internals::op_cvt<To>{}, value);
 	}
 
 	template<typename S, size_t N>
@@ -95,6 +101,7 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> abs(const SIMD_Vector<S, N>& a)
 	{
+		if constexpr (std::is_unsigned_v<S>) return a;
 		return internals::DefaultDispatcher::run(internals::op_abs{}, a);
 	}
 
