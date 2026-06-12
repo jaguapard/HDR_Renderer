@@ -132,43 +132,43 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
-	inline SIMD_Vector<S, N> mask_mov(const SIMD_Vector<S, N>& ifBitClear, SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& ifBitSet)
+	inline SIMD_Vector<S, N> mask_mov(const SIMD_Vector<S, N>& ifBitClear, SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& ifBitSet)
 	{
 		return internals::DefaultDispatcher::run(internals::op_mask_mov{}, ifBitClear, mask, ifBitSet);
 	}
 
 	template<typename S, size_t N>
-	inline SIMD_Vector<S, N> maskz_mov(const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& ifBitSet)
+	inline SIMD_Vector<S, N> maskz_mov(SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& ifBitSet)
 	{
 		return mask_mov(SIMD_Vector<S, N>(0), mask, ifBitSet);
 	}
 
 	template<typename S, size_t N>
-	inline SIMD_Vector<S, N> blend(const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& ifBitClear, const SIMD_Vector<S, N>& ifBitSet)
+	inline SIMD_Vector<S, N> blend(SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& ifBitClear, const SIMD_Vector<S, N>& ifBitSet)
 	{
 		return mask_mov(ifBitClear, mask, ifBitSet);
 	}
 
 	template<typename S, size_t N>
-	inline SIMD_Vector<S, N> load(const void* p, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& src)
+	inline SIMD_Vector<S, N> load(const void* p, SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& src)
 	{
 		return internals::DefaultDispatcher::run(internals::op_load<S, N>{}, p, mask, src);
 	}
 
 	template<typename S, size_t N>
-	inline void store(const SIMD_Vector<S, N>& v, void* p, const SIMD_BitMask<N>& mask)
+	inline void store(const SIMD_Vector<S, N>& v, void* p, SIMD_BitMask<N> mask)
 	{
 		return internals::DefaultDispatcher::run(internals::op_store{}, v, p, mask);
 	}
 
 	template<typename S, size_t N, size_t Scale, typename I>
-	inline SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& src)
+	inline SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& src)
 	{
 		return internals::DefaultDispatcher::run(internals::op_gather<S, N, Scale>{}, base, ind, mask, src);
 	}
 
 	template<typename S, size_t N, size_t Scale, typename I>
-	inline void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<N>& mask)
+	inline void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, SIMD_BitMask<N> mask)
 	{
 		return internals::DefaultDispatcher::run(internals::op_scatter<Scale>{}, vec, base, ind, mask);
 	}
@@ -226,7 +226,7 @@ namespace AVXXY_NAMESPACE
 		return internals::DefaultDispatcher::run(internals::op_fp32_to_fp16{}, a);
 	}
 	template<typename S, size_t N>
-	inline SIMD_Vector<S, N> compress(const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src)
+	inline SIMD_Vector<S, N> compress(SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src)
 	{
 		return internals::DefaultDispatcher::run(internals::op_compress{}, mask, a, src);
 	}

@@ -32,7 +32,7 @@ namespace AVXXY_NAMESPACE
 	//For integer to smaller integer conversions, the input vector is wrapped around small integer's max value (TODO: is it true?)
 	template<typename To, size_t N, typename From> SIMD_Vector<To, N> vcvt(const SIMD_Vector<From, N>& value);
 	template<typename S, size_t N> SIMD_Vector<S, N * 2> concat(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N>& what);
-	template<size_t N> SIMD_BitMask<N * 2> concat_masks(const SIMD_BitMask<N>& to, const SIMD_BitMask<N>& what);
+	template<size_t N> SIMD_BitMask<N * 2> concat_masks(SIMD_BitMask<N> to, SIMD_BitMask<N> what);
 
 	//Reinterprets value as vector of other type and returns the result.
 	//If returned vector's size is smaller than input, input's upper bits are discarded
@@ -51,20 +51,20 @@ namespace AVXXY_NAMESPACE
 	//Sizes are checked and deduced automatically on compile time and raise static_assert errors on fail
 	template<size_t Part, size_t N2, typename S, size_t N> SIMD_Vector<S, N> insert(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N2>& what);
 
-	template <typename S, size_t N> SIMD_Vector<S, N> mask_mov(const SIMD_Vector<S, N>& ifBitClear, SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& ifBitSet);
-	template <typename S, size_t N> SIMD_Vector<S, N> maskz_mov(const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& ifBitSet);
-	template <typename S, size_t N> SIMD_Vector<S, N> blend(const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& ifBitClear, const SIMD_Vector<S, N>& ifBitSet);
+	template <typename S, size_t N> SIMD_Vector<S, N> mask_mov(const SIMD_Vector<S, N>& ifBitClear, SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& ifBitSet);
+	template <typename S, size_t N> SIMD_Vector<S, N> maskz_mov(SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& ifBitSet);
+	template <typename S, size_t N> SIMD_Vector<S, N> blend(SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& ifBitClear, const SIMD_Vector<S, N>& ifBitSet);
 
-	template<typename S, size_t N> SIMD_Vector<S, N> load(const void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0);
+	template<typename S, size_t N> SIMD_Vector<S, N> load(const void* p, SIMD_BitMask<N> mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0);
 	template<typename T> requires (T::IsSimdVector)
 		__forceinline T load(const void* p, const SIMD_BitMask<T::LaneCount>& mask = SIMD_BitMask<T::LaneCount>::AllOnes, const T& src = 0)
 	{
 		return load<typename T::ScalarType, T::LaneCount>(p, mask, src);
 	}
 
-	template<typename S, size_t N> void store(const SIMD_Vector<S, N>& v, void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes);
+	template<typename S, size_t N> void store(const SIMD_Vector<S, N>& v, void* p, SIMD_BitMask<N> mask = SIMD_BitMask<N>::AllOnes);
 	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (std::is_integral_v<I> && sizeof(I) <= 8)
-		SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0);
+		SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, SIMD_BitMask<N> mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0);
 
 	template <typename T, size_t Scale = sizeof(typename T::ScalarType), typename I>
 		requires (T::IsSimdVector)
@@ -73,7 +73,7 @@ namespace AVXXY_NAMESPACE
 		return gather<typename T::ScalarType, T::LaneCount, Scale>(base, ind, mask, src);
 	}
 
-	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes);
+	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, SIMD_BitMask<N> mask = SIMD_BitMask<N>::AllOnes);
 
 	template<typename S, size_t N> SIMD_BitMask<N> cmp_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
 	template<typename S, size_t N> SIMD_BitMask<N> cmp_not_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
@@ -97,5 +97,5 @@ namespace AVXXY_NAMESPACE
 	//Converts vector of single precision floating point numbers (FP32) to half-precision (FP16)
 	template <size_t N> SIMD_Vector<uint16_t, N> vcvt_fp32_fp16(const SIMD_Vector<float, N>& a);
 
-	template <typename S, size_t N> SIMD_Vector<S, N> compress(const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0);
+	template <typename S, size_t N> SIMD_Vector<S, N> compress(SIMD_BitMask<N> mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0);
 }
