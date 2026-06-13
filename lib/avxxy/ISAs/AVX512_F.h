@@ -106,6 +106,31 @@ namespace AVXXY_NAMESPACE
 					return logic_xor(a, val);
 				}
 
+				template<typename S, size_t N, typename I>
+					requires (concepts::any_int<S> && concepts::any_int<I> && sizeof(SIMD_Vector<S, N>) > 32)
+				static SIMD_Vector<S, N> eval(op_shl, const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& b)
+				{
+					using canon_t = same_size_uint_t<S>::type;
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 64) return { shift_left(a.lo(),b.lo()), shift_left(a.hi(),b.hi()) };
+					else if constexpr (!std::is_same_v<I, canon_t>) return shift_left(a, vcvt<canon_t>(b));
+					else if constexpr (any_i64<S>) return _mm512_sllv_epi64(a, b);
+					else if constexpr (any_i32<S>) return _mm512_sllv_epi32(a, b);
+					else return vcvt<S>(shift_left(vcvt<uint32_t>(a), vcvt<uint32_t>(b))); //emulate shift by 32 bit shift for small types
+				}
+				template<typename S, size_t N, typename I>
+					requires (concepts::any_int<S>&& concepts::any_int<I> && sizeof(SIMD_Vector<S, N>) > 32)
+				static SIMD_Vector<S, N> eval(op_shr, const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& b)
+				{
+					using canon_t = same_size_uint_t<S>::type;
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 64) return { shift_right(a.lo(),b.lo()), shift_right(a.hi(),b.hi()) };
+					else if constexpr (!std::is_same_v<I, canon_t>) return shift_right(a, vcvt<canon_t>(b));
+					else if constexpr (any_i64<S>) return _mm512_srlv_epi64(a, b);
+					else if constexpr (any_i32<S>) return _mm512_srlv_epi32(a, b);
+					else return vcvt<S>(shift_right(vcvt<uint32_t>(a), vcvt<uint32_t>(b))); //emulate shift by 32 bit shift for small types
+				}
+
 				template<typename S, size_t N>
 					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) > 32)
 				static SIMD_Vector<S, N> eval(op_min, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
