@@ -372,10 +372,52 @@ namespace AVXXY_NAMESPACE
 						else if constexpr (is_i32<I> && is_f32<S>) return _mm512_mask_i32gather_ps(src, mask, ni, base, Scale);
 						else if constexpr (is_i32<I> && any_i64<S>) return _mm512_mask_i32gather_epi64(src, mask, ni, base, Scale);
 						else if constexpr (is_i32<I> && any_i32<S>) return _mm512_mask_i32gather_epi32(src, mask, ni, base, Scale);
+						else static_assert(always_false_v<I, S>);
 					}
 					else static_assert(always_false_v<I, S>);
 				}
 
+				template<typename S, size_t N, size_t Scale, typename I>
+					requires (concepts::any_int<I> && sizeof(S) >= 4 && std::max(sizeof(SIMD_Vector<S, N>), sizeof(SIMD_Vector<I, N>)) > 32)
+				static void eval(op_scatter<Scale>, const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes)
+				{
+					//put everything up here to prevent else if chain breaks (since compilation gives useless errors by thinking unsanitized inputs surviving to native gathers
+					using CanonicalIndex_t = std::conditional_t<(sizeof(I) <= 4), int32_t, int64_t>;
+					using RetVec_t = SIMD_Vector<S, N>;
+					using IndVec_t = SIMD_Vector<I, N>;
+					constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
+
+					//if scale is not native, emulate it by gathering with scale 1 and manually calculated byte offsets. 
+					//TODO: Can optimize a little by checking if Scale*maxint(I) fits into smaller sizes
+					if constexpr (Scale != 1 && Scale != 2 && Scale != 4 && Scale != 8) return scatter<S, N, 1>(v, base, vcvt<int64_t>(ind) * Scale, mask);
+
+					//TODO: emulation of small int scatter (where elements gathered are small ints)
+					else if constexpr (!std::is_same_v<I, CanonicalIndex_t>) return scatter<S, N, Scale>(v, base, vcvt<CanonicalIndex_t>(ind), mask);
+
+					//if we get here, means that indices are already in good format (4-byte or 8-byte)
+					//break up large scatter into halves
+					else if constexpr (MaxSize > 64) 
+					{
+						scatter<S, N / 2, Scale, I>(v.lo(), base, ind.lo(), mask.lo());
+						scatter<S, N / 2, Scale, I>(v.hi(), base, ind.hi(), mask.hi());
+					}
+					else if constexpr (utils::is_zmm_size(MaxSize))
+					{
+						//clang is a cry-baby with ind here for some reason, so force convert it. Pay attention to size!
+						std::conditional_t<(concepts::zmm_sized<IndVec_t>), __m512i, __m256i> ni = ind;
+						if constexpr (is_i64<I> && is_f64<S>) return _mm512_mask_i64scatter_pd(base, mask, ni, v, Scale);
+						else if constexpr (is_i64<I> && is_f32<S>) return _mm512_mask_i64scatter_ps(base, mask, ni, v, Scale);
+						else if constexpr (is_i64<I> && any_i64<S>) return _mm512_mask_i64scatter_epi64(base, mask, ni, v, Scale);
+						else if constexpr (is_i64<I> && any_i32<S>) return _mm512_mask_i64scatter_epi32(base, mask, ni, v, Scale);
+
+						else if constexpr (is_i32<I> && is_f64<S>) return _mm512_mask_i32scatter_pd(base, mask, ni, v, Scale);
+						else if constexpr (is_i32<I> && is_f32<S>) return _mm512_mask_i32scatter_ps(base, mask, ni, v, Scale);
+						else if constexpr (is_i32<I> && any_i64<S>) return _mm512_mask_i32scatter_epi64(base, mask, ni, v, Scale);
+						else if constexpr (is_i32<I> && any_i32<S>) return _mm512_mask_i32scatter_epi32(base, mask, ni, v, Scale);
+						else static_assert(always_false_v<I, S>);
+					}
+					else static_assert(always_false_v<I, S>);
+				}
 				template<typename S, size_t N>
 					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) > 32)
 				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
