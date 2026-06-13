@@ -13,7 +13,7 @@ float32x16 LUTMan::cos(float32x16 x)
 	x -= periods * float(2 * M_PI); //now x is 0..2_PI range
 	float32x16 lutIndex = x * float(tables.cos_fp32.size() / (2 * M_PI));
 	
-	int32x16 lutIndexFirst = vcvt<int>(lutIndex);
+	int32x16 lutIndexFirst = lutIndex;
 	int32x16 lutIndexSecond = lutIndexFirst + 1;
 
 	float32x16 lut0 = load<f32x16>(&tables.cos_fp32[0]);

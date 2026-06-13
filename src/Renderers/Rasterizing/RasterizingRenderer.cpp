@@ -698,8 +698,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
 					Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
 
-				int32x16 intX = vcvt<int>(x);
-				int32x16 intY = vcvt<int>(y);
+				int32x16 intX = x;
+				int32x16 intY = y;
 				int32x16 zbufferGatherInd = intY * w + intX;
 				float32x16 currDepthValues = gather<f32x16>(zBuffer, zbufferGatherInd, scavengerBounds);
 

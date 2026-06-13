@@ -481,6 +481,29 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (any_i32<S>) return _mm512_mask_compress_epi32(src, mask, a);
 					else static_assert(always_false_v<S>);
 				}
+
+				template<typename S, size_t N>
+				requires (sizeof(SIMD_Vector<S,N>) > 32 && sizeof(S) >= 4)
+				static SIMD_Vector<S, N> eval(op_unpacklo, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				{
+					if constexpr (sizeof(SIMD_Vector<S, N>) > 64) return { unpacklo(a.lo(),b.lo()), unpacklo(a.hi(),b.hi()) };
+					else if constexpr (is_f64<S>) return _mm512_unpacklo_pd(a, b);
+					else if constexpr (is_f32<S>) return _mm512_unpacklo_ps(a, b);
+					else if constexpr (any_i64<S>) return _mm512_unpacklo_epi64(a, b);
+					else if constexpr (any_i32<S>) return _mm512_unpacklo_epi32(a, b);
+					else static_assert(always_false_v<S>);
+				}
+				template<typename S, size_t N>
+					requires (sizeof(SIMD_Vector<S, N>) > 32 && sizeof(S) >= 4)
+				static SIMD_Vector<S, N> eval(op_unpackhi, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				{
+					if constexpr (sizeof(SIMD_Vector<S, N>) > 64) return { unpackhi(a.lo(),b.lo()), unpackhi(a.hi(),b.hi()) };
+					else if constexpr (is_f64<S>) return _mm512_unpackhi_pd(a, b);
+					else if constexpr (is_f32<S>) return _mm512_unpackhi_ps(a, b);
+					else if constexpr (any_i64<S>) return _mm512_unpackhi_epi64(a, b);
+					else if constexpr (any_i32<S>) return _mm512_unpackhi_epi32(a, b);
+					else static_assert(always_false_v<S>);
+				}
 				private:
 
 			};
