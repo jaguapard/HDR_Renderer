@@ -204,6 +204,34 @@ namespace AVXXY_NAMESPACE
 					else static_assert(always_false_v<S>);
 				}
 
+				template<typename S, size_t N, typename I>
+					requires (sizeof(S) >= 4 && concepts::any_int<I> && concepts::zmm_sized<SIMD_Vector<S, N>>)//sizeof(SIMD_Vector<S,N>& > 32))
+				static SIMD_Vector<S, N> eval(op_permx, const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
+				{
+					using namespace concepts;
+					using canon_t = typename same_size_uint_t<S>::type;
+					if constexpr (sizeof(I) != sizeof(S)) return permx(a, vcvt<canon_t>(ind));
+					//TODO: add > 64 byte permutex!
+					else if constexpr (is_f64<S>) return _mm512_permutexvar_pd(ind, a);
+					else if constexpr (is_f32<S>) return _mm512_permutexvar_ps(ind, a);
+					else if constexpr (any_i64<S>) return _mm512_permutexvar_epi64(ind, a);
+					else if constexpr (any_i32<S>) return _mm512_permutexvar_epi32(ind, a);
+					else static_assert(always_false_v<S>);
+				}
+				template<typename S, size_t N, typename I>
+					requires (sizeof(S) >= 4 && concepts::any_int<I> && concepts::zmm_sized<SIMD_Vector<S, N>>)//sizeof(SIMD_Vector<S,N>& > 32))
+				static SIMD_Vector<S, N> eval(op_permx2, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind)
+				{
+					using namespace concepts;
+					using canon_t = typename same_size_uint_t<S>::type;
+					if constexpr (sizeof(I) != sizeof(S)) return permx2(a, vcvt<canon_t>(ind));
+					//TODO: add > 64 byte permutex2!
+					else if constexpr (is_f64<S>) return _mm512_permutex2var_pd(a, ind, b);
+					else if constexpr (is_f32<S>) return _mm512_permutex2var_ps(a, ind, b);
+					else if constexpr (any_i64<S>) return _mm512_permutex2var_epi64(a, ind, b);
+					else if constexpr (any_i32<S>) return _mm512_permutex2var_epi32(a, ind, b);
+					else static_assert(always_false_v<S>);
+				}
 				template<typename S, size_t N>
 					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) > 32)
 				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
