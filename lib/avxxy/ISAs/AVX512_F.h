@@ -204,7 +204,7 @@ namespace AVXXY_NAMESPACE
 					requires (concepts::any_int<I> && sizeof(S) >= 4 && std::max(sizeof(SIMD_Vector<S, N>), sizeof(SIMD_Vector<I, N>)) > 32)
 				static SIMD_Vector<S, N> eval(op_gather<S, N, Scale>, const void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
 				{
-					
+					//put everything up here to prevent else if chain breaks (since compilation gives useless errors by thinking unsanitized inputs surviving to native gathers
 					using CanonicalIndex_t = std::conditional_t<(sizeof(I) <= 4), int32_t, int64_t>;
 					using RetVec_t = SIMD_Vector<S, N>;
 					using IndVec_t = SIMD_Vector<I, N>;
@@ -224,15 +224,17 @@ namespace AVXXY_NAMESPACE
 						gather<S, N / 2, Scale, I>(base, ind.hi(), mask.hi(), src.hi()) };
 					else if constexpr (utils::is_zmm_size(MaxSize))
 					{
-						if constexpr (is_i64<I> && is_f64<S>) return _mm512_mask_i64gather_pd(src, mask, ind, base, Scale);
-						else if constexpr (is_i64<I> && is_f32<S>) return _mm512_mask_i64gather_ps(src, mask, __m512i(ind), base, Scale);
-						else if constexpr (is_i64<I> && any_i64<S>) return _mm512_mask_i64gather_epi64(src, mask, ind, base, Scale);
-						else if constexpr (is_i64<I> && any_i32<S>) return _mm512_mask_i64gather_epi32(src, mask, ind, base, Scale);
+						//clang is a cry-baby with ind here for some reason, so force convert it. Pay attention to size!
+						std::conditional_t<(concepts::zmm_sized<IndVec_t>), __m512i, __m256i> ni = ind;
+						if constexpr (is_i64<I> && is_f64<S>) return _mm512_mask_i64gather_pd(src, mask, ni, base, Scale);
+						else if constexpr (is_i64<I> && is_f32<S>) return _mm512_mask_i64gather_ps(src, mask, ni, base, Scale);
+						else if constexpr (is_i64<I> && any_i64<S>) return _mm512_mask_i64gather_epi64(src, mask, ni, base, Scale);
+						else if constexpr (is_i64<I> && any_i32<S>) return _mm512_mask_i64gather_epi32(src, mask, ni, base, Scale);
 
-						else if constexpr (is_i32<I> && is_f64<S>) return _mm512_mask_i32gather_pd(src, mask, ind, base, Scale);
-						else if constexpr (is_i32<I> && is_f32<S>) return _mm512_mask_i32gather_ps(src, mask, __m512i(ind), base, Scale);
-						else if constexpr (is_i32<I> && any_i64<S>) return _mm512_mask_i32gather_epi64(src, mask, ind, base, Scale);
-						else if constexpr (is_i32<I> && any_i32<S>) return _mm512_mask_i32gather_epi32(src, mask, ind, base, Scale);
+						else if constexpr (is_i32<I> && is_f64<S>) return _mm512_mask_i32gather_pd(src, mask, ni, base, Scale);
+						else if constexpr (is_i32<I> && is_f32<S>) return _mm512_mask_i32gather_ps(src, mask, ni, base, Scale);
+						else if constexpr (is_i32<I> && any_i64<S>) return _mm512_mask_i32gather_epi64(src, mask, ni, base, Scale);
+						else if constexpr (is_i32<I> && any_i32<S>) return _mm512_mask_i32gather_epi32(src, mask, ni, base, Scale);
 					}
 					else static_assert(always_false_v<I, S>);
 				}
