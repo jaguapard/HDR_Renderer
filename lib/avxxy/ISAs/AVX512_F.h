@@ -424,6 +424,20 @@ namespace AVXXY_NAMESPACE
 					if constexpr (sizeof(SIMD_Vector<float, N>) > 64) return { vcvt_fp16_fp32(a.lo()), vcvt_fp16_fp32(a.hi()) };
 					else return _mm512_cvtph_ps(a);
 				}
+
+				template<typename S, size_t N>
+				requires (sizeof(SIMD_Vector<S,N>) > 32 && sizeof(S) >= 4)
+				static SIMD_Vector<S, N> eval(op_compress, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
+				{
+					//TODO: more than 64 bytes!
+					//if constexpr (sizeof(SIMD_Vector<S, N>) > 64) {};
+					//else
+					if constexpr (is_f64<S>) return _mm512_mask_compress_pd(src, mask, a);
+					else if constexpr (is_f32<S>) return _mm512_mask_compress_ps(src, mask, a);
+					else if constexpr (any_i64<S>) return _mm512_mask_compress_epi64(src, mask, a);
+					else if constexpr (any_i32<S>) return _mm512_mask_compress_epi32(src, mask, a);
+					else static_assert(always_false_v<S>);
+				}
 				private:
 
 			};
