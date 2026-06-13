@@ -101,4 +101,16 @@ namespace AVXXY_NAMESPACE
 	template <size_t N> SIMD_Vector<uint16_t, N> vcvt_fp32_fp16(const SIMD_Vector<float, N>& a);
 
 	template <typename S, size_t N> SIMD_Vector<S, N> compress(const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0);
+
+	/**
+	@brief performs a lookup from lookup table using indices. The indices wrap around (-1 becomes LutElementCount-1, LutElementCount becomes 0, etc)
+	//TODO: update the tooltip when implementing it
+	Requires a power of two LutElementCount.
+	@tparam S scalar type of the lookup elements
+	@tparam LutElementCount count of elements inside the LUT
+	@tparam GatherThresholdBytes if table size is greater than this parameter (in bytes), gather will be used instead of a permute network.
+	@tparam N count of elements to look up 
+	@tparam I type of index vector. If this type is larger than scalar type to be looked up (S), a gather is used unconditionally
+	*/
+	//template<typename S, size_t LutElementCount, size_t GatherThresholdBytes = 256, size_t N, typename I> SIMD_Vector<S,N> lookup(const S* lut, const SIMD_Vector<I, N>& ind);
 }

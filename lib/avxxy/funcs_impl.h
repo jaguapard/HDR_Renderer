@@ -71,13 +71,13 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a)
 	{
-		return internals::DefaultDispatcher::run(internals::op_sqrtf{}, a);
+		return internals::DefaultDispatcher::run(internals::op_sqrtf{}, vcvt<float>(a));
 	}
 
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<double, N> sqrtd(const SIMD_Vector<S, N>& a)
 	{
-		return internals::DefaultDispatcher::run(internals::op_sqrtd{}, a);
+		return internals::DefaultDispatcher::run(internals::op_sqrtd{}, vcvt<double>(a));
 	}
 
 	template<typename To, size_t N, typename From>
