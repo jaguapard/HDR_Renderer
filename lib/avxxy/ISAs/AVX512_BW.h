@@ -112,6 +112,37 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (any_i16<S>) return _mm512_permutex2var_epi16(a, ind, b);
 					else static_assert(always_false_v<S>);
 				}
+
+				template<typename S, size_t N>
+					requires (sizeof(S) < 4 && sizeof(SIMD_Vector<S, N>) > 32)
+				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
+				{
+					using namespace concepts;
+					using T = SIMD_Vector<S, N>;
+					SIMD_Vector<S, N> ret;
+					const S* sp = (const S*)p;
+					if constexpr (sizeof(T) > 64) return { load<S,N / 2>(sp,mask.lo(), src.lo()), load<S,N / 2>(sp + N / 2, mask.hi(), src.hi()) };
+					else if constexpr (any_i16<S>) return _mm512_mask_loadu_epi16(src, mask, p);
+					else if constexpr (any_i8<S>) return _mm512_mask_loadu_epi8(src, mask, p);
+					else static_assert(always_false_v<S>);
+				}
+
+				template<typename S, size_t N>
+					requires (sizeof(S) < 4 && sizeof(SIMD_Vector<S, N>) > 32)
+				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes)
+				{
+					using namespace concepts;
+					using T = SIMD_Vector<S, N>;
+					SIMD_Vector<S, N> ret;
+					const S* sp = (const S*)p;
+					if constexpr (sizeof(T) > 64) {
+						store(vec.lo(), p, mask.lo());
+						store(vec.hi(), sp + N / 2, mask.hi());
+					}
+					else if constexpr (any_i16<S>) return _mm512_mask_storeu_epi16(p, mask, vec);
+					else if constexpr (any_i8<S>) return _mm512_mask_storeu_epi8(p, mask, vec);
+					else static_assert(always_false_v<S>);
+				}
 			};
 		}
 	}

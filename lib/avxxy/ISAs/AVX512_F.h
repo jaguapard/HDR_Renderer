@@ -232,21 +232,6 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (any_i32<S>) return _mm512_permutex2var_epi32(a, ind, b);
 					else static_assert(always_false_v<S>);
 				}
-				template<typename S, size_t N>
-					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) > 32)
-				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
-				{
-					using namespace concepts;
-					using T = SIMD_Vector<S, N>;
-					SIMD_Vector<S, N> ret;
-					const S* sp = (const S*)p;
-					if constexpr (sizeof(T) > 64) return { load<S,N / 2>(sp,mask.lo(), src.lo()), load<S,N / 2>(sp + N / 2, mask.hi(), src.hi()) };
-					else if constexpr (is_f64<S>) return _mm512_mask_loadu_pd(src, mask, p);
-					else if constexpr (is_f32<S>) return _mm512_mask_loadu_ps(src, mask, p);
-					else if constexpr (any_i64<S>) return _mm512_mask_loadu_epi64(src, mask, p);
-					else if constexpr (any_i32<S>) return _mm512_mask_loadu_epi32(src, mask, p);
-					else static_assert(always_false_v<S>);
-				}
 
 				template<typename S, size_t N>
 					requires (std::is_floating_point_v<S> && sizeof(SIMD_Vector<S,N>) > 32)
@@ -389,6 +374,22 @@ namespace AVXXY_NAMESPACE
 						else if constexpr (is_i32<I> && any_i32<S>) return _mm512_mask_i32gather_epi32(src, mask, ni, base, Scale);
 					}
 					else static_assert(always_false_v<I, S>);
+				}
+
+				template<typename S, size_t N>
+					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) > 32)
+				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
+				{
+					using namespace concepts;
+					using T = SIMD_Vector<S, N>;
+					SIMD_Vector<S, N> ret;
+					const S* sp = (const S*)p;
+					if constexpr (sizeof(T) > 64) return { load<S,N / 2>(sp,mask.lo(), src.lo()), load<S,N / 2>(sp + N / 2, mask.hi(), src.hi()) };
+					else if constexpr (is_f64<S>) return _mm512_mask_loadu_pd(src, mask, p);
+					else if constexpr (is_f32<S>) return _mm512_mask_loadu_ps(src, mask, p);
+					else if constexpr (any_i64<S>) return _mm512_mask_loadu_epi64(src, mask, p);
+					else if constexpr (any_i32<S>) return _mm512_mask_loadu_epi32(src, mask, p);
+					else static_assert(always_false_v<S>);
 				}
 
 				template<typename S, size_t N>
