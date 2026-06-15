@@ -32,6 +32,9 @@ namespace AVXXY_NAMESPACE
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_u32 = std::is_same_v<T, uint32_t>;
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_u16 = std::is_same_v<T, uint16_t>;
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_u8 = std::is_same_v<T, uint8_t>;
+		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_small_sint = is_i16<T> || is_i8<T>;
+		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_small_uint = is_u16<T> || is_u8<T>;
+		template <typename T> requires (IsScalarType<T>) inline constexpr bool any_small_int = is_small_sint<T> || is_small_uint<T>;
 		//indicates wheter this type is 8 bit integer, signed or unsigned
 		template <typename T> inline constexpr bool any_i8 = (is_u8<T> || is_i8<T>);
 		//indicates wheter this type is 16 bit integer, signed or unsigned
