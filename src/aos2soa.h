@@ -49,12 +49,12 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	if constexpr (FieldCount > 2 && FieldCount <= 4)
 	{
 		//r0 = abcd0,abcd4,abcd8,abcd12
-		__m512 r0 = xmm_x4_to_zmm(
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[4])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[8])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[12]))
+		f32x16 r0(
+			f32x8(load<f32x4>((const void*)(rawBase + offsets[0]), packLoadMask), load<f32x4>((const void*)(rawBase + offsets[4]), packLoadMask)),
+			f32x8(load<f32x4>((const void*)(rawBase + offsets[8]), packLoadMask), load<f32x4>((const void*)(rawBase + offsets[12]), packLoadMask))
 		);
+		
+
 		//r1 = abcd1,abcd5,abcd9,abcd13
 		__m512 r1 = xmm_x4_to_zmm(
 			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[1])),
