@@ -641,8 +641,8 @@ struct PixelScavenger
 {
 	static inline constexpr uint32_t MAX_SIZE = 256;
 	static inline constexpr uint32_t ALLOC_SIZE = MAX_SIZE+16;
-	std::array<float, ALLOC_SIZE> x, y; //TODO: change this to 16-bit integer indices?
-	std::array<int, ALLOC_SIZE> inBatchInd; //TODO: change this to 8-bit indices?
+	alignas(64) std::array<float, ALLOC_SIZE> x, y; //TODO: change this to 16-bit integer indices?
+	alignas(64) std::array<int, ALLOC_SIZE> inBatchInd; //TODO: change this to 8-bit indices?
 	uint32_t size = 0;
 };
 void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const int threadIndex)
