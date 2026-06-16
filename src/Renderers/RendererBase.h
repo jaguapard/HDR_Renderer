@@ -85,6 +85,7 @@ public:
 		ret[2] = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
 	}
 
+	/*
 	//TODO: verify that it works
 	//Stores each 128-bit quarter of 512-bit vector to consecutive rows (increasing X indices) of row-major-indexed buffer dst using mask, starting at (xStart,yStart)
 	static __forceinline void mask_store_rows_512_to_4x128_ps(const f32x16& value, __mmask16 mask, void* dst, uint32_t xStart, uint32_t yStart, uint32_t w)
@@ -99,7 +100,7 @@ public:
 		store(v2, p + (2 + yStart) * w + xStart, mask >> 8);
 		store(v3, p + (3 + yStart) * w + xStart, mask >> 12);
 	}
-
+	*/
 	//TODO: verify that it works
 	static __forceinline __m512 mask_load_rows_4x128_to_512_ps(__mmask16 mask, const void* src, uint32_t xStart, uint32_t yStart, uint32_t w)
 	{
