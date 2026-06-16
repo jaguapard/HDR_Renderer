@@ -6,6 +6,7 @@
 #include "ISAs/AVX512_BW.h"
 #include "ISAs/AVX512_VL.h"
 #include "ISAs/AVX512_VBMI.h"
+#include "ISAs/F16C.h"
 
 namespace AVXXY_NAMESPACE
 {
@@ -25,6 +26,7 @@ namespace AVXXY_NAMESPACE
 				std::conditional_t<FS.has(AVX512_VL), ISA::AVX512VL<FS>, Dummy>,
 				std::conditional_t<FS.has(AVX512_BW), ISA::AVX512BW<FS>, Dummy>,
 				std::conditional_t<FS.has(AVX512_F), ISA::AVX512F<FS>, Dummy>,
+				std::conditional_t<FS.has(F16C), ISA::F16C<FS>, Dummy>,
 				ISA::Scalar<FS>>;
 
 			//Dispatches operation through this dispatcher. Attempts to pick best available implementation for target operation respecting template argument feature set limitations
