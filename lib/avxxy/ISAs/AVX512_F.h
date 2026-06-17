@@ -102,27 +102,21 @@ namespace AVXXY_NAMESPACE
 				static SIMD_Vector<S, N> eval(op_or, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					if constexpr (sizeof(SIMD_Vector<S, N>) > 64) return { logic_or(a.lo(),b.lo()), logic_or(a.hi(),b.hi()) };
-					else if constexpr (is_f64<S>) return _mm512_or_pd(a, b);
-					else if constexpr (is_f32<S>) return _mm512_or_ps(a, b);
-					else return _mm512_or_si512(a, b);
+					else return _mm512_or_si512(vreinterpret<__m512i>(a), vreinterpret<__m512i>(b));
 				}
 				template<typename S, size_t N>
 				requires (sizeof(SIMD_Vector<S,N>) > 32)
 				static SIMD_Vector<S, N> eval(op_and, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					if constexpr (sizeof(SIMD_Vector<S, N>) > 64) return { logic_and(a.lo(),b.lo()), logic_and(a.hi(),b.hi()) };
-					else if constexpr (is_f64<S>) return _mm512_and_pd(a, b);
-					else if constexpr (is_f32<S>) return _mm512_and_ps(a, b);
-					else return _mm512_and_si512(a, b);
+					else return _mm512_and_si512(vreinterpret<__m512i>(a), vreinterpret<__m512i>(b));
 				}
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) > 32)
 				static SIMD_Vector<S, N> eval(op_xor, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					if constexpr (sizeof(SIMD_Vector<S, N>) > 64) return { logic_xor(a.lo(),b.lo()), logic_xor(a.hi(),b.hi()) };
-					else if constexpr (is_f64<S>) return _mm512_xor_pd(a, b);
-					else if constexpr (is_f32<S>) return _mm512_xor_ps(a, b);
-					else return _mm512_xor_si512(a, b);
+					else return _mm512_xor_si512(vreinterpret<__m512i>(a), vreinterpret<__m512i>(b));
 				}
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) > 32)
@@ -491,7 +485,12 @@ namespace AVXXY_NAMESPACE
 					using canon_t = typename same_size_uint_t<S>::type;
 					using T = SIMD_Vector<S, N>;
 					if constexpr (sizeof(I) != sizeof(S)) return permx(a, vcvt<canon_t>(ind));
-					//TODO: add > 64 byte permutex!
+					else if constexpr (sizeof(T) > 64)
+					{
+						auto alo = a.lo();
+						auto ahi = a.hi();
+						return { permx2(alo, ahi, ind.lo()), permx2(alo, ahi, ind.hi()) };
+					}
 					else if constexpr (zmm_sized<T> && is_f64<S>) return _mm512_permutexvar_pd(ind, a);
 					else if constexpr (zmm_sized<T> && is_f32<S>) return _mm512_permutexvar_ps(ind, a);
 					else if constexpr (zmm_sized<T> && any_i64<S>) return _mm512_permutexvar_epi64(ind, a);
@@ -510,7 +509,12 @@ namespace AVXXY_NAMESPACE
 					using canon_t = typename same_size_uint_t<S>::type;
 					using T = SIMD_Vector<S, N>;
 					if constexpr (sizeof(I) != sizeof(S)) return permx2(a, vcvt<canon_t>(ind));
-					//TODO: add > 64 byte permutex2!
+					else if constexpr (sizeof(T) > 64)
+					{
+						T pa = permx(a, ind);
+						T pb = permx(b, ind);
+						return mask_mov(pb, (ind & (2 * N - 1)) < N, pa);
+					}
 					else if constexpr (zmm_sized<T> && is_f64<S>) return _mm512_permutex2var_pd(a, ind, b);
 					else if constexpr (zmm_sized<T> && is_f32<S>) return _mm512_permutex2var_ps(a, ind, b);
 					else if constexpr (zmm_sized<T> && any_i64<S>) return _mm512_permutex2var_epi64(a, ind, b);

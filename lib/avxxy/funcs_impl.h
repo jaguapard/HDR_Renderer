@@ -146,6 +146,14 @@ namespace AVXXY_NAMESPACE
 		return ret;
 	}
 
+	template<typename T, typename S, size_t N>
+	__forceinline T vreinterpret(const SIMD_Vector<S, N>& value)
+	{
+		T ret;
+		memcpy(&ret, &value, std::min(sizeof(ret), sizeof(value)));
+		return ret;
+	}
+
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> mask_mov(const SIMD_Vector<S, N>& ifBitClear, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask, const SIMD_Vector<S, N>& ifBitSet)
 	{

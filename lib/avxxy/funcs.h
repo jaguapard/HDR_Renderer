@@ -60,6 +60,11 @@ namespace AVXXY_NAMESPACE
 	//If returned vector's size is bigger than input, upper bits of returned value are undefined.
 	template<typename T, typename S, size_t N> requires (T::IsSimdVector) T vcast(const SIMD_Vector<S, N>& value);
 
+	//Reinterprets value as any other type and returns the result.
+	//If returned value's size is smaller than input, input's upper bits are discarded
+	//If returned value's size is bigger than input, upper bits of returned value are undefined.
+	template<typename T, typename S, size_t N> T vreinterpret(const SIMD_Vector<S, N>& value);
+
 	//Selects elements from two input vectors by corresponding mask bits and returns the result.
 	//If the mask bit is 0, the corresponding element of `ifBitClear` is chosen
 	//If the mask bit is 1, the corresponding element of `ifBitSet` is chosen
@@ -80,13 +85,13 @@ namespace AVXXY_NAMESPACE
 
 	//Loads the vector from memory location pointed to by `p` and returns the result.
 	//If the corresponding mask bit is set, the corresponding element in memory is read and stored into the returned vector
-	//If the corresponding mask bit is set, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
+	//If the corresponding mask bit is cleared, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//ret[i] = mask[i] ? reinterpret_cast<const S*>(p)[i] : src[i]
 	template<typename S, size_t N> SIMD_Vector<S, N> load(const void* p, const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask = SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>::AllOnes, const SIMD_Vector<S, N>& src = 0);
 	//Loads the vector from memory location pointed to by `p` and returns the result.
 	//If the corresponding mask bit is set, the corresponding element in memory is read and stored into the returned vector
-	//If the corresponding mask bit is set, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
+	//If the corresponding mask bit is cleared, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//ret[i] = mask[i] ? reinterpret_cast<const S*>(p)[i] : src[i]
 	template<typename T> requires (T::IsSimdVector)
@@ -104,7 +109,7 @@ namespace AVXXY_NAMESPACE
 
 	//Conditionally gathers elements from memory, stores them into a vector and returns the result.
 	//If the corresponding mask bit is set, the corresponding element in memory is read and stored into the returned vector
-	//If the corresponding mask bit is set, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
+	//If the corresponding mask bit is cleared, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//By default, scale is set to the size of vector's scalar type
 	//ret[i] = mask[i] ? *reinterpret_cast<const S*>(size_t(base) + Scale*ind[i]) : src[i]
@@ -116,7 +121,7 @@ namespace AVXXY_NAMESPACE
 
 	//Conditionally gathers elements from memory, stores them into a vector and returns the result.
 	//If the corresponding mask bit is set, the corresponding element in memory is read and stored into the returned vector
-	//If the corresponding mask bit is set, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
+	//If the corresponding mask bit is cleared, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//By default, scale is set to the size of vector's scalar type
 	//ret[i] = mask[i] ? *reinterpret_cast<const S*>(size_t(base) + Scale*ind[i]) : src[i]
@@ -204,11 +209,10 @@ namespace AVXXY_NAMESPACE
 
 	//Copies vector `src` and conditionally overwrites it with elements of vector `a`
 	//Mask is iterated from lower bits to higher ones. 
-	//If the mask bit is set, the pivot element is read from `a` and is written to return vector, 
+	//If the mask bit is set, the corresponding element is read from `a` and is written to return vector at pivot point, 
 	//advancing pivot point is by one element. Otherwise, no action is performed.
-	//ret = src
-	//pivot = 0
-	//if (mask[i]) ret[i] = a[pivot++];
+	//ret = src; pivot = 0
+	//if (mask[i]) ret[pivot++] = a[i];
 	template <typename S, size_t N> SIMD_Vector<S, N> compress(const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0);
 
 	/**
