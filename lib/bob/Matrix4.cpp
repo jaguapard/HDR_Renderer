@@ -134,17 +134,12 @@ bob::_SSE_Vec4_float Matrix4::multiplyByTransposed(const bob::_SSE_Vec4_float v)
 	__m256 res1 = _mm256_add_ps(mul1, mul2);
 	return _mm_add_ps(_mm256_extractf32x4_ps(res1, 0), _mm256_extractf32x4_ps(res1, 1));
 #else
-	__m128 x = _mm_set1_ps(v.x);
-	__m128 y = _mm_set1_ps(v.y);
-	__m128 z = _mm_set1_ps(v.z);
-	__m128 w = _mm_set1_ps(v.w);
-
-	__m128 p1 = _mm_mul_ps(x, xmm0);
-	__m128 p2 = _mm_mul_ps(y, xmm1);
-	__m128 p3 = _mm_mul_ps(z, xmm2);
-	__m128 p4 = _mm_mul_ps(w, xmm3);
-
-	return _mm_add_ps(_mm_add_ps(p1, p2), _mm_add_ps(p3, p4));
+	const float* p = (const float*)this;
+	f32x4 p1 = load<f32x4>(p) * v.x;
+	f32x4 p2 = load<f32x4>(p+4) * v.y;
+	f32x4 p3 = load<f32x4>(p+8) * v.z;
+	f32x4 p4 = load<f32x4>(p+12) * v.w;
+	return vreinterpret<__m128>((p1 + p2) + (p3 + p4));
 #endif
 }
 
