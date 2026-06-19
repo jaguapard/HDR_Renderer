@@ -126,6 +126,37 @@ namespace AVXXY_NAMESPACE
 					else static_assert(always_false_v<T>);
 				}
 
+				template<typename S, size_t N, typename I>
+					requires (concepts::any_int<S> && concepts::any_int<I>)
+				static SIMD_Vector<S, N> eval(op_shl, const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& b)
+				{
+					using canon_t = same_size_uint_t<S>::type;
+					using T = SIMD_Vector<S, N>;
+					if constexpr (any_i16<S> || any_i8<S>) return vcvt<S>(shift_left(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
+					else if constexpr (!std::is_same_v<I, canon_t>) return shift_left(a, vcvt<canon_t>(b));
+					else if constexpr (sizeof(T) > 32) return { shift_left(a.lo(), b.lo()), shift_left(a.hi(),b.hi()) };
+					else if constexpr (ymm_sized<T> && any_i64<S>) return _mm256_sllv_epi64(a, b);
+					else if constexpr (ymm_sized<T> && any_i32<S>) return _mm256_sllv_epi32(a, b);
+					else if constexpr (xmm_sized<T> && any_i64<S>) return _mm_sllv_epi64(a, b);
+					else if constexpr (xmm_sized<T> && any_i32<S>) return _mm_sllv_epi32(a, b);
+					else static_assert(always_false_v<T>);
+				}
+				template<typename S, size_t N, typename I>
+					requires (concepts::any_int<S>&& concepts::any_int<I>)
+				static SIMD_Vector<S, N> eval(op_shr, const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& b)
+				{
+					using canon_t = same_size_uint_t<S>::type;
+					using T = SIMD_Vector<S, N>;
+					if constexpr (any_i16<S> || any_i8<S>) return vcvt<S>(shift_right(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
+					else if constexpr (!std::is_same_v<I, canon_t>) return shift_right(a, vcvt<canon_t>(b));
+					else if constexpr (sizeof(T) > 32) return { shift_right(a.lo(), b.lo()), shift_right(a.hi(),b.hi()) };
+					else if constexpr (ymm_sized<T> && any_i64<S>) return _mm256_srlv_epi64(a, b);
+					else if constexpr (ymm_sized<T> && any_i32<S>) return _mm256_srlv_epi32(a, b);
+					else if constexpr (xmm_sized<T> && any_i64<S>) return _mm_srlv_epi64(a, b);
+					else if constexpr (xmm_sized<T> && any_i32<S>) return _mm_srlv_epi32(a, b);
+					else static_assert(always_false_v<T>);
+				}
+
 				template<typename S, size_t N>
 				requires (sizeof(SIMD_Vector<S, N>) > 16 && any_int<S>)
 				static SIMD_BitMask<N> eval(op_cmpeq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)

@@ -18,7 +18,7 @@ Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
     return { fr * fr, fg * fg, fb * fb, fa };
 }
 
-[[gnu::target("avx512vbmi")]]
+//[[gnu::target("avx512vbmi")]]
 Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const u32x16& packed)
 {
     std::array<u16x32, 8> lut;
