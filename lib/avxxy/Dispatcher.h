@@ -19,25 +19,24 @@ namespace AVXXY_NAMESPACE
 	{
 		template<typename... Args> inline constexpr bool always_false_v = false;
 
-		template<FeatureSet FS>
 		class Dispatcher
 		{
 		private:
 			struct Dummy {};
 		public:
-			static inline constexpr FeatureSet FeatureSet = FS;
+			static inline constexpr FeatureSet FS = FS_current;
 			using order = std::tuple<
-				std::conditional_t<FS.has(AVX512_VBMI2), ISA::AVX512VBMI2<FS>, Dummy>,
-				std::conditional_t<FS.has(AVX512_VBMI), ISA::AVX512VBMI<FS>, Dummy>,
-				std::conditional_t<FS.has(AVX512_DQ), ISA::AVX512DQ<FS>, Dummy>,
-				std::conditional_t<FS.has(AVX512_VL), ISA::AVX512VL<FS>, Dummy>,
-				std::conditional_t<FS.has(AVX512_BW), ISA::AVX512BW<FS>, Dummy>,
-				std::conditional_t<FS.has(AVX512_CD), ISA::AVX512CD<FS>, Dummy>,
-				std::conditional_t<FS.has(AVX512_F), ISA::AVX512F<FS>, Dummy>,
-				std::conditional_t<FS.has(F16C), ISA::F16C<FS>, Dummy>,
-				std::conditional_t<FS.has(AVX2), ISA::AVX2<FS>, Dummy>,
-				std::conditional_t<FS.has(AVX), ISA::AVX<FS>, Dummy>,
-				ISA::Scalar<FS>>;
+				std::conditional_t<FS.has(AVX512_VBMI2), ISA::AVX512VBMI2, Dummy>,
+				std::conditional_t<FS.has(AVX512_VBMI), ISA::AVX512VBMI, Dummy>,
+				std::conditional_t<FS.has(AVX512_DQ), ISA::AVX512DQ, Dummy>,
+				std::conditional_t<FS.has(AVX512_VL), ISA::AVX512VL, Dummy>,
+				std::conditional_t<FS.has(AVX512_BW), ISA::AVX512BW, Dummy>,
+				std::conditional_t<FS.has(AVX512_CD), ISA::AVX512CD, Dummy>,
+				std::conditional_t<FS.has(AVX512_F), ISA::AVX512F, Dummy>,
+				std::conditional_t<FS.has(F16C), ISA::F16C, Dummy>,
+				std::conditional_t<FS.has(AVX2), ISA::AVX2, Dummy>,
+				std::conditional_t<FS.has(AVX), ISA::AVX, Dummy>,
+				ISA::Scalar>;
 
 			//Dispatches operation through this dispatcher. Attempts to pick best available implementation for target operation respecting template argument feature set limitations
 			template<typename Op, typename... Args>
@@ -64,6 +63,6 @@ namespace AVXXY_NAMESPACE
 		};
 
 		//Dispatcher that uses current feature set.
-		using DefaultDispatcher = Dispatcher<FS_current>;
+		using DefaultDispatcher = Dispatcher;
 	}
 }

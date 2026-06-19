@@ -12,10 +12,9 @@ namespace AVXXY_NAMESPACE
 		{
 			using namespace concepts;
 			using namespace utils;
-			template<internals::FeatureSet FS>
 			struct AVX512VL
 			{
-				
+				static inline constexpr FeatureSet FS = internals::FS_current;
 			};
 		}
 	}

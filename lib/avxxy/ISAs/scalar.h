@@ -14,9 +14,9 @@ namespace AVXXY_NAMESPACE
 		namespace ISA
 		{
 			using namespace concepts;
-			template<internals::FeatureSet FS>
 			struct Scalar
 			{
+				static inline constexpr FeatureSet FS = internals::FS_current;
 				template<typename S, size_t N>
 				static SIMD_Vector<S, N> eval(op_add, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{

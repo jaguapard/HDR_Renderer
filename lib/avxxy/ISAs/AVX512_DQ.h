@@ -12,9 +12,9 @@ namespace AVXXY_NAMESPACE
 		{
 			using namespace concepts;
 			using namespace utils;
-			template<FeatureSet FS>
 			struct AVX512DQ
 			{
+				static inline constexpr FeatureSet FS = internals::FS_current;
 				template<typename S, size_t N>
 				requires (sizeof(SIMD_Vector<S,N>) > 32 && (is_f32<S> || is_f64<S>))
 				static SIMD_Vector<S, N> eval(op_and, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)

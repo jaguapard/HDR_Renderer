@@ -14,10 +14,10 @@ namespace AVXXY_NAMESPACE
 		{
 			using namespace concepts;
 			using namespace utils;
-			template<internals::FeatureSet FS>
 			struct AVX512CD
 			{
-				//TODO: can make conflict detection for smaller vectors too
+				static inline constexpr FeatureSet FS = internals::FS_current;
+				//TODO: can make conflict detection for smaller scalar types too
 				template<typename S, size_t N>
 					requires (sizeof(S) * 8 >= N && sizeof(S) >= 4 && sizeof(SIMD_Vector<S,N>) >= (FS.has(AVX512_VL) ? 0 : 33))
 				static SIMD_Vector<typename same_size_uint_t<S>::type, N> eval(op_conflict, const SIMD_Vector<S, N>& a)

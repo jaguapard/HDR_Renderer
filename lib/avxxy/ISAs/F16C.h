@@ -14,9 +14,9 @@ namespace AVXXY_NAMESPACE
 		{
 			using namespace concepts;
 			using namespace utils;
-			template<internals::FeatureSet FS>
 			struct F16C
 			{
+				static inline constexpr FeatureSet FS = internals::FS_current;
 				template <size_t N>
 				static SIMD_Vector<uint16_t, N> eval(op_fp32_to_fp16, const SIMD_Vector<float, N>& a)
 				{
