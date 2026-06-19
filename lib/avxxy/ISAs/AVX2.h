@@ -121,7 +121,7 @@ namespace AVXXY_NAMESPACE
 					using I = same_size_int_t<S>::type;
 					if constexpr (std::is_unsigned_v<S>)
 					{
-						I xorv = I(1) << (sizeof(S) * 8 - 1); //xor with 0x800..000 before comparison
+						S xorv = S(1) << (sizeof(S) * 8 - 1); //xor with 0x800..000 before comparison
 						return cmp_greater(vcvt<I>(a) ^ xorv, vcvt<I>(b) ^ xorv);
 					}
 					else if constexpr (sizeof(T) > 32) return { cmp_greater(a.lo(),b.lo()), cmp_greater(a.hi(),b.hi()) };
@@ -241,14 +241,26 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-					requires (sizeof(S) == 4 && sizeof(SIMD_Vector<S, N>) >= 17 && sizeof(SIMD_Vector<S, N>) <= 32)
+					requires (sizeof(S) == 4 && sizeof(SIMD_Vector<S, N>) >= 17)
 				static SIMD_Vector<S, N> eval(op_compress, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
 				{
 					using T = SIMD_Vector<S, N>;
 					using canon_t = same_size_int_t<S>::type;
-					//if constexpr (sizeof(T) > 32) //TODO: emulate larger compress
-					//else
-					if constexpr (ymm_sized<T> && sizeof(S) == 4)
+					if constexpr (sizeof(T) > 32)
+					{
+						//TODO: check if src is passed properly
+						T ret = src;
+						auto cl = compress(mask.lo(), a.lo(), src.lo());
+						auto ch = compress(mask.hi(), a.hi(), src.hi());
+						size_t sz = std::popcount(typename SIMD_BitMask<N>::UintT(mask.lo()));
+						float* p = (float*)&ret;
+						_mm256_storeu_ps(p, vreinterpret<__m256>(cl));
+						_mm256_storeu_ps(p+sz, vreinterpret<__m256>(ch));
+						//memcpy(&ret, &cl, sizeof(cl));
+						//memcpy((float*)&ret + sz, &ch, sizeof(ch));
+						return ret;
+					}
+					else if constexpr (ymm_sized<T> && sizeof(S) == 4)
 					{
 						auto permx_ind = vcvt<canon_t>(SIMD_Vector<int8_t, N>(_mm_loadu_si64(&tables::compress_to_permx8[mask])));
 						auto tmp = permx(a, permx_ind); //permx_ind is setup in such a way that is can be used both as index register and blend mask without extra conversions
