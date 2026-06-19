@@ -120,11 +120,11 @@ __forceinline void deduplicate_epi32x16(int32x16 inputValues, int32_t invalidVal
 {
 	//Replace inactive lanes with guaranteed-invalid values so masked-off garbage
 	//cannot participate in conflict detection.
-	int32x16 cleaned = _mm512_mask_mov_epi32(_mm512_set1_epi32(invalidValue), activeMask, inputValues);
+	int32x16 cleaned = mask_mov(i32x16(invalidValue), activeMask, inputValues);
 	int32x16 conflicts = _mm512_conflict_epi32(cleaned);
 	Mask16 uniqueMask = activeMask & (conflicts == 0); 	//Keep only active lanes that have no prior occurrence.
 
-	outUniqueValues = _mm512_maskz_compress_epi32(uniqueMask, cleaned);
+	outUniqueValues = compress(uniqueMask, cleaned);
 	if (outUniqueCount) *outUniqueCount = std::popcount((uint32_t)uniqueMask);
 	if (outUniqueMask) *outUniqueMask = uniqueMask;
 }
