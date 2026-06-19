@@ -273,6 +273,29 @@ namespace AVXXY_NAMESPACE
 					}
 					else static_assert(always_false_v<T>);
 				}
+
+				template<typename S, size_t N>
+					requires (any_i32<S> || any_i64<S>)
+				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes)
+				{
+					using T = SIMD_Vector<S, N>;
+					using I = same_size_int_t<S>::type;
+					I* sp = reinterpret_cast<I*>(p);
+					if constexpr (sizeof(T) > 32) 
+					{
+						store(vec.lo(), sp, mask.lo());
+						store(vec.hi(), sp + N/2, mask.hi());
+					}
+					else
+					{
+						auto vec_mask = mask2vec<S, N>(mask); 
+						if constexpr (ymm_sized<T> && any_i64<S>) _mm256_maskstore_epi64(sp, vec_mask, vec);
+						else if constexpr (ymm_sized<T> && any_i32<S>) _mm256_maskstore_epi32(sp, vec_mask, vec);
+						else if constexpr (xmm_sized<T> && any_i64<S>) _mm_maskstore_epi64(sp, vec_mask, vec);
+						else if constexpr (xmm_sized<T> && any_i32<S>) _mm_maskstore_epi32(sp, vec_mask, vec);
+						else static_assert(always_false_v<T>);
+					}
+				}
 			};
 		}
 	}
