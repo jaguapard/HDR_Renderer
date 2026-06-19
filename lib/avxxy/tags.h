@@ -9,6 +9,7 @@ namespace AVXXY_NAMESPACE
 		struct op_add {};
 		struct op_sub {};
 		struct op_mul {};
+		struct op_conflict {};
 		struct op_div {};
 		struct op_mod {};
 		struct op_or {};

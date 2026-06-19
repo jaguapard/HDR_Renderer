@@ -13,6 +13,7 @@ namespace AVXXY_NAMESPACE
 	{
 		namespace ISA
 		{
+			using namespace concepts;
 			template<internals::FeatureSet FS>
 			struct Scalar
 			{
@@ -31,6 +32,24 @@ namespace AVXXY_NAMESPACE
 					scream();
 					SIMD_Vector<To, N> ret;
 					for (size_t i = 0; i < N; ++i) ret[i] = a[i];
+					return ret;
+				}
+
+				template<typename S, size_t N>
+				static SIMD_Vector<typename same_size_uint_t<S>::type, N> eval(op_conflict, const SIMD_Vector<S, N>& a)
+				{
+					using U = typename same_size_uint_t<S>::type;
+					using T = SIMD_Vector<U, N>;
+					T ret;
+					for (size_t i = 0; i < N; ++i)
+					{
+						U acc = 0;
+						for (size_t j = 0; j < i; ++j)
+						{
+							if (a[i] == a[j]) acc |= U(1) << j;
+						}
+						ret[i] = acc;
+					}
 					return ret;
 				}
 
