@@ -96,10 +96,10 @@ namespace AVXXY_NAMESPACE
 					using namespace concepts;
 					using T = SIMD_Vector<S, N>;
 					if constexpr (sizeof(T) > 32) return { cmp_equal(a.lo(),b.lo()), cmp_equal(a.hi(),b.hi()) };
-					else if constexpr (ymm_sized<T> && any_i64<S>) return vec2mask(_mm256_cmpeq_epi64(a, b));
-					else if constexpr (ymm_sized<T> && any_i32<S>) return vec2mask(_mm256_cmpeq_epi32(a, b));
-					else if constexpr (ymm_sized<T> && any_i16<S>) return vec2mask(_mm256_cmpeq_epi16(a, b));
-					else if constexpr (ymm_sized<T> && any_i8<S>) return vec2mask(_mm256_cmpeq_epi8(a, b));
+					else if constexpr (ymm_sized<T> && any_i64<S>) return vec2mask(T(_mm256_cmpeq_epi64(a, b)));
+					else if constexpr (ymm_sized<T> && any_i32<S>) return vec2mask(T(_mm256_cmpeq_epi32(a, b)));
+					else if constexpr (ymm_sized<T> && any_i16<S>) return vec2mask(T(_mm256_cmpeq_epi16(a, b)));
+					else if constexpr (ymm_sized<T> && any_i8<S>) return vec2mask(T(_mm256_cmpeq_epi8(a, b)));
 					else static_assert(always_false_v<T>);
 				}
 
@@ -125,10 +125,10 @@ namespace AVXXY_NAMESPACE
 						return cmp_greater(vcvt<I>(a) ^ xorv, vcvt<I>(b) ^ xorv);
 					}
 					else if constexpr (sizeof(T) > 32) return { cmp_greater(a.lo(),b.lo()), cmp_greater(a.hi(),b.hi()) };
-					else if constexpr (ymm_sized<T> && is_i64<S>) return vec2mask(_mm256_cmpgt_epi64(a, b));
-					else if constexpr (ymm_sized<T> && is_i32<S>) return vec2mask(_mm256_cmpgt_epi32(a, b));
-					else if constexpr (ymm_sized<T> && is_i16<S>) return vec2mask(_mm256_cmpgt_epi16(a, b));
-					else if constexpr (ymm_sized<T> && is_i8<S>) return vec2mask(_mm256_cmpgt_epi8(a, b));
+					else if constexpr (ymm_sized<T> && is_i64<S>) return vec2mask(T(_mm256_cmpgt_epi64(a, b)));
+					else if constexpr (ymm_sized<T> && is_i32<S>) return vec2mask(T(_mm256_cmpgt_epi32(a, b)));
+					else if constexpr (ymm_sized<T> && is_i16<S>) return vec2mask(T(_mm256_cmpgt_epi16(a, b)));
+					else if constexpr (ymm_sized<T> && is_i8<S>) return vec2mask(T(_mm256_cmpgt_epi8(a, b)));
 					else static_assert(always_false_v<T>);
 				}
 				template<typename S, size_t N>
@@ -241,7 +241,7 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-					requires (sizeof(S) == 4 && sizeof(SIMD_Vector<S, N>) >= 17)
+					requires (sizeof(S) == 4 && sizeof(SIMD_Vector<S, N>) >= 17 && sizeof(SIMD_Vector<S, N>) <= 32)
 				static SIMD_Vector<S, N> eval(op_compress, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
 				{
 					using T = SIMD_Vector<S, N>;
