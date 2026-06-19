@@ -61,7 +61,8 @@ Threadpool threadpool;
 
 int main(int argc, char* argv[]) 
 {
-    std::cout << "Compile target FeatureSet: " << avxxy::internals::FS_compile_target << "\n";
+    std::cout << "Compile target FeatureSet: " << avxxy::internals::FS_compile_target << "\n\n";
+    std::cout << "Current FeatureSet: " << avxxy::internals::FS_current << "\n\n";
     SDL_Window* window;
     try
     {

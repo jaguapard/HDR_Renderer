@@ -15,6 +15,7 @@ namespace AVXXY_NAMESPACE
 
 		static inline constexpr size_t BitCount = N;
 		using UintT = typename concepts::bits_to_uint_t<N>::type;
+		using IntT = typename concepts::bits_to_int_t<N>::type;
 		static inline constexpr UintT AllOnes = (N == sizeof(UintT) * 8) ? ~UintT(0) : ((UintT(1) << N) - 1);
 
 		SIMD_BitMask() {};
@@ -38,6 +39,12 @@ namespace AVXXY_NAMESPACE
 
 		//Sets the bit i of the mask to 1 if value is true, or 0 otherwise
 		void setBit(size_t i, bool value);
+
+		//Returns this mask represented as unsigned integer type of smallest size that can hold it
+		UintT as_uint() const;
+
+		//Returns this mask represented as signed integer type of smallest size that can hold it
+		IntT as_int() const;
 
 		SIMD_BitMask<N / 2> lo() const;
 		SIMD_BitMask<N / 2> hi() const;

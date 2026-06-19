@@ -18,7 +18,7 @@ namespace AVXXY_NAMESPACE
 			{
 				template<typename S, size_t N>
 				static SIMD_Vector<S, N> eval(op_add, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
-					requires (sizeof(SIMD_Vector<S, N>) > 32 && (sizeof(S) >= 4 || (sizeof(S) < 4 && !FS.has(AVX2))))
+					requires (sizeof(SIMD_Vector<S, N>) > 32 && (sizeof(S) >= 4 || (sizeof(S) < 4 && !FS.has(Feature::AVX2))))
 				{
 					using namespace concepts;
 					using T = SIMD_Vector<S, N>;
@@ -28,14 +28,14 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (any_i64<S>) return _mm512_add_epi64(a, b);
 					else if constexpr (any_i32<S>) return _mm512_add_epi32(a, b);
 					//TODO: check these!
-					else if constexpr (!FS.has(AVX2) && std::is_signed_v<S>) return vcvt<S>(add(vcvt<int32_t>(a), vcvt<int32_t>(b)));
-					else if constexpr (!FS.has(AVX2) && std::is_unsigned_v<S>) return vcvt<S>(add(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
+					else if constexpr (!FS.has(Feature::AVX2) && std::is_signed_v<S>) return vcvt<S>(add(vcvt<int32_t>(a), vcvt<int32_t>(b)));
+					else if constexpr (!FS.has(Feature::AVX2) && std::is_unsigned_v<S>) return vcvt<S>(add(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
 					else static_assert(always_false_v<S>);
 				}
 
 				template<typename S, size_t N>
 				static SIMD_Vector<S, N> eval(op_sub, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
-					requires (sizeof(SIMD_Vector<S, N>) > 32 && (sizeof(S) >= 4 || (sizeof(S) < 4 && !FS.has(AVX2))))
+					requires (sizeof(SIMD_Vector<S, N>) > 32 && (sizeof(S) >= 4 || (sizeof(S) < 4 && !FS.has(Feature::AVX2))))
 				{
 					using namespace concepts;
 					using T = SIMD_Vector<S, N>;
@@ -45,14 +45,14 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (any_i64<S>) return _mm512_sub_epi64(a, b);
 					else if constexpr (any_i32<S>) return _mm512_sub_epi32(a, b);
 					//TODO: check these!
-					else if constexpr (!FS.has(AVX2) && std::is_signed_v<S>) return vcvt<S>(sub(vcvt<int32_t>(a), vcvt<int32_t>(b)));
-					else if constexpr (!FS.has(AVX2) && std::is_unsigned_v<S>) return vcvt<S>(sub(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
+					else if constexpr (!FS.has(Feature::AVX2) && std::is_signed_v<S>) return vcvt<S>(sub(vcvt<int32_t>(a), vcvt<int32_t>(b)));
+					else if constexpr (!FS.has(Feature::AVX2) && std::is_unsigned_v<S>) return vcvt<S>(sub(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
 					else static_assert(always_false_v<S>);
 				}
 
 				template<typename S, size_t N>
 				static SIMD_Vector<S, N> eval(op_mul, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
-					requires (sizeof(SIMD_Vector<S, N>) > 32 && (sizeof(S) >= 4 || (sizeof(S) < 4 && !FS.has(AVX2))))
+					requires (sizeof(SIMD_Vector<S, N>) > 32 && (sizeof(S) >= 4 || (sizeof(S) < 4 && !FS.has(Feature::AVX2))))
 				{
 					using namespace concepts;
 					using T = SIMD_Vector<S, N>;
@@ -62,8 +62,8 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (any_i64<S>) return _mm512_mullox_epi64(a, b);
 					else if constexpr (any_i32<S>) return _mm512_mullo_epi32(a, b);
 					//TODO: check these!
-					else if constexpr (!FS.has(AVX2) && std::is_signed_v<S>) return vcvt<S>(mul(vcvt<int32_t>(a), vcvt<int32_t>(b)));
-					else if constexpr (!FS.has(AVX2) && std::is_unsigned_v<S>) return vcvt<S>(mul(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
+					else if constexpr (!FS.has(Feature::AVX2) && std::is_signed_v<S>) return vcvt<S>(mul(vcvt<int32_t>(a), vcvt<int32_t>(b)));
+					else if constexpr (!FS.has(Feature::AVX2) && std::is_unsigned_v<S>) return vcvt<S>(mul(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
 					else static_assert(always_false_v<S>);
 				}
 

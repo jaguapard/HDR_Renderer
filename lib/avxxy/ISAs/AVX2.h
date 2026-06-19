@@ -257,9 +257,10 @@ namespace AVXXY_NAMESPACE
 
 						static_assert(sizeof(S) == 4);
 						float* p = (float*)&ret;
-						_mm256_storeu_ps(p, vreinterpret<__m256>(cl));
+						store(cl, p);
 						SIMD_BitMask<N / 2> cm = (uint64_t(1) << popcnt_hi) - 1;
-						_mm256_maskstore_ps(p + popcnt_lo, mask2vec<int32_t, N / 2>(cm), vreinterpret<__m256>(ch)); //don't overwrite src remains
+						store(ch, p + popcnt_lo, cm); //don't overwrite src remains
+						//_mm256_maskstore_ps(p + popcnt_lo, mask2vec<int32_t, N / 2>(cm), vreinterpret<__m256>(ch)); //don't overwrite src remains
 						return ret;
 					}
 					else if constexpr (ymm_sized<T> && sizeof(S) == 4)

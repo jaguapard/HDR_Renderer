@@ -53,6 +53,16 @@ namespace AVXXY_NAMESPACE
 		underlying &= AllOnes;
 	}
 	template<size_t N>
+	inline SIMD_BitMask<N>::UintT SIMD_BitMask<N>::as_uint() const
+	{
+		return UintT(*this);
+	}
+	template<size_t N>
+	inline SIMD_BitMask<N>::IntT SIMD_BitMask<N>::as_int() const
+	{
+		return UintT(*this);
+	}
+	template<size_t N>
 	inline SIMD_BitMask<N / 2> SIMD_BitMask<N>::lo() const
 	{
 		return underlying;
