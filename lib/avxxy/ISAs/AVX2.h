@@ -173,6 +173,36 @@ namespace AVXXY_NAMESPACE
 
 				template<typename S, size_t N>
 					requires (any_int<S> && sizeof(SIMD_Vector<S, N>) > 16)
+				static SIMD_Vector<S, N> eval(op_min, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 32) return { min(a.lo(), b.lo()), min(a.hi(),b.hi()) };
+					else if constexpr (ymm_sized<T> && is_i8<S>) return _mm256_min_epi8(a, b);
+					else if constexpr (ymm_sized<T> && is_u8<S>) return _mm256_min_epu8(a, b);
+					else if constexpr (ymm_sized<T> && is_i16<S>) return _mm256_min_epi16(a, b);
+					else if constexpr (ymm_sized<T> && is_u16<S>) return _mm256_min_epu16(a, b);
+					else if constexpr (ymm_sized<T> && is_i32<S>) return _mm256_min_epi32(a, b);
+					else if constexpr (ymm_sized<T> && is_u32<S>) return _mm256_min_epu32(a, b);
+					else if constexpr (ymm_sized<T> && any_i64<S>) return mask_mov(a, b < a, b);
+					else static_assert(always_false_v<T>);
+				}
+				template<typename S, size_t N>
+					requires (any_int<S> && sizeof(SIMD_Vector<S, N>) > 16)
+				static SIMD_Vector<S, N> eval(op_max, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 32) return { max(a.lo(), b.lo()), max(a.hi(),b.hi()) };
+					else if constexpr (ymm_sized<T> && is_i8<S>) return _mm256_max_epi8(a, b);
+					else if constexpr (ymm_sized<T> && is_u8<S>) return _mm256_max_epu8(a, b);
+					else if constexpr (ymm_sized<T> && is_i16<S>) return _mm256_max_epi16(a, b);
+					else if constexpr (ymm_sized<T> && is_u16<S>) return _mm256_max_epu16(a, b);
+					else if constexpr (ymm_sized<T> && is_i32<S>) return _mm256_max_epi32(a, b);
+					else if constexpr (ymm_sized<T> && is_u32<S>) return _mm256_max_epu32(a, b);
+					else if constexpr (ymm_sized<T> && any_i64<S>) return mask_mov(a, b > a, b);
+					else static_assert(always_false_v<T>);
+				}
+				template<typename S, size_t N>
+					requires (any_int<S> && sizeof(SIMD_Vector<S, N>) > 16)
 				static SIMD_Vector<S, N> eval(op_unpacklo, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					using T = SIMD_Vector<S, N>;
