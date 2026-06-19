@@ -15,9 +15,9 @@ namespace bob
 	template <typename PackType>
 	struct
 #ifdef __AVX512F__
-		alignas(64)
+		//alignas(64)
 #else
-		alignas(32)
+		//alignas(32)
 #endif
 		VectorPack
 	{
