@@ -75,7 +75,7 @@ namespace AVXXY_NAMESPACE
 		SIMD_Vector(const SIMD_Vector<T, LaneCount>& other) { *this = vcvt<ScalarType>(other); }
 		//Broadcasts a scalar value to all lanes of a vector. The input value is converted to vector's scalar type before broadcasting
 		template<typename T> requires concepts::IsScalarType<T>
-		__forceinline SIMD_Vector(const T& s) { for (size_t i = 0; i < LaneCount; ++i) (*this)[i] = s; }
+		__forceinline SIMD_Vector(T s) { for (size_t i = 0; i < LaneCount; ++i) (*this)[i] = s; }
 
 		//Constructs vector from it's intrinsic type. The intrinsic vector type must be of the same size class as constructed vector:
 		//Vectors less than 17 bytes can be constructed from 128 bit intrinsic types.

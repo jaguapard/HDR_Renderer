@@ -40,8 +40,8 @@ Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
     float32x16 lerpT_x = pixelsX - floor(pixelsX);
     float32x16 lerpT_y = pixelsY - floor(pixelsY);
-    int32x16 startX = vcvt<int>(pixelsX);
-    int32x16 startY = vcvt<int>(pixelsY);
+    int32x16 startX = pixelsX;
+    int32x16 startY = pixelsY;
     const auto& p = this->mapper.getParams();
 
     std::array<Vec4_f32x16, 4> linear;
@@ -65,8 +65,8 @@ float32x16 MipLevel::gatherA(const float32x16& u, const float32x16& v, Mask16 ma
 {
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
     //TODO: same filtering for opacity maps as textures, else it creates disagreement between stages
-    int32x16 sx = vcvt<int>(pixelsX);
-    int32x16 sy = vcvt<int>(pixelsY);
+    int32x16 sx = pixelsX;
+    int32x16 sy = pixelsY;
     this->mapper.wrapInts(sx, sy);
 
     int32x16 ind = sy * this->mapper.getParams().w + sx;

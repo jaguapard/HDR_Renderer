@@ -10,6 +10,13 @@ namespace AVXXY_NAMESPACE
 	{
 		underlying = value & AllOnes;
 	}
+	template<size_t N>
+	inline SIMD_BitMask<N>::SIMD_BitMask(const SIMD_BitMask<N / 2>& lo, const SIMD_BitMask<N / 2>& hi)
+	{
+		static_assert(N % 2 == 0);
+		underlying = UintT(lo) | (UintT(hi) << N/2);
+	}
+
 	/*
 	template<size_t N>
 	template<typename T>

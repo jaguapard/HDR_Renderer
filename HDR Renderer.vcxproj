@@ -449,6 +449,10 @@
     <ClInclude Include="lib\avxxy\FeatureSet.h" />
     <ClInclude Include="lib\avxxy\funcs.h" />
     <ClInclude Include="lib\avxxy\funcs_impl.h" />
+    <ClInclude Include="lib\avxxy\ISAs\AVX512BW.h" />
+    <ClInclude Include="lib\avxxy\ISAs\AVX512F.h" />
+    <ClInclude Include="lib\avxxy\ISAs\AVX512VL.h" />
+    <ClInclude Include="lib\avxxy\ISAs\scalar.h" />
     <ClInclude Include="lib\avxxy\namespace.h" />
     <ClInclude Include="lib\avxxy\operators.h" />
     <ClInclude Include="lib\avxxy\SIMD_BitMask.h" />

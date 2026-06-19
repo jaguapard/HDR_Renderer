@@ -71,19 +71,25 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a)
 	{
-		return internals::DefaultDispatcher::run(internals::op_sqrtf{}, a);
+		return internals::DefaultDispatcher::run(internals::op_sqrtf{}, vcvt<float>(a));
 	}
 
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<double, N> sqrtd(const SIMD_Vector<S, N>& a)
 	{
-		return internals::DefaultDispatcher::run(internals::op_sqrtd{}, a);
+		return internals::DefaultDispatcher::run(internals::op_sqrtd{}, vcvt<double>(a));
 	}
 
 	template<typename To, size_t N, typename From>
 	__forceinline SIMD_Vector<To, N> vcvt(const SIMD_Vector<From, N>& value)
 	{
-		return internals::DefaultDispatcher::run(internals::op_cvt<To>{}, value);
+		if constexpr (std::is_same_v<To, From>) return value; //same type, return immediately
+		//same sized integers reinterpret
+		else if constexpr (std::is_integral_v<To> && std::is_integral_v<From> && sizeof(To) == sizeof(From)) return vcast<SIMD_Vector<To, N>>(value);
+		//TODO: only for non-scalar! Scalar can convert directly (at least from the code PoV)
+		//small integers have no direct path to floating point conversions, so route them through 32-bit integers of samed signedness
+		//from small integer to double or float
+		else return internals::DefaultDispatcher::run(internals::op_cvt<To>{}, value);
 	}
 
 	template<typename S, size_t N>
@@ -95,6 +101,7 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> abs(const SIMD_Vector<S, N>& a)
 	{
+		if constexpr (std::is_unsigned_v<S>) return a;
 		return internals::DefaultDispatcher::run(internals::op_abs{}, a);
 	}
 
@@ -133,6 +140,14 @@ namespace AVXXY_NAMESPACE
 	template<typename T, typename S, size_t N>
 		requires (T::IsSimdVector)
 	__forceinline T vcast(const SIMD_Vector<S, N>& value)
+	{
+		T ret;
+		memcpy(&ret, &value, std::min(sizeof(ret), sizeof(value)));
+		return ret;
+	}
+
+	template<typename T, typename S, size_t N>
+	__forceinline T vreinterpret(const SIMD_Vector<S, N>& value)
 	{
 		T ret;
 		memcpy(&ret, &value, std::min(sizeof(ret), sizeof(value)));
@@ -237,5 +252,17 @@ namespace AVXXY_NAMESPACE
 	__forceinline SIMD_Vector<S, N> compress(const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src)
 	{
 		return internals::DefaultDispatcher::run(internals::op_compress{}, mask, a, src);
+	}
+	template<typename S, size_t N>
+	SIMD_BitMask<N> vec2mask(const SIMD_Vector<S, N>& v)
+	{
+		return internals::DefaultDispatcher::run(internals::op_vec2mask{}, v);
+	}
+	template<typename S, size_t N>
+	SIMD_Vector<S, N> mask2vec(const SIMD_BitMask<N>& mask)
+	{
+		return internals::DefaultDispatcher::run(internals::op_mask2vec<S,N>{}, mask);
+		//using U = concepts::same_size_uint_t<S>::type;
+		//return maskz_mov(mask, std::bit_cast<S>(~U(0)));
 	}
 }

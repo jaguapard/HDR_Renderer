@@ -17,7 +17,7 @@ for i in [0,15]:
 @returns Array of FieldCount 512-bit vectors, with values transposed to SoA layout
 */
 template<typename ReturnType, uint32_t FieldCount>
-__forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(const void* base, __m512i ind, __mmask16 mask)
+__forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(const void* base, i32x16 ind, SIMD_BitMask<16> mask)
 	requires (sizeof(ReturnType) == 64 && FieldCount >= 1)
 {
 	//Unmasked elements use safe dummy index for load (first valid index is broadcasted to all lanes and replaces unmasked ones).
@@ -26,41 +26,35 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	// so instead of forcing users to sanitize the mask, we do it ourselves. Function contract already says that values are undefined, so it's OK
 	std::array<ReturnType, FieldCount> ret;
 	if (!mask) [[unlikely]] return ret;
-
+	/*
 	const float* p = (const float*)base;
 	for (size_t i = 0; i < FieldCount; ++i)
 	{
 		auto v = gather<float, 16, FieldCount * 4>(p+i, i32x16(ind), mask);
 		store(v, &ret[i]);
 	}
-	return ret;
-#if 0
-	__m512i compressedInd = _mm512_maskz_compress_epi32(mask, ind);
-	ind = _mm512_mask_mov_epi32(_mm512_broadcastd_epi32(_mm512_castsi512_si128(compressedInd)), mask, ind);
+	return ret;*/
+#if 1
+	i32x16 compressedInd = compress(mask, ind);
+	ind = mask_mov(i32x16(compressedInd[0]), mask, ind);
 
 	//ind can overflow if multiplied in place, causing silent corruption of the results. Thus, extend and multiply
-	uint64_t offsets[16];
-	const uint64_t rawBase = (const uint64_t)(base);
-	__m512i indLo = _mm512_cvtepi32_epi64(_mm512_extracti32x8_epi32(ind, 0));
-	__m512i indHi = _mm512_cvtepi32_epi64(_mm512_extracti32x8_epi32(ind, 1));
 	//can use extra *4 for easier addressing modes. It's unlikely to matter much, but since it free, why not. 
 	//Multiplication and extension is already required due to indices being struct indices, not element indices
 	// and this function promises to load all 32-bit indices properly.
-	__m512i offsetLo = _mm512_mullo_epi64(indLo, _mm512_set1_epi64(FieldCount * 4));
-	__m512i offsetHi = _mm512_mullo_epi64(indHi, _mm512_set1_epi64(FieldCount * 4));
-	_mm512_storeu_si512(&offsets[0], offsetLo);
-	_mm512_storeu_si512(&offsets[8], offsetHi);
+	u64x16 offsets = u64x16(ind) * FieldCount * 4;
+	const uint64_t rawBase = (const uint64_t)(base);
 	constexpr uint64_t packLoadMask = (1ull << FieldCount) - 1; //avoid touching OOB for tails. Load only FieldCount lower floats for all loads
 
 	if constexpr (FieldCount > 2 && FieldCount <= 4)
 	{
 		//r0 = abcd0,abcd4,abcd8,abcd12
-		__m512 r0 = xmm_x4_to_zmm(
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[4])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[8])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[12]))
+		f32x16 r0(
+			f32x8(load<f32x4>((const void*)(rawBase + offsets[0]), packLoadMask), load<f32x4>((const void*)(rawBase + offsets[4]), packLoadMask)),
+			f32x8(load<f32x4>((const void*)(rawBase + offsets[8]), packLoadMask), load<f32x4>((const void*)(rawBase + offsets[12]), packLoadMask))
 		);
+		
+
 		//r1 = abcd1,abcd5,abcd9,abcd13
 		__m512 r1 = xmm_x4_to_zmm(
 			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[1])),
@@ -94,7 +88,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		return ret;
 	}
 
-	if constexpr (FieldCount > 4 && FieldCount <= 8)
+	else if constexpr (FieldCount > 4 && FieldCount <= 8)
 	{
 		__m256 struct0 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0]));
 		__m256 struct1 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[1]));
@@ -178,7 +172,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		return ret;
 	}
 
-	if constexpr (FieldCount > 8 && FieldCount <= 16)
+	else if constexpr (FieldCount > 8 && FieldCount <= 16)
 	{
 		__m512 struct0 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0])); //|a0,b0,c0,d0|e0,f0,g0,h0|i0,j0,k0,l0|m0,n0,o0,p0|
 		__m512 struct1 = _mm512_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[1])); //|a1,b1,c1,d1|e1,f1,g1,h1|i1,j1,k1,l1|m1,n1,o1,p1|
@@ -277,6 +271,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	}
 
 	//if no specialized version available, then just gather as normal.
+	/*
 	const float* fp = (const float*)base;
 	for (int i = 0; i < FieldCount; ++i)
 	{
@@ -285,7 +280,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m512 tmp = _mm512_insertf32x8(_mm512_castps256_ps512(tmp1), tmp2, 1);
 		_mm512_storeu_ps(&ret[i], tmp);
 	}
-	return ret;
+	return ret;*/
 #endif
 }
 

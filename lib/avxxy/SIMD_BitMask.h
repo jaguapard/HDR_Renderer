@@ -19,7 +19,8 @@ namespace AVXXY_NAMESPACE
 
 		SIMD_BitMask() {};
 		SIMD_BitMask(UintT value);
-
+		//Builds mask from two halves
+		SIMD_BitMask(const SIMD_BitMask<N / 2>& lo, const SIMD_BitMask<N / 2>& hi);
 		//Constructs mask from instrinsic vector of floating point type 
 		/*template<typename T>
 			requires (concepts::is_any_of_v<T, __m128, __m256, __m128d, __m256d>)

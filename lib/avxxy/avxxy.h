@@ -9,6 +9,13 @@
 
 namespace AVXXY_NAMESPACE
 {
+	typedef SIMD_BitMask<2> bitmask2;
+	typedef SIMD_BitMask<4> bitmask4;
+	typedef SIMD_BitMask<8> bitmask8;
+	typedef SIMD_BitMask<16> bitmask16;
+	typedef SIMD_BitMask<32> bitmask32;
+	typedef SIMD_BitMask<64> bitmask64;
+
 	typedef SIMD_Vector<int8_t, 2> i8x2;
 	typedef SIMD_Vector<int8_t, 4> i8x4;
 	typedef SIMD_Vector<int8_t, 8> i8x8;

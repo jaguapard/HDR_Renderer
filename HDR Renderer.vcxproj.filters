@@ -43,6 +43,9 @@
     <Filter Include="Header Files\lib\avxxy">
       <UniqueIdentifier>{ffa497de-da58-4de7-aea4-79360fbf2ffd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\lib\avxxy\isas">
+      <UniqueIdentifier>{dc3cc1d3-e1bd-4265-90ec-0e031421cb34}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -274,6 +277,18 @@
     </ClInclude>
     <ClInclude Include="lib\avxxy\utils.h">
       <Filter>Header Files\lib\avxxy</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512BW.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512F.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512VL.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\scalar.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
