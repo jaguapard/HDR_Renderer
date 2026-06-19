@@ -125,7 +125,7 @@ __forceinline void deduplicate_epi32x16(int32x16 inputValues, int32_t invalidVal
 	Mask16 uniqueMask = activeMask & (conflicts == 0); 	//Keep only active lanes that have no prior occurrence.
 
 	outUniqueValues = _mm512_maskz_compress_epi32(uniqueMask, cleaned);
-	if (outUniqueCount) *outUniqueCount = _mm_popcnt_u32(uniqueMask);
+	if (outUniqueCount) *outUniqueCount = std::popcount((uint32_t)uniqueMask);
 	if (outUniqueMask) *outUniqueMask = uniqueMask;
 }
 

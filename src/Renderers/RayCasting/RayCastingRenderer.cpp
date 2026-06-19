@@ -337,7 +337,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 		OctreeNode* currNode = stack[--stackTopIndex];
 		float32x16 bboxTmin, bboxTmax; //not used
 		Mask16 raysIntersectingNodeBoundingBox = activeRays & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax) & ret.t > bboxTmin;
-		rayNodeIntersections += _mm_popcnt_u32(raysIntersectingNodeBoundingBox);
+		rayNodeIntersections += std::popcount((uint32_t)raysIntersectingNodeBoundingBox);
 		rayNodeTests += 16;
 		if (!raysIntersectingNodeBoundingBox) continue;
 
@@ -349,7 +349,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
 			float32x16 t;
 			Mask16 raysHittingThisTriangle = activeRays & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
-			triangleIntersectionTestsLive += _mm_popcnt_u32(raysHittingThisTriangle);
+			triangleIntersectionTestsLive += std::popcount((uint32_t)raysHittingThisTriangle);
 			triangleIntersectionTests += 16;
 			if (!raysHittingThisTriangle) continue;
 

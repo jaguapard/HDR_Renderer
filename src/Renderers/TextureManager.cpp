@@ -134,7 +134,7 @@ Vec4_f32x16 TextureManager::gatherLinearIntesitiesFromMultipleTextures(const int
 		if (Statsman::ENABLED)
 		{
 			MyStatsman.rasterizing.textureGatheredLanes += 16;
-			MyStatsman.rasterizing.textureGatherAliveLanes += _mm_popcnt_u32(thisTextureMask);
+			MyStatsman.rasterizing.textureGatherAliveLanes += std::popcount((uint32_t)thisTextureMask);
 		}*/
 	}
 	return texturePixels;
@@ -156,7 +156,7 @@ float32x16 TextureManager::gatherAlphaFromMultipleTextures(const int32x16& textu
 		if (Statsman::ENABLED)
 		{
 			MyStatsman.rasterizing.textureGatheredLanes += 16;
-			MyStatsman.rasterizing.textureGatherAliveLanes += _mm_popcnt_u32(thisTextureMask);
+			MyStatsman.rasterizing.textureGatherAliveLanes += std::popcount((uint32_t)thisTextureMask);
 		}*/
 	}
 	return ret;

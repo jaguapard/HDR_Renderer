@@ -709,8 +709,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				if (Statsman::ENABLED)
 				{
 					MyStatsman.rasterizing.zBufferFetchLanes += 16;
-					MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(scavengerBounds);
-					MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints);
+					MyStatsman.rasterizing.zBufferFetchAliveLanes += std::popcount((uint32_t)scavengerBounds);
+					MyStatsman.rasterizing.notOccludedPoints += std::popcount((uint32_t)notOccludedPoints);
 				}
 				if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
@@ -722,8 +722,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					if (Statsman::ENABLED)
 					{
 						MyStatsman.rasterizing.opacityMapGatherLanes += 16;
-						MyStatsman.rasterizing.opacityMapGatherLanesLive += _mm_popcnt_u32(notOccludedPoints);
-						//MyStatsman.rasterizing.opacityMapGatherLanesUnique += _mm_popcnt_u32(accessor.gatherMask & (int32x16(_mm512_conflict_epi32(accessor.gatherInd)) == 0));
+						MyStatsman.rasterizing.opacityMapGatherLanesLive += std::popcount((uint32_t)notOccludedPoints);
+						//MyStatsman.rasterizing.opacityMapGatherLanesUnique += std::popcount((uint32_t)accessor.gatherMask & (int32x16(_mm512_conflict_epi32(accessor.gatherInd)) == 0));
 					}
 				}
 
@@ -739,10 +739,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				if (Statsman::ENABLED)
 				{
 					MyStatsman.rasterizing.zBufferWriteLanes += 16;
-					MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask);
+					MyStatsman.rasterizing.zBufferWriteAliveLanes += std::popcount((uint32_t)opaquePixelsMask);
 					MyStatsman.rasterizing.frameBufWriteLanes += 16;
-					MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask);
-					MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask);
+					MyStatsman.rasterizing.frameBufWriteAliveLanes += std::popcount((uint32_t)opaquePixelsMask);
+					MyStatsman.rasterizing.opaquePixels += std::popcount((uint32_t)opaquePixelsMask);
 				}
 			}
 			scavenger.size = 0;
@@ -768,7 +768,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					if (Statsman::ENABLED)
 					{
 						MyStatsman.rasterizing.barycentricsCalculated += 16;
-						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask);
+						MyStatsman.rasterizing.pointsInsideTriangles += std::popcount((uint32_t)pointsInsideTriangleMask);
 					}
 					//this branch may acually be slower than just letting 0 entries get written to scavenger. The scavenger does prevent execution falling through further already
 					//if (!pointsInsideTriangleMask) continue;
@@ -779,7 +779,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					store(cx, &scavenger.x[scavenger.size]);
 					store(cy, &scavenger.y[scavenger.size]);
 					store(ci, &scavenger.inBatchInd[scavenger.size]);
-					scavenger.size += _mm_popcnt_u32(pointsInsideTriangleMask);
+					scavenger.size += std::popcount((uint32_t)pointsInsideTriangleMask);
 					if (scavenger.size < scavenger.MAX_SIZE) continue;
 
 					scavenger_flush(i);
@@ -960,7 +960,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 								if (Statsman::ENABLED)
 								{
 									MyStatsman.rasterizing.shadowMapGatherLanes += 16;
-									MyStatsman.rasterizing.shadowMapGatherLanesLive += _mm_popcnt_u32(inShadowMapBounds);
+									MyStatsman.rasterizing.shadowMapGatherLanesLive += std::popcount((uint32_t)inShadowMapBounds);
 								}
 								pointsInShadow = ~inShadowMapBounds;
 								if (this->useShadowMapBias)
