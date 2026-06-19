@@ -26,6 +26,15 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	// so instead of forcing users to sanitize the mask, we do it ourselves. Function contract already says that values are undefined, so it's OK
 	std::array<ReturnType, FieldCount> ret;
 	if (!mask) [[unlikely]] return ret;
+
+	const float* p = (const float*)base;
+	for (size_t i = 0; i < FieldCount; ++i)
+	{
+		auto v = gather<float, 16, FieldCount * 4>(p+i, i32x16(ind), mask);
+		store(v, &ret[i]);
+	}
+	return ret;
+#if 0
 	__m512i compressedInd = _mm512_maskz_compress_epi32(mask, ind);
 	ind = _mm512_mask_mov_epi32(_mm512_broadcastd_epi32(_mm512_castsi512_si128(compressedInd)), mask, ind);
 
@@ -277,6 +286,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		_mm512_storeu_ps(&ret[i], tmp);
 	}
 	return ret;
+#endif
 }
 
 /**

@@ -190,6 +190,7 @@
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <OpenMPSupport>true</OpenMPSupport>
+      <AdditionalOptions>/clang:-march=native %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -243,6 +244,7 @@
       <OpenMPSupport>true</OpenMPSupport>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointModel>Fast</FloatingPointModel>
+      <AdditionalOptions>/clang:-march=native %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -270,6 +272,7 @@
       <OpenMPSupport>true</OpenMPSupport>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointModel>Fast</FloatingPointModel>
+      <AdditionalOptions>/clang:-march=native %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -317,6 +320,7 @@
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <OpenMPSupport>true</OpenMPSupport>
+      <AdditionalOptions>/clang:-march=native %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -372,6 +376,7 @@
       <OpenMPSupport>true</OpenMPSupport>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointModel>Fast</FloatingPointModel>
+      <AdditionalOptions>/clang:-march=native %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -400,6 +405,7 @@
       <OpenMPSupport>true</OpenMPSupport>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointModel>Fast</FloatingPointModel>
+      <AdditionalOptions>/clang:-march=native %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -437,11 +443,18 @@
     <ClCompile Include="src\Threadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="lib\bob\AVX512_MaskedOp.h" />
-    <ClInclude Include="lib\bob\float32x16.h" />
-    <ClInclude Include="lib\bob\float32x8.h" />
-    <ClInclude Include="lib\bob\int32x16.h" />
-    <ClInclude Include="lib\bob\Mask16.h" />
+    <ClInclude Include="lib\AVXxy\AVXxy.h" />
+    <ClInclude Include="lib\AVXxy\capabilities.h" />
+    <ClInclude Include="lib\AVXxy\cvt.h" />
+    <ClInclude Include="lib\AVXxy\funcs.h" />
+    <ClInclude Include="lib\AVXxy\funcs_impl.h" />
+    <ClInclude Include="lib\AVXxy\infer.h" />
+    <ClInclude Include="lib\AVXxy\namespace.h" />
+    <ClInclude Include="lib\AVXxy\operators.h" />
+    <ClInclude Include="lib\AVXxy\SIMD_Mask.h" />
+    <ClInclude Include="lib\AVXxy\SIMD_Mask_impl.h" />
+    <ClInclude Include="lib\AVXxy\SIMD_Vector.h" />
+    <ClInclude Include="lib\AVXxy\SIMD_Vector_impl.h" />
     <ClInclude Include="lib\bob\Matrix4.h" />
     <ClInclude Include="lib\bob\SSE_Vec4.h" />
     <ClInclude Include="lib\bob\Timer.h" />
@@ -483,6 +496,7 @@
     <ClInclude Include="src\Vec.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ISSUES.md" />
     <None Include="src\Renderers\HardwareRasterizing\Shaders\cbuff.hlsli" />
   </ItemGroup>
   <ItemGroup>

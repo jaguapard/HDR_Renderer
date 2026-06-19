@@ -178,7 +178,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	int w = settings.outputTextureW;
 	int h = settings.outputTextureH;
-	uint64_t skyColorFP16 = _mm_extract_epi64(_mm_cvtps_ph(this->skyColor, _MM_FROUND_TO_NEAREST_INT), 0);
+	uint64_t skyColorFP16 = reinterpret<uint64_t>(vec_cvt_ps2ph(load<f32x4>(&this->skyColor)));
 	this->depthBufMain.resize(w, h);
 	this->triangleIndexBuf.resize(w, h);
 	this->frameBuf = Buffer<uint64_t>((uint64_t*)this->currGs->graphicsOutputBuffer, w, h, skyColorFP16);
@@ -431,7 +431,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			Vec4_f32x16 rotatedTranslated = currCmd.ctr.rotateAndTranslate(originalVertices[i].space);
 			Mask16 vertexBehindClippingPlane = rotatedTranslated.z < input.nearPlaneZ;
 			currOutput.behindNearPlaneMasks[i] = rotatedTranslated.z < input.nearPlaneZ;
-			behindNearPlaneCount = _mm512_mask_add_epi32(behindNearPlaneCount, vertexBehindClippingPlane, behindNearPlaneCount, int32x16(1));
+			behindNearPlaneCount = mask_mov(behindNearPlaneCount, vertexBehindClippingPlane, behindNearPlaneCount + 1);
 			currOutputTriangle->vertices[i].space = rotatedTranslated;
 		}
 
@@ -442,15 +442,15 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 		{
 			int32x16 modelFlags;
 			const auto* flagsPtr = this->triangleStore.modelFlags.data();
-			if (input.stage == 1) modelFlags = _mm512_maskz_loadu_epi32(activeTriangles, flagsPtr + input.triangleIndices[0]);
-			else modelFlags = _mm512_mask_i32gather_epi32(_mm512_set1_epi32(0), activeTriangles, input.triangleIndices, flagsPtr, 4);
+			if (input.stage == 1) modelFlags = load<i32x16>(flagsPtr + input.triangleIndices[0], activeTriangles);
+			else modelFlags = gather<i32x16>(flagsPtr, input.triangleIndices, activeTriangles);
 			
 			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutputTriangle->vertices[0].space, currOutputTriangle->vertices[1].space, currOutputTriangle->vertices[2].space);
 			float32x16 dot = currOutputTriangle->vertices[0].space.dot3d(transformedFaceNormals);
 			switch (currCmd.faceCullingType)
 			{
-				case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & NO_BACKFACE_CULLING) != 0 | dot < 0.f; break;
-				case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & NO_FRONTFACE_CULLING) != 0 | dot >= 0.f; break;
+				case FaceCullingType::BACKFACE: activeTriangles &= (modelFlags & int(NO_BACKFACE_CULLING)) != 0 | dot < 0.f; break;
+				case FaceCullingType::FRONTFACE: activeTriangles &= (modelFlags & int(NO_FRONTFACE_CULLING)) != 0 | dot >= 0.f; break;
 				default: break;
 			}
 			if (!activeTriangles) continue;
@@ -519,10 +519,10 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 				auto& currVertex = currOutputTriangle->vertices[i];
 				float32x16 zInv = fovMult / currVertex.space.z;
 				currVertex.space = currCmd.ctr.screenSpaceToPixels(currVertex.space * zInv);
-				minX = _mm512_min_ps(minX, currVertex.space.x);
-				minY = _mm512_min_ps(minY, currVertex.space.y);
-				maxX = _mm512_max_ps(maxX, currVertex.space.x);
-				maxY = _mm512_max_ps(maxY, currVertex.space.y);
+				minX = min(minX, currVertex.space.x);
+				minY = min(minY, currVertex.space.y);
+				maxX = max(maxX, currVertex.space.x);
+				maxY = max(maxY, currVertex.space.y);
 				if (input.stage == 2)
 				{
 					currVertex.space.z = zInv;
@@ -540,10 +540,10 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			activeTriangles = (minX < w & maxX >= 0.f) & (minY < h & maxY >= 0.f) & (activeTriangles & nonZeroSignedAreaMask);
 			if (!activeTriangles) continue;
 
-			currOutputTriangle->minX = _mm512_floor_ps(minX);
-			currOutputTriangle->minY = _mm512_floor_ps(minY);
-			currOutputTriangle->maxX = _mm512_ceil_ps(maxX);
-			currOutputTriangle->maxY = _mm512_ceil_ps(maxY);
+			currOutputTriangle->minX = floor(minX);
+			currOutputTriangle->minY = floor(minY);
+			currOutputTriangle->maxX = ceil(maxX);
+			currOutputTriangle->maxY = ceil(maxY);
 			currOutputTriangle->rcpSignedArea = float32x16(1) / signedArea;
 			currOutputTriangle->activeTrianges = activeTriangles;
 		}
@@ -613,17 +613,17 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 				float rcpScreenHeightPerThread = double(threadCount) / currCmd.renderH;
 				auto& currOutput = transformedResults[cmdIndex];
 
-				int32x16 vecFirstThread = _mm512_cvttps_epi32(currTriangles.minY * rcpScreenHeightPerThread);
-				int32x16 vecLastThread = _mm512_cvttps_epi32(currTriangles.maxY * rcpScreenHeightPerThread);
+				int32x16 vecFirstThread = currTriangles.minY * rcpScreenHeightPerThread;
+				int32x16 vecLastThread = currTriangles.maxY * rcpScreenHeightPerThread;
 				currActiveTriangles &= (vecLastThread >= 0) & (vecFirstThread < threadCount);
 				if (!currActiveTriangles) continue;
 
-				vecFirstThread = vecFirstThread.clamp(0, threadCount - 1);
-				vecLastThread = vecLastThread.clamp(0, threadCount - 1);
+				vecFirstThread = clamp(vecFirstThread, i32x16(0), i32x16(threadCount - 1));
+				vecLastThread = clamp(vecLastThread, i32x16(0), i32x16(threadCount - 1));
 
 				for (int i = 0; i < 16; ++i)
 				{
-					if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
+					if (!currActiveTriangles[i]) continue;
 					for (int currReceiverThread = vecFirstThread[i]; currReceiverThread <= vecLastThread[i]; ++currReceiverThread)
 					{
 						auto& targetStore = (*currCmd.trianglesToZones)[threadIndex * threadCount + currReceiverThread];
@@ -662,10 +662,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 		if (!currActiveTriangles) break; //yes, break, not continue. If first triangle is invalid, then all are (at least in current pipeline)
 
 		//TODO: doubling triangles if they are clipped!
-		float32x16 group_xBeg = _mm512_max_ps(_mm512_set1_ps(my_xMin), currTriangles.minX);
-		float32x16 group_yBeg = _mm512_max_ps(_mm512_set1_ps(my_yMin), currTriangles.minY);
-		float32x16 group_xEnd = _mm512_min_ps(_mm512_set1_ps(my_xMax), currTriangles.maxX);
-		float32x16 group_yEnd = _mm512_min_ps(_mm512_set1_ps(my_yMax), currTriangles.maxY);
+		float32x16 group_xBeg = max(f32x16(my_xMin), currTriangles.minX);
+		float32x16 group_yBeg = max(f32x16(my_yMin), currTriangles.minY);
+		float32x16 group_xEnd = min(f32x16(my_xMax), currTriangles.maxX);
+		float32x16 group_yEnd = min(f32x16(my_yMax), currTriangles.maxY);
 		const VertexPack16& v0 = currTriangles.vertices[0];
 		const VertexPack16& v1 = currTriangles.vertices[1];
 		const VertexPack16& v2 = currTriangles.vertices[2];
@@ -684,8 +684,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 			{
 				const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
 				Mask16 scavengerBounds = int32x16::sequence() + scavengeInd < scavenger.size;
-				float32x16 x = _mm512_loadu_ps(&scavenger.x[scavengeInd]);
-				float32x16 y = _mm512_loadu_ps(&scavenger.y[scavengeInd]);
+				float32x16 x = load<f32x16>(&scavenger.x[scavengeInd]);
+				float32x16 y = load<f32x16>(&scavenger.y[scavengeInd]);
 				float32x16 dx = x - group_xBeg[i];
 				float32x16 dy = y - group_yBeg[i];
 
@@ -696,10 +696,10 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
 					Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
 
-				int32x16 intX = x.trunc();
-				int32x16 intY = y.trunc();
+				int32x16 intX = vec_cvt<int>(x);
+				int32x16 intY = vec_cvt<int>(y);
 				int32x16 zbufferGatherInd = intY * w + intX;
-				float32x16 currDepthValues = _mm512_mask_i32gather_ps(_mm512_set1_ps(0), scavengerBounds, zbufferGatherInd, zBuffer, 4);
+				float32x16 currDepthValues = gather<f32x16>(zBuffer, zbufferGatherInd, scavengerBounds);
 
 				//depth test: bigger Z pre-divide = further. However, we have reciprocal Z stored in interpolatedDividedUv.z, and Z <= 1 are culled during clipping stage, thus 1/z < z at all times
 				//example: Z post rotate and translate (but before divide) for 2 pixels are 2 and 3. After Z divide they become 0.5 and 0.333. 0.5 should win the depth test, since it's closer
@@ -707,8 +707,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				if (Statsman::ENABLED)
 				{
 					MyStatsman.rasterizing.zBufferFetchLanes += 16;
-					MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(scavengerBounds.mask);
-					MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints.mask);
+					MyStatsman.rasterizing.zBufferFetchAliveLanes += _mm_popcnt_u32(scavengerBounds);
+					MyStatsman.rasterizing.notOccludedPoints += _mm_popcnt_u32(notOccludedPoints);
 				}
 				if (!notOccludedPoints) continue; //if all points are occluded, then skip
 
@@ -728,26 +728,26 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 				Mask16 opaquePixelsMask = notOccludedPoints & (texturePixels.a > 0.0f);
 				if (!opaquePixelsMask) continue;
 
-				_mm512_mask_i32scatter_ps(zBuffer, opaquePixelsMask, zbufferGatherInd, interpolatedDividedUv.z, 4);
+				scatter(interpolatedDividedUv.z, zBuffer, zbufferGatherInd, opaquePixelsMask);
 				if (drawCmd.recipe == DrawRecipe::MAIN_DEPTH_PREPASS)
 				{
-					_mm512_mask_i32scatter_epi32(triangleIndBuf, opaquePixelsMask, zbufferGatherInd, _mm512_set1_epi32(inp.progenitorTriangleIndices[i]), 4);
+					scatter(i32x16(inp.progenitorTriangleIndices[i]), triangleIndBuf, zbufferGatherInd, opaquePixelsMask);
 				}
 
 				if (Statsman::ENABLED)
 				{
 					MyStatsman.rasterizing.zBufferWriteLanes += 16;
-					MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
+					MyStatsman.rasterizing.zBufferWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask);
 					MyStatsman.rasterizing.frameBufWriteLanes += 16;
-					MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask.mask);
-					MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask.mask);
+					MyStatsman.rasterizing.frameBufWriteAliveLanes += _mm_popcnt_u32(opaquePixelsMask);
+					MyStatsman.rasterizing.opaquePixels += _mm_popcnt_u32(opaquePixelsMask);
 				}
 			}
 			scavenger.size = 0;
 		};
 		for (int i = 0; i < 16; ++i)
 		{
-			if ((currActiveTriangles.mask & (1 << i)) == 0) continue;
+			if (!currActiveTriangles[i]) continue;
 
 			bool processingTail = false;
 			//4x4 packed layout is much more friendly to small geometry compared to 1x16 (much less dead lanes)
@@ -766,17 +766,17 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					if (Statsman::ENABLED)
 					{
 						MyStatsman.rasterizing.barycentricsCalculated += 16;
-						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask.mask);
+						MyStatsman.rasterizing.pointsInsideTriangles += _mm_popcnt_u32(pointsInsideTriangleMask);
 					}
 					//this branch may acually be slower than just letting 0 entries get written to scavenger. The scavenger does prevent execution falling through further already
 					//if (!pointsInsideTriangleMask) continue;
 
-					float32x16 cx = _mm512_maskz_compress_ps(pointsInsideTriangleMask, x);
-					float32x16 cy = _mm512_maskz_compress_ps(pointsInsideTriangleMask, y);
-					int32x16 ci = _mm512_maskz_compress_epi32(pointsInsideTriangleMask, _mm512_set1_epi32(i));
-					_mm512_storeu_ps(&scavenger.x[scavenger.size], cx);
-					_mm512_storeu_ps(&scavenger.y[scavenger.size], cy);
-					_mm512_storeu_epi32(&scavenger.inBatchInd[scavenger.size], ci);
+					float32x16 cx = compress(pointsInsideTriangleMask, x);
+					float32x16 cy = compress(pointsInsideTriangleMask, y);
+					int32x16 ci = compress(pointsInsideTriangleMask, i32x16(i));
+					store(cx, &scavenger.x[scavenger.size]);
+					store(cy, &scavenger.y[scavenger.size]);
+					store(ci, &scavenger.inBatchInd[scavenger.size]);
 					scavenger.size += _mm_popcnt_u32(pointsInsideTriangleMask);
 					if (scavenger.size < scavenger.MAX_SIZE) continue;
 
@@ -808,7 +808,7 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 			{
 				Mask16 storeBounds = (int32x16::sequence() + currIndex) < storeSize;
 				static_assert(currStore.ELEMENTS_PER_BLOCK % 16 == 0, "Triangle bin block store is expected to be 16-element aligned.");
-				int32x16 triangleIndices = _mm512_maskz_loadu_epi32(storeBounds, &currStore[currIndex]); //this will read out of block's bounds if ELEMENTS_PER_BLOCK is not divisible by 16.
+				int32x16 triangleIndices = load<i32x16>(&currStore[currIndex], storeBounds); //this will read out of block's bounds if ELEMENTS_PER_BLOCK is not divisible by 16.
 				inp.triangleIndices = triangleIndices;
 				inp.validInputs = storeBounds;
 				inp.firstCmd = inp.lastCmd = cmdIndex;
@@ -825,15 +825,6 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 		}
 	}
 }
-__m512 gather_render_job_attributes_from_render_job_ptrs(__m512i ptrs0_7, __m512i ptrs8_15, int attrOffsetInRenderJob, Mask16 mask)
-{
-	__m512i addr0_7 = _mm512_add_epi64(ptrs0_7, _mm512_set1_epi64(attrOffsetInRenderJob));
-	__m512i addr8_15 = _mm512_add_epi64(ptrs8_15, _mm512_set1_epi64(attrOffsetInRenderJob));
-	__m256 attr0 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask, addr0_7, nullptr, 1);
-	__m256 attr1 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask >> 8, addr8_15, nullptr, 1);
-	return _mm512_insertf32x8(_mm512_castps256_ps512(attr0), attr1, 1);
-}
-
 
 void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 {
@@ -860,7 +851,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				Mask16 sm_xBounds = x < smw;
 				if (sm_xBounds && y < smh)
 				{
-					float32x16 z = _mm512_maskz_loadu_ps(sm_xBounds, shadowMap_zBuffer + yInt * this->drawCommands[1].renderW + xInt);
+					float32x16 z = load<f32x16>(shadowMap_zBuffer + yInt * this->drawCommands[1].renderW + xInt, sm_xBounds);
 					float32x16 dz = float32x16(1) / z;
 					float32x16 distIntensity = float32x16(1) - dz / (dz + 100.f);
 
@@ -872,11 +863,11 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				}
 			}
 
-			float32x16 zInvSrc = _mm512_maskz_loadu_ps(xBoundsMask, main_zBuffer + yInt * w + xInt);
+			float32x16 zInvSrc = load<f32x16>(main_zBuffer + yInt * w + xInt, xBoundsMask);
 			Vec4_f32x16 screenPos(x, y, this->currGs->cameraPlane_zDist, zInvSrc);
 			Vec4_f32x16 worldCoords = this->drawCommands[0].ctr.inverseScreenPixelsToWorld(screenPos);
 
-			int32x16 triangleIndices = _mm512_maskz_loadu_epi32(xBoundsMask, renderJobPtrsBuffer + yInt * w + xInt);
+			int32x16 triangleIndices = load<i32x16>(renderJobPtrsBuffer + yInt * w + xInt, xBoundsMask);
 			Mask16 filledPixels = xBoundsMask & (triangleIndices != -1);
 			if (!filledPixels) continue;
 
@@ -923,9 +914,9 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				texturePixels.a = 1;
 			}
 			filledPixels &= texturePixels.a > 0.f;
-			texturePixels.x = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.x), filledPixels, texturePixels.x);
-			texturePixels.y = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.y), filledPixels, texturePixels.y);
-			texturePixels.z = _mm512_mask_mov_ps(_mm512_set1_ps(this->skyColor.z), filledPixels, texturePixels.z);
+			texturePixels.x = mask_mov(f32x16(this->skyColor.x), filledPixels, texturePixels.x);
+			texturePixels.y = mask_mov(f32x16(this->skyColor.y), filledPixels, texturePixels.y);
+			texturePixels.z = mask_mov(f32x16(this->skyColor.z), filledPixels, texturePixels.z);
 
 			Mask16 pointsInShadow = 0;
 			float32x16 shadowMult = 1.f;
@@ -936,8 +927,6 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				Vec4_f32x16 sunWorldPositions = currentShadowMap.ctr.getCurrentTransformationMatrix() * worldCoords;
 				float32x16 zInv = float32x16(this->currGs->cameraPlane_zDist) / sunWorldPositions.z;
 				Vec4_f32x16 sunScreenPositions = currentShadowMap.ctr.screenSpaceToPixels(sunWorldPositions * zInv);
-				//sunScreenPositions.x = _mm512_roundscale_ps(sunScreenPositions.x, _MM_FROUND_TO_NEAREST_INT);
-				//sunScreenPositions.y = _mm512_roundscale_ps(sunScreenPositions.y, _MM_FROUND_TO_NEAREST_INT);
 				sunScreenPositions.z = zInv;
 				float smapW = currentShadowMap.renderW, smapH = currentShadowMap.renderH;
 
@@ -947,8 +936,8 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 					{
 						float32x16 sx = sunScreenPositions.x + ox;
 						float32x16 sy = sunScreenPositions.y + oy;
-						float32x16 sx0 = _mm512_floor_ps(sx);
-						float32x16 sy0 = _mm512_floor_ps(sy);
+						float32x16 sx0 = floor(sx);
+						float32x16 sy0 = floor(sy);
 						float32x16 sx1 = sx0 + 1;
 						float32x16 sy1 = sy0 + 1;
 						float32x16 fracX = sx - sx0;
@@ -964,8 +953,8 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 							Mask16 inShadowMapBounds = xBoundsMask & ssx >= 0.f & ssy >= 0.f & ssx < smapW & ssy < smapH;
 							if (inShadowMapBounds)
 							{
-								int32x16 gatherInd = int32x16(ssy.trunc()) * this->drawCommands[1].renderW + int32x16(ssx.trunc());
-								float32x16 shadowMapDepths = _mm512_mask_i32gather_ps(_mm512_set1_ps(FLT_MAX), inShadowMapBounds, gatherInd, shadowMap_zBuffer, 4);
+								int32x16 gatherInd = vec_cvt<int>(ssy) * this->drawCommands[1].renderW + vec_cvt<int>(ssx);
+								float32x16 shadowMapDepths = gather<f32x16>(shadowMap_zBuffer, gatherInd, inShadowMapBounds, FLT_MAX);
 								if (Statsman::ENABLED)
 								{
 									MyStatsman.rasterizing.shadowMapGatherLanes += 16;
@@ -983,7 +972,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 								{
 									pointsInShadow |= shadowMapDepths > sunScreenPositions.z;
 								}
-								smapSamples[i] = _mm512_maskz_mov_ps(~pointsInShadow, float32x16(1));
+								smapSamples[i] = maskz_mov(~pointsInShadow, float32x16(1));
 							}
 							else smapSamples[i] = 0.f;
 						}
@@ -1006,17 +995,14 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 				Vec4_f32x16 lightDir = lightTo - lightFrom;
 				lightDir /= lightDir.len3d();
 				normalDot = -normals.dot3d(lightDir);
-				normalShadingMult = _mm512_max_ps(float32x16(0.f), normalDot * this->lightIntesity);
+				normalShadingMult = max(float32x16(0.f), normalDot * this->lightIntesity);
 			}
 			else normalShadingMult = 1.f;
 
 			for (int i = 0; i < 3; ++i)
 			{
-				texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, texturePixels[i], shadowMult * normalShadingMult + this->ambientLightIntensity);//unfilled pixels (sky) is invulnerable to lighting!
+				texturePixels[i] = mask_mov(texturePixels[i], filledPixels, texturePixels[i] * (shadowMult * normalShadingMult + this->ambientLightIntensity));//unfilled pixels (sky) is invulnerable to lighting!
 			}
-			/*
-			for (int i = 0; i < 3; ++i) totalLight[i] *= shadowMult;//_mm512_mask_mov_ps(totalLight[i], pointsInShadow, float32x16(this->ambientLightIntensity));
-			for (int i = 0; i < 3; ++i) texturePixels[i] = _mm512_mask_mul_ps(texturePixels[i], filledPixels, totalLight[i], texturePixels[i]); //unfilled pixels (sky) is invulnerable to lighting!*/
 			mask_store_vec4_f32x16_to_framebuffer(texturePixels, main_frameBuffer, xInt, yInt, this->drawCommands[0].renderW, xBoundsMask);
 		}
 	}

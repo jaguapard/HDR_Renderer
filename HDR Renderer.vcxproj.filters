@@ -40,6 +40,9 @@
     <Filter Include="Header Files\Renderers\Hardware\Shaders">
       <UniqueIdentifier>{a3f18f64-e031-4923-8e81-f00b677e7a16}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\lib\avxxy">
+      <UniqueIdentifier>{ffa497de-da58-4de7-aea4-79360fbf2ffd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -128,15 +131,6 @@
     <ClInclude Include="lib\bob\Vec3.h">
       <Filter>Header Files\lib\bob</Filter>
     </ClInclude>
-    <ClInclude Include="lib\bob\float32x16.h">
-      <Filter>Header Files\lib\bob</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\bob\int32x16.h">
-      <Filter>Header Files\lib\bob</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\bob\Mask16.h">
-      <Filter>Header Files\lib\bob</Filter>
-    </ClInclude>
     <ClInclude Include="lib\bob\Matrix4.h">
       <Filter>Header Files\lib\bob</Filter>
     </ClInclude>
@@ -151,12 +145,6 @@
     </ClInclude>
     <ClInclude Include="src\Vec.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\bob\AVX512_MaskedOp.h">
-      <Filter>Header Files\lib\bob</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\bob\float32x8.h">
-      <Filter>Header Files\lib\bob</Filter>
     </ClInclude>
     <ClInclude Include="src\GameSettings.h">
       <Filter>Header Files</Filter>
@@ -247,6 +235,42 @@
     </ClInclude>
     <ClInclude Include="src\Renderers\HardwareRasterizingRenderer.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\AVXxy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\cvt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\funcs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\funcs_impl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\infer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\namespace.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\operators.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\SIMD_Mask.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\SIMD_Mask_impl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\SIMD_Vector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\SIMD_Vector_impl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\AVXxy\capabilities.h">
+      <Filter>Header Files\lib\avxxy</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -85,30 +85,30 @@ public:
 		ret[2] = ((A - P).cross3d(B - P)).dot3d(n) / n.dot3d(n);
 	}
 
-	static __forceinline void mask_store_rows_512_to_4x128_ps(__m512 value, __mmask16 mask, void* dst, uint32_t xStart, uint32_t yStart, uint32_t w)
+	//TODO: verify that it works
+	//Stores each 128-bit quarter of 512-bit vector to consecutive rows (increasing X indices) of row-major-indexed buffer dst using mask, starting at (xStart,yStart)
+	static __forceinline void mask_store_rows_512_to_4x128_ps(const f32x16& value, __mmask16 mask, void* dst, uint32_t xStart, uint32_t yStart, uint32_t w)
 	{
-		__m128 v0 = _mm512_extractf32x4_ps(value, 0);
-		__m128 v1 = _mm512_extractf32x4_ps(value, 1);
-		__m128 v2 = _mm512_extractf32x4_ps(value, 2);
-		__m128 v3 = _mm512_extractf32x4_ps(value, 3);
+		f32x4 v0 = extract<0, 4>(value);
+		f32x4 v1 = extract<1, 4>(value);
+		f32x4 v2 = extract<2, 4>(value);
+		f32x4 v3 = extract<3, 4>(value);
 		float* p = (float*)dst;
-		_mm_mask_storeu_ps(p + yStart * w + xStart, mask, v0);
-		_mm_mask_storeu_ps(p + (1+yStart) * w + xStart, mask >> 4, v1);
-		_mm_mask_storeu_ps(p + (2+yStart) * w + xStart, mask >> 8, v2);
-		_mm_mask_storeu_ps(p + (3+yStart) * w + xStart, mask >> 12, v3);
+		store(v0, p + yStart * w + xStart, mask);
+		store(v1, p + (1 + yStart) * w + xStart, mask >> 4);
+		store(v2, p + (2 + yStart) * w + xStart, mask >> 8);
+		store(v3, p + (3 + yStart) * w + xStart, mask >> 12);
 	}
+
+	//TODO: verify that it works
 	static __forceinline __m512 mask_load_rows_4x128_to_512_ps(__mmask16 mask, const void* src, uint32_t xStart, uint32_t yStart, uint32_t w)
 	{
 		const float* p = (const float*)src;
-		__m128 v0 = _mm_maskz_loadu_ps(mask, p + yStart * w + xStart);
-		__m128 v1 = _mm_maskz_loadu_ps(mask >> 4, p + (yStart + 1) * w + xStart);
-		__m128 v2 = _mm_maskz_loadu_ps(mask >> 8, p + (yStart + 2) * w + xStart);
-		__m128 v3 = _mm_maskz_loadu_ps(mask >> 12, p + (yStart + 3) * w + xStart);
-		__m512 ret = _mm512_castps128_ps512(v0);
-		ret = _mm512_insertf32x4(ret, v1, 1);
-		ret = _mm512_insertf32x4(ret, v2, 2);
-		ret = _mm512_insertf32x4(ret, v3, 3);
-		return ret;
+		f32x4 v0 = load<f32x4>(p + yStart * w + xStart, mask);
+		f32x4 v1 = load<f32x4>(p + (yStart + 1) * w + xStart, mask >> 4);
+		f32x4 v2 = load<f32x4>(p + (yStart + 2) * w + xStart, mask >> 8);
+		f32x4 v3 = load<f32x4>(p + (yStart + 3) * w + xStart, mask >> 12);
+		return concat(concat(v0, v1), concat(v2, v3));
 	}
 
 	//Writes out colors to pixels (x,y) of the framebuffer using mask

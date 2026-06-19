@@ -72,7 +72,7 @@ Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, V
 	Vec4_f32x16 ray_cross_e2 = rayDirs.cross3d(edge2);
 	float32x16 det = edge1.dot3d(ray_cross_e2);
 
-	activeRays &= float32x16(_mm512_abs_ps(det)) >= eps;
+	activeRays &= abs(det) >= eps;
 	if (!activeRays) return 0; // Ray is parallel to triangle
 
 	float32x16 inv_det = float32x16(1.f) / det;
@@ -95,18 +95,19 @@ Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, V
 	return activeRays & t > epsilon; // Ray intersection
 }
 
+//TODO: verify that it works
 //Checks 8 rays for intersection with 1 triangle, returning mask of rays hitting the triangle.
 //Intersection T is written out retT. The values of T are undefined for non-intersecting rays
 //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
-float32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x8& retT)
+Mask8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x8& retT)
 {
 	constexpr float epsilon = std::numeric_limits<float>::epsilon();
-	constexpr float eps = std::numeric_limits<float>::epsilon();
+	const f32x8 eps = std::numeric_limits<float>::epsilon();
 
 	Vec4_f32x8 edge1 = triB - triA;
 	Vec4_f32x8 edge2 = triC - triA;
 
-	float32x8 activeRays = _mm256_set1_ps(std::bit_cast<float>(-1));
+	Mask8 activeRays = 0xFF;
 	// Backface culling, assuming CW-wound triangles.
 	/*
 	const Vec4_f32x8 normal = edge1.cross3d(edge2); // No need to normalize
@@ -116,28 +117,27 @@ float32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, 
 	Vec4_f32x8 ray_cross_e2 = rayDirs.cross3d(edge2);
 	float32x8 det = edge1.dot3d(ray_cross_e2);
 	
-	float32x8 absDet = _mm256_blendv_ps(det, -det, det < 0.f);
-	activeRays &= absDet >= eps;
-	if (!activeRays) return _mm256_set1_ps(0); // Ray is parallel to triangle
+	activeRays &= abs(det) >= eps;
+	if (!activeRays) return 0; // Ray is parallel to triangle
 
 	float32x8 inv_det = float32x8(1.f) / det;
 	Vec4_f32x8 s = rayOrigins - triA;
 	float32x8 u = inv_det * s.dot3d(ray_cross_e2);
 
-	activeRays &= u >= -eps & (u - 1) <= eps;
-	if (!activeRays) return _mm256_set1_ps(0); // Ray passes outside edge2's bounds
+	activeRays &= u >= -eps & ((u - 1) <= eps);
+	if (!activeRays) return 0; // Ray passes outside edge2's bounds
 
 	Vec4_f32x8 s_cross_e1 = s.cross3d(edge1);
 	float32x8 v = inv_det * rayDirs.dot3d(s_cross_e1);
-	activeRays &= (v >= -eps) & (u + v - 1) <= eps;
-	if (!activeRays) return _mm256_set1_ps(0); // Ray passes outside edge1's bounds
+	activeRays &= (v >= -eps) & ((u + v - 1) <= eps);
+	if (!activeRays) return 0; // Ray passes outside edge1's bounds
 
 	// The ray line intersects with the triangle.
 	// We compute t to find where on the ray the intersection is.
 	// t < epsilon means that there is a line intersection but not a ray intersection.
 	float32x8 t = inv_det * edge2.dot3d(s_cross_e1);
 	retT = t;
-	return activeRays & t > epsilon; // Ray intersection
+	return activeRays & (t > epsilon); // Ray intersection
 }
 void RayCastingRenderer::loadScene(RendererLoadSceneData scd)
 {
@@ -289,14 +289,13 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				if (hits.raysHit)
 				{
 					int32x16 modelTextureIndOffset = hits.modelIndices * sizeof(RayCasting::Model) + offsetof(RayCasting::Model, textureIndex);
-					int32x16 diffuseMapIndices = _mm512_mask_i32gather_epi32(int32x16(0), hits.raysHit, modelTextureIndOffset, this->sceneModels.data(), 1);
+					int32x16 diffuseMapIndices = gather<i32x16, 1>(this->sceneModels.data(), modelTextureIndOffset, hits.raysHit);
 					textureColors = this->textureManager.gatherLinearIntesitiesFromMultipleTextures(diffuseMapIndices, hits.textureCoords[0], hits.textureCoords[1], hits.raysHit);
 					
-					float32x16 normalShadingMult = _mm512_max_ps(_mm512_setzero_ps(), hits.normals.dot3d(lightDir));
+					float32x16 normalShadingMult = max(f32x16(0), hits.normals.dot3d(lightDir));
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
 					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true, threadIndexFake);
-					//float32x16 shadowMult = _mm512_maskz_mov_ps(~shadowTrace.raysHit, float32x16(1));
-					float32x16 totalMult = _mm512_add_ps(ambientLightIntensity, _mm512_maskz_mov_ps(~shadowTrace.raysHit, normalShadingMult));
+					float32x16 totalMult = ambientLightIntensity + maskz_mov(~shadowTrace.raysHit, normalShadingMult);
 					for (int i = 0; i < 3; ++i)
 					{
 						textureColors[i] *= totalMult;
@@ -304,16 +303,16 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				}
 				size_t xInt = x[0];
 
-				__m256i fp16_r = _mm512_cvtps_ph(textureColors.r, _MM_FROUND_TO_NEAREST_INT);
-				__m256i fp16_g = _mm512_cvtps_ph(textureColors.g, _MM_FROUND_TO_NEAREST_INT);
-				__m256i fp16_b = _mm512_cvtps_ph(textureColors.b, _MM_FROUND_TO_NEAREST_INT);
-				__m256i fp16_a = _mm512_cvtps_ph(textureColors.a, _MM_FROUND_TO_NEAREST_INT); //TODO: can be forced to 1 and moved later
+				u16x16 fp16_r = vec_cvt_ps2ph(textureColors.r);
+				u16x16 fp16_g = vec_cvt_ps2ph(textureColors.g);
+				u16x16 fp16_b = vec_cvt_ps2ph(textureColors.b);
+				u16x16 fp16_a = vec_cvt_ps2ph(textureColors.a); //TODO: can be forced to 1 and moved later
 				for (int packY = 0; packY < 4; ++packY)
 				{
-					__m256i fp16_rg = _mm256_permutex2var_epi16(fp16_r, _mm256_add_epi16(_mm256_setr_epi16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0), _mm256_set1_epi16(packY * 4)), fp16_g);
-					__m256i fp16_ba = _mm256_permutex2var_epi16(fp16_b, _mm256_add_epi16(_mm256_setr_epi16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19), _mm256_set1_epi16(packY * 4)), fp16_a);
-					__m256i toStore = _mm256_mask_mov_epi16(fp16_rg, 0b1100110011001100, fp16_ba);
-					_mm256_mask_store_epi64((uint64_t*)(settings.graphicsOutputBuffer) + (yStart + packY) * bufW + xInt, bounds >> 4 * packY, toStore);
+					u16x16 fp16_rg = permx2(fp16_r, u16x16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0) + packY * 4, fp16_g);
+					u16x16 fp16_ba = permx2(fp16_b, u16x16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19) + packY * 4, fp16_a);
+					u16x16 toStore = mask_mov(fp16_rg, 0b1100110011001100, fp16_ba);
+					store(reinterpret<u64x4>(toStore), (uint64_t*)(settings.graphicsOutputBuffer) + (yStart + packY) * bufW + xInt, bounds >> 4 * packY);
 				}
 			}
 		};
@@ -367,22 +366,22 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			ret.raysHit |= toOverride;
 			if (!shadowRays)
 			{
-				ret.t = _mm512_mask_mov_ps(ret.t, toOverride, t);
+				ret.t = mask_mov(ret.t, toOverride, t);
 
-				ret.modelIndices = _mm512_mask_mov_epi32(ret.modelIndices, toOverride, int32x16(modelIndex));
-				ret.triangleIndices = _mm512_mask_mov_epi32(ret.triangleIndices, toOverride, int32x16(triangleIndex));
+				ret.modelIndices = mask_mov(ret.modelIndices, toOverride, int32x16(modelIndex));
+				ret.triangleIndices = mask_mov(ret.triangleIndices, toOverride, int32x16(triangleIndex));
 				Vec4_f32x16 normals(0.f, 0.f, 0.f, 0.f);
 				for (int i = 0; i < 3; ++i) normals += Vec4_f32x16(triangle.tv[i].normal) * worldBarycentrics[i];
 				normals /= normals.len3d();
 
 				for (int k = 0; k < 3; ++k)
 				{
-					ret.worldBarycentrics[k] = _mm512_mask_mov_ps(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
-					ret.normals[k] = _mm512_mask_mov_ps(ret.normals[k], toOverride, normals[k]);
+					ret.worldBarycentrics[k] = mask_mov(ret.worldBarycentrics[k], toOverride, worldBarycentrics[k]);
+					ret.normals[k] = mask_mov(ret.normals[k], toOverride, normals[k]);
 				}
 				for (int k = 0; k < 2; ++k)
 				{
-					ret.textureCoords[k] = _mm512_mask_mov_ps(ret.textureCoords[k], toOverride, uv[k]);
+					ret.textureCoords[k] = mask_mov(ret.textureCoords[k], toOverride, uv[k]);
 				}
 			}
 			else

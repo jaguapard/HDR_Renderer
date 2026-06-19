@@ -57,7 +57,7 @@ void Rasterizing::ExplodeAndRestoreSceneEffect::applyToTrianglesInPlace(std::arr
 	{
 		Vec4_f32x16 transformed = rotation * (verts[i].space - triangleMiddle) + triangleMiddle + triShift;
 		transformed.w = 1; //TODO: look at this when adding homogeneous coords
-		for (int j = 0; j < 4; ++j) verts[i].space[j] = _mm512_mask_mov_ps(verts[i].space[j], mask, transformed[j]);
+		for (int j = 0; j < 4; ++j) verts[i].space[j] = mask_mov(verts[i].space[j], mask, transformed[j]);
 	}
 }
 

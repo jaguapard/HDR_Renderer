@@ -19,29 +19,25 @@ void WrappingMapper::wrapInts(int32x16& x, int32x16& y) const
 	x = this->wrapIntWithRcp(x, this->params.u64_rcpW, this->params.w);
 	y = this->wrapIntWithRcp(y, this->params.u64_rcpH, this->params.h);
 }
-
+//[[gnu::target("avx512vbmi")]] //todo: change this later
 int32x16 WrappingMapper::wrapIntWithRcp(int32x16 x, uint64_t rcp, uint32_t v)
 {
-	int32x16 ax = _mm512_abs_epi32(x);
+	int32x16 ax = abs(x);
 	int32x16 rem = wrapPositiveIntWithRcp(ax, rcp, v);
 	//TODO: some of these steps may be too cautious and can be removed?
-	rem = _mm512_mask_mov_epi32(int32x16(v) - rem, x >= 0, rem);
-	rem = _mm512_mask_sub_epi32(rem, rem >= v, rem, int32x16(v));
-	rem = _mm512_mask_add_epi32(rem, rem < 0, rem, int32x16(v));
+	rem = mask_mov(int32x16(v) - rem, x >= 0, rem);
+	rem = mask_mov(rem, rem >= v, rem - int32x16(v));
+	rem = mask_mov(rem, rem < 0, rem + int32x16(v));
 	return rem;
 }
-
-int32x16 WrappingMapper::wrapPositiveIntWithRcp(int32x16 x, uint64_t rcp, uint32_t v)
+//[[gnu::target("avx512vbmi")]] //todo: change this later
+int32x16 WrappingMapper::wrapPositiveIntWithRcp(u32x16 x, uint64_t rcp, uint32_t v)
 {
 	for (int i = 0; i < 16; ++i) assert(x[i] >= 0);
-	__m512i lo64 = _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(x, 0));
-	__m512i hi64 = _mm512_cvtepu32_epi64(_mm512_extracti32x8_epi32(x, 1));
-
-	__m512i divLo = _mm512_srli_epi64(_mm512_mullo_epi64(lo64, _mm512_set1_epi64(rcp)), 32);
-	__m512i divHi = _mm512_srli_epi64(_mm512_mullo_epi64(hi64, _mm512_set1_epi64(rcp)), 32);
-	__m512i remLo = _mm512_sub_epi64(lo64, _mm512_mullo_epi64(divLo, _mm512_set1_epi64(v)));
-	__m512i remHi = _mm512_sub_epi64(hi64, _mm512_mullo_epi64(divHi, _mm512_set1_epi64(v)));
-	return _mm512_permutex2var_epi32(remLo, _mm512_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30), remHi);
+	auto x64 = vec_cvt<uint64_t>(x);
+	auto div = (x64 * rcp) >> 32;
+	auto rem = x64 - (div * v);
+	return permx2(reinterpret<u32x16>(rem.lo), u32x16(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30), reinterpret<u32x16>(rem.hi));
 }
 
 std::pair<float, float> WrappingMapper::wrapUV(float u, float v)
@@ -55,18 +51,18 @@ std::pair<float, float> WrappingMapper::wrapUV(float u, float v)
 
 std::pair<float32x8, float32x8> WrappingMapper::wrapUV(float32x8 u, float32x8 v)
 {
-	u -= _mm256_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
-	u -= _mm256_floor_ps(u);
-	v -= _mm256_floor_ps(v);
-	v -= _mm256_floor_ps(v);
+	u -= floor(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+	u -= floor(u);
+	v -= floor(v);
+	v -= floor(v);
 	return { u,v };
 }
 
 std::pair<float32x16, float32x16> WrappingMapper::wrapUV(float32x16 u, float32x16 v)
 {
-	u -= _mm512_floor_ps(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
-	u -= _mm512_floor_ps(u);
-	v -= _mm512_floor_ps(v);
-	v -= _mm512_floor_ps(v);
+	u -= floor(u); //doing floor subtraction once sometimes returns 1. Doing it twice guarantees 0 <= u < 1 for all non-nan non-inf values
+	u -= floor(u);
+	v -= floor(v);
+	v -= floor(v);
 	return { u,v };
 }

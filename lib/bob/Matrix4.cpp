@@ -1,31 +1,31 @@
 #include "Matrix4.h"
 #include "../../src/LUTMan.h"
 using namespace bob;
-
+using namespace AVXXY_NAMESPACE;
 Matrix4::Matrix4(const std::initializer_list<bob::_SSE_Vec4_float> lst)
 {
 	assert(lst.size() == 4);
 	for (int i = 0; i < 4; ++i) this->val[i] = *(lst.begin() + i);
 }
 
-Matrix4::Matrix4(__m512 m)
+Matrix4::Matrix4(const f32x16& m)
 {
 	zmm = m;
 }
 
 Matrix4 Matrix4::operator*(const float other) const
 {
-	return _mm512_mul_ps(zmm, _mm512_set1_ps(other));
+	return zmm * other;
 }
 
 Matrix4 Matrix4::operator-(const Matrix4& other) const
 {
-	return _mm512_sub_ps(zmm, other.zmm);
+	return zmm - other.zmm;
 }
 
 Matrix4 Matrix4::operator+(const Matrix4& other) const
 {
-	return _mm512_add_ps(zmm, other.zmm);
+	return zmm + other.zmm;
 }
 
 Matrix4 Matrix4::operator*(const Matrix4& other) const
@@ -46,6 +46,7 @@ Matrix4 Matrix4::operator*(const Matrix4& other) const
 
 bob::_SSE_Vec4_float Matrix4::operator*(const bob::_SSE_Vec4_float v) const
 {
+	/*
 #if __AVX512F__
 	__m512 cast = _mm512_castps128_ps512(v);
 	__m512 broadcasted_v = _mm512_shuffle_f32x4(cast, cast, 0);
@@ -72,7 +73,7 @@ bob::_SSE_Vec4_float Matrix4::operator*(const bob::_SSE_Vec4_float v) const
 	__m128 res2 = _mm_hadd_ps(r3, r4); //z = 0+1, w = 2+3
 
 	return _mm_hadd_ps(res1, res2);
-#else
+#else*/
 	Vec4 ret(0, 0, 0, 0);
 	for (int i = 0; i < 4; ++i)
 	{
@@ -82,7 +83,7 @@ bob::_SSE_Vec4_float Matrix4::operator*(const bob::_SSE_Vec4_float v) const
 		}
 	}
 	return ret;
-#endif
+//#endif
 }
 
 /*
@@ -102,9 +103,10 @@ VectorPack16 Matrix4::operator*(const VectorPack16& v) const
 
 Matrix4 Matrix4::transposed() const
 {
+	/*
 #if __AVX512F__
 	return _mm512_permutexvar_ps(_mm512_setr_epi32(0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15), zmm);
-#else
+#else*/
 	Matrix4 ret;
 	for (int i = 0; i < 4; ++i)
 	{
@@ -114,7 +116,7 @@ Matrix4 Matrix4::transposed() const
 		}
 	}
 	return ret;
-#endif
+//#endif
 }
 
 bob::_SSE_Vec4_float Matrix4::multiplyByTransposed(const bob::_SSE_Vec4_float v) const
@@ -259,6 +261,7 @@ Matrix4 Matrix4::rotationXYZ(const Vec4& angle)
 
 Matrix4 Matrix4::identity(float value, int dim)
 {
+	/*
 #if __AVX512F__
 	__m512 bcst = _mm512_set1_ps(value);
 	switch (dim)
@@ -274,17 +277,17 @@ Matrix4 Matrix4::identity(float value, int dim)
 	default:
 		break;
 	}
-#else
+#else*/
 	assert(dim > 0 && dim <= 4);
 	Matrix4 ret = Matrix4::zeros();
 	for (int i = 0; i < dim; ++i) ret.elements[i][i] = value;
 	return ret;
-#endif
+//#endif
 }
 
 Matrix4 Matrix4::zeros()
 {
-	return _mm512_setzero_ps();
+	return f32x16(0);
 }
 
 float Matrix4::det3(int excludeRow, int excludeCol) const
@@ -313,21 +316,21 @@ float Matrix4::det3(int excludeRow, int excludeCol) const
 
 
 //todo: these will need to be changed to faster versions
-float32x16 sin16(float32x16 x)
+AVXxy::f32x16 sin16(AVXxy::f32x16 x)
 {
-	float32x16 ret;
+	AVXxy::f32x16 ret;
 	for (int i = 0; i < 16; ++i) ret[i] = sinf(x[i]);
 	return ret;
 }
-float32x16 cos16(float32x16 x)
-{	
-	float32x16 ret;
+AVXxy::f32x16 cos16(AVXxy::f32x16 x)
+{
+	AVXxy::f32x16 ret;
 	for (int i = 0; i < 16; ++i) ret[i] = cosf(x[i]);
 	return ret;
 }
-MatrixPack16_4x4 MatrixPack16_4x4::rotationX(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationX(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = sinTheta;
@@ -351,9 +354,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationX(float32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::rotationY(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationY(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = 0.f;
@@ -377,9 +380,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationY(float32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::rotationZ(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationZ(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = 1.f;
 	ret.elements[0][1] = 0.f;
@@ -408,9 +411,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationXYZ(const bob::Vec4_f32x16& angle)
 	return rotationZ(angle.z) * rotationY(angle.y) * rotationX(angle.x);
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = sinTheta;
@@ -434,9 +437,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(float32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = 0.f;
@@ -460,9 +463,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(float32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationZ(float32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationZ(AVXxy::f32x16 theta)
 {
-	float32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = 1.f;
 	ret.elements[0][1] = 0.f;
