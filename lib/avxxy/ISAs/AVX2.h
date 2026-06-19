@@ -311,28 +311,35 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-					requires (any_int<S> && sizeof(SIMD_Vector<S, N>) >= 17)
+					requires (sizeof(SIMD_Vector<S, N>) >= 17)
 				static SIMD_Vector<S,N> eval(op_mask2vec<S,N>, const SIMD_BitMask<N>& a)
 				{
 					using T = SIMD_Vector<S, N>;
+					SIMD_Vector<S, N> ret;
 					if constexpr (sizeof(T) > 32) return { mask2vec<S>(a.lo()),mask2vec<S>(a.hi()) };
-					else if constexpr (ymm_sized<T> && any_i64<S>)
+					else if constexpr (ymm_sized<T> && sizeof(S) == 8)
 					{
 						__m256i broadcasted = _mm256_set1_epi64x(a);
 						__m256i x = _mm256_andnot_si256(broadcasted, _mm256_setr_epi64x(1, 2, 4, 8));
-						return _mm256_cmpeq_epi64(x, _mm256_set1_epi64x(0));
+						auto y = _mm256_cmpeq_epi64(x, _mm256_set1_epi64x(0));
+						memcpy(&ret, &y, std::min(sizeof(ret), sizeof(y)));
+						return ret;
 					}
-					else if constexpr (ymm_sized<T> && any_i32<S>)
+					else if constexpr (ymm_sized<T> && sizeof(S) == 4)
 					{
 						__m256i broadcasted = _mm256_set1_epi32(a);
 						__m256i x = _mm256_andnot_si256(broadcasted, _mm256_setr_epi32(1, 2, 4, 8, 16, 32, 64, 128));
-						return _mm256_cmpeq_epi32(x, _mm256_set1_epi32(0));
+						auto y = _mm256_cmpeq_epi32(x, _mm256_set1_epi32(0));
+						memcpy(&ret, &y, std::min(sizeof(ret), sizeof(y)));
+						return ret;
 					}
-					else if constexpr (ymm_sized<T> && any_i16<S>)
+					else if constexpr (ymm_sized<T> && sizeof(S) == 2)
 					{
 						__m256i broadcasted = _mm256_set1_epi16(a);
 						__m256i x = _mm256_andnot_si256(broadcasted, _mm256_setr_epi16(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768));
-						return _mm256_cmpeq_epi16(x, _mm256_set1_epi16(0));
+						auto y = _mm256_cmpeq_epi16(x, _mm256_set1_epi16(0));
+						memcpy(&ret, &y, std::min(sizeof(ret), sizeof(y)));
+						return ret;
 					}
 					else if constexpr (ymm_sized<T> && any_i8<S>)
 					{
@@ -343,7 +350,9 @@ namespace AVXXY_NAMESPACE
 						vmask = _mm256_shuffle_epi8(vmask, shuffle);
 						const __m256i bit_mask(_mm256_set1_epi64x(0x7fbfdfeff7fbfdfe));
 						vmask = _mm256_or_si256(vmask, bit_mask);
-						return _mm256_cmpeq_epi8(vmask, _mm256_set1_epi64x(-1));
+						auto y = _mm256_cmpeq_epi8(vmask, _mm256_set1_epi64x(-1));
+						memcpy(&ret, &y, std::min(sizeof(ret), sizeof(y)));
+						return ret;
 					}
 					else static_assert(always_false_v<T>);
 				}

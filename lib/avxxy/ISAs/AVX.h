@@ -213,6 +213,45 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (ymm_sized<T> && is_f32<S>) return vec2mask(T(_mm256_cmp_ps(a, b, _CMP_LE_OQ)));
 					else static_assert(always_false_v<T>);
 				}
+
+				template<typename S, size_t N>
+					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) >= 17)
+				static SIMD_BitMask<N> eval(op_vec2mask, const SIMD_Vector<S, N>& a)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 32) return { vec2mask(a.lo()),vec2mask(a.hi()) };
+					else if constexpr (ymm_sized<T> && sizeof(S) == 8) return _mm256_movemask_pd(vreinterpret<__m256d>(a));
+					else if constexpr (ymm_sized<T> && sizeof(S) == 4) return _mm256_movemask_ps(vreinterpret<__m256>(a));
+					else static_assert(always_false_v<T>);
+				}
+
+				/* TODO: low bits will result in tiny values, potentially crushing comparison with 0. May play around it by oring to get something into exponent.
+				* Watch out of signed 0 and NaN!
+				template<typename S, size_t N>
+					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) >= 17)
+				static SIMD_Vector<S, N> eval(op_mask2vec<S, N>, const SIMD_BitMask<N>& a)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 32) return { mask2vec<S>(a.lo()),mask2vec<S>(a.hi()) };
+					else if constexpr (ymm_sized<T> && sizeof(S) == 8)
+					{
+						__m256i broadcasted = _mm256_set1_epi64x(a);
+						__m256d x = _mm256_andnot_pd(_mm256_castsi256_pd(broadcasted), _mm256_castsi256_pd(_mm256_setr_epi64x(1, 2, 4, 8)));
+						return _mm256_cmp_pd(x, _mm256_setzero_pd());
+					}
+					else if constexpr (ymm_sized<T> && any_i32<S>)
+					{
+						__m256i broadcasted = _mm256_set1_epi32(a);
+						__m256i x = _mm256_andnot_si256(broadcasted, _mm256_setr_epi32(1, 2, 4, 8, 16, 32, 64, 128));
+						return _mm256_cmpeq_epi32(x, _mm256_set1_epi32(0));
+					}
+					else if constexpr (ymm_sized<T> && any_i16<S>)
+					{
+						__m256i broadcasted = _mm256_set1_epi16(a);
+						__m256i x = _mm256_andnot_si256(broadcasted, _mm256_setr_epi16(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768));
+						return _mm256_cmpeq_epi16(x, _mm256_set1_epi16(0));
+					}
+				}*/
 			};
 		}
 	}
