@@ -45,6 +45,6 @@ namespace AVXXY_NAMESPACE
 		struct op_fp32_to_fp16 {};
 
 		struct op_vec2mask {};
-		struct op_mask2vec {};
+		template<typename S, size_t N> struct op_mask2vec {};
 	}
 }

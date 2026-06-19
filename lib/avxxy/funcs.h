@@ -217,9 +217,9 @@ namespace AVXXY_NAMESPACE
 
 	//Extracts sign bits of each element and returns them as mask. 
 	//The mask bits are set to 1 if sign bits are 1 (negative), or 0 otherwise.
-	template <typename S, size_t N> SIMD_BitMask<N> vec2mask(const SIMD_Vector<S, N>& v);
+	template <typename S, size_t N> SIMD_BitMask<SIMD_Vector<S, N>::LaneCount> vec2mask(const SIMD_Vector<S, N>& v);
 	//Sets all bits of each element to 0 if corresponding mask bit is 0, or 1 otherwise
-	template <typename S, size_t N> SIMD_Vector<S,N> mask2vec(const SIMD_BitMask<N>& mask);
+	template <typename S, size_t N> SIMD_Vector<S,N> mask2vec(const SIMD_BitMask<SIMD_Vector<S, N>::LaneCount>& mask);
 	/**
 	@brief performs a lookup from lookup table using indices. The indices wrap around (-1 becomes LutElementCount-1, LutElementCount becomes 0, etc)
 	//TODO: update the tooltip when implementing it
