@@ -253,4 +253,16 @@ namespace AVXXY_NAMESPACE
 	{
 		return internals::DefaultDispatcher::run(internals::op_compress{}, mask, a, src);
 	}
+	template<typename S, size_t N>
+	SIMD_BitMask<N> vec2mask(const SIMD_Vector<S, N>& v)
+	{
+		return internals::DefaultDispatcher::run(internals::op_vec2mask{}, v);
+	}
+	template<typename S, size_t N>
+	SIMD_Vector<S, N> mask2vec(const SIMD_BitMask<N>& mask)
+	{
+		//return internals::DefaultDispatcher::run(internals::op_mask2vec{}, v);
+		using U = concepts::same_size_uint_t<S>::type;
+		return maskz_mov(mask, std::bit_cast<S>(~U(0)));
+	}
 }

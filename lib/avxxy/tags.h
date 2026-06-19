@@ -43,5 +43,8 @@ namespace AVXXY_NAMESPACE
 		struct op_max {};
 		struct op_fp16_to_fp32 {};
 		struct op_fp32_to_fp16 {};
+
+		struct op_vec2mask {};
+		struct op_mask2vec {};
 	}
 }

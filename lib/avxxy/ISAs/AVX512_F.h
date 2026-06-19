@@ -478,7 +478,7 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N, typename I>
-					requires (sizeof(S) >= 4 && concepts::any_int<I> && sizeof(SIMD_Vector<S,N>) >= (FS.has(AVX512_VL) ? 17 : 33))//sizeof(SIMD_Vector<S,N>& > 32))
+					requires (sizeof(S) >= 4 && concepts::any_int<I> && sizeof(SIMD_Vector<S,N>) >= (FS.has(AVX512_VL) ? 17 : 33))
 				static SIMD_Vector<S, N> eval(op_permx, const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
 				{
 					using namespace concepts;

@@ -463,6 +463,21 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (any_i8<S>) return _mm512_unpackhi_epi8(a, b);
 					else static_assert(always_false_v<S>);
 				}
+
+				template<typename S, size_t N>
+				requires (sizeof(SIMD_Vector<S, N>) >= (FS.has(AVX512_VL) ? 0 : 33) && sizeof(S) < 4)
+				static SIMD_BitMask<N> eval(op_vec2mask, const SIMD_Vector<S, N>& v)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 64) return { vec2mask(v.lo()), vec2mask(v.hi()) };
+					else if constexpr (zmm_sized<T> && sizeof(S) == 2) return _mm512_movepi16_mask(v);
+					else if constexpr (zmm_sized<T> && sizeof(S) == 1) return _mm512_movepi8_mask(v);
+					else if constexpr (FS.has(AVX512_VL) && ymm_sized<T> && sizeof(S) == 2) return _mm256_movepi16_mask(v);
+					else if constexpr (FS.has(AVX512_VL) && ymm_sized<T> && sizeof(S) == 1) return _mm256_movepi8_mask(v);
+					else if constexpr (FS.has(AVX512_VL) && xmm_sized<T> && sizeof(S) == 2) return _mm_movepi16_mask(v);
+					else if constexpr (FS.has(AVX512_VL) && xmm_sized<T> && sizeof(S) == 1) return _mm_movepi8_mask(v);
+					else static_assert(always_false_v<T>);
+				}
 			};
 		}
 	}
