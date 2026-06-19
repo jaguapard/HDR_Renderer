@@ -90,6 +90,43 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
+					requires (any_int<S> && sizeof(SIMD_Vector<S, N>) > 16)
+				static SIMD_Vector<S, N> eval(op_or, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 32) return { logic_or(a.lo(),b.lo()), logic_or(a.hi(),b.hi()) };
+					else if constexpr (ymm_sized<T>) return _mm256_or_si256(a, b);
+					else static_assert(always_false_v<T>);
+				}
+				template<typename S, size_t N>
+					requires (any_int<S> && sizeof(SIMD_Vector<S, N>) > 16)
+				static SIMD_Vector<S, N> eval(op_and, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 32) return { logic_and(a.lo(),b.lo()), logic_and(a.hi(),b.hi()) };
+					else if constexpr (ymm_sized<T>) return _mm256_and_si256(a, b);
+					else static_assert(always_false_v<T>);
+				}
+				template<typename S, size_t N>
+					requires (any_int<S> && sizeof(SIMD_Vector<S, N>) > 16)
+				static SIMD_Vector<S, N> eval(op_xor, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 32) return { logic_xor(a.lo(),b.lo()), logic_xor(a.hi(),b.hi()) };
+					else if constexpr (ymm_sized<T>) return _mm256_xor_si256(a, b);
+					else static_assert(always_false_v<T>);
+				}
+				template<typename S, size_t N>
+					requires (any_int<S> && sizeof(SIMD_Vector<S, N>) > 16)
+				static SIMD_Vector<S, N> eval(op_not, const SIMD_Vector<S, N>& a)
+				{
+					using T = SIMD_Vector<S, N>;
+					if constexpr (sizeof(T) > 32) return { logic_not(a.lo()), logic_not(a.hi()) };
+					else if constexpr (ymm_sized<T>) { __m256i u = _mm256_undefined_si256(); return _mm256_xor_si256(a, _mm256_cmpeq_epi32(u, u)); }
+					else static_assert(always_false_v<T>);
+				}
+
+				template<typename S, size_t N>
 				requires (sizeof(SIMD_Vector<S, N>) > 16 && any_int<S>)
 				static SIMD_BitMask<N> eval(op_cmpeq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
