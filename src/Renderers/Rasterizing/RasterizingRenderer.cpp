@@ -178,7 +178,9 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 
 	int w = settings.outputTextureW;
 	int h = settings.outputTextureH;
-	uint64_t skyColorFP16 = reinterpret<uint64_t>(vec_cvt_ps2ph(load<f32x4>(&this->skyColor)));
+	uint64_t skyColorFP16; 
+	auto fp16_sky = (vcvt_fp32_fp16(load<f32x4>(&this->skyColor)));
+	memcpy(&skyColorFP16, &fp16_sky, 8);
 	this->depthBufMain.resize(w, h);
 	this->triangleIndexBuf.resize(w, h);
 	this->frameBuf = Buffer<uint64_t>((uint64_t*)this->currGs->graphicsOutputBuffer, w, h, skyColorFP16);
@@ -586,7 +588,7 @@ void RasterizingRenderer::binTrianglesIntoZones(int threadIndex)
 	auto transformedResults = std::make_unique<VertexStageOutput[]>(this->drawCommands.size()); //this is called only once per frame per thread anyway, so no need to torture yourself with static arrays and checks
 	for (size_t currTriangleIndex = startInd; currTriangleIndex < stopInd; currTriangleIndex += 16)
 	{
-		int32x16 triangleIndices = int32x16::sequence() + currTriangleIndex;
+		int32x16 triangleIndices = int32x16::iota() + currTriangleIndex;
 		int32x16 diffuseMapIndices;
 		Mask16 groupActiveTriangles = triangleIndices < stopInd;
 		this->triangleStore.loadVertexAndDiffuseMapIndices16(currTriangleIndex, groupActiveTriangles, inp.vertexIndices[0], inp.vertexIndices[1], inp.vertexIndices[2], diffuseMapIndices);
@@ -683,7 +685,7 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 			for (uint32_t scavengeInd = 0; scavengeInd < scavenger.size; scavengeInd += 16)
 			{
 				const auto& texture = this->textureManager.getTextureByHandle(currDiffuseMapIndex);
-				Mask16 scavengerBounds = int32x16::sequence() + scavengeInd < scavenger.size;
+				Mask16 scavengerBounds = int32x16::iota() + scavengeInd < scavenger.size;
 				float32x16 x = load<f32x16>(&scavenger.x[scavengeInd]);
 				float32x16 y = load<f32x16>(&scavenger.y[scavengeInd]);
 				float32x16 dx = x - group_xBeg[i];
@@ -696,8 +698,8 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					Vec4_f32x16(v1.u[i], v1.v[i], v1.space.z[i], 0.f) * beta +
 					Vec4_f32x16(v2.u[i], v2.v[i], v2.space.z[i], 0.f) * gamma;
 
-				int32x16 intX = vec_cvt<int>(x);
-				int32x16 intY = vec_cvt<int>(y);
+				int32x16 intX = vcvt<int>(x);
+				int32x16 intY = vcvt<int>(y);
 				int32x16 zbufferGatherInd = intY * w + intX;
 				float32x16 currDepthValues = gather<f32x16>(zBuffer, zbufferGatherInd, scavengerBounds);
 
@@ -806,7 +808,7 @@ void RasterizingRenderer::rasterizerRoutine(int threadIndex)
 			int storeSize = currStore.size();
 			for (int currIndex = 0; currIndex < storeSize; currIndex += 16)
 			{
-				Mask16 storeBounds = (int32x16::sequence() + currIndex) < storeSize;
+				Mask16 storeBounds = (int32x16::iota() + currIndex) < storeSize;
 				static_assert(currStore.ELEMENTS_PER_BLOCK % 16 == 0, "Triangle bin block store is expected to be 16-element aligned.");
 				int32x16 triangleIndices = load<i32x16>(&currStore[currIndex], storeBounds); //this will read out of block's bounds if ELEMENTS_PER_BLOCK is not divisible by 16.
 				inp.triangleIndices = triangleIndices;
@@ -841,7 +843,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 	for (float y = my_yMin; y < my_yMax; ++y)
 	{
 		size_t yInt = y;
-		for (float32x16 x = float32x16::sequence() + my_xMin; Mask16 xBoundsMask = x <= my_xMax; x += 16)
+		for (float32x16 x = float32x16::iota() + my_xMin; Mask16 xBoundsMask = x <= my_xMax; x += 16)
 		{
 			size_t xInt = x[0];
 			if (this->drawShadowMapDebug && this->shadowMapEnabled) //debug draw shadow map to screen
@@ -953,7 +955,7 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 							Mask16 inShadowMapBounds = xBoundsMask & ssx >= 0.f & ssy >= 0.f & ssx < smapW & ssy < smapH;
 							if (inShadowMapBounds)
 							{
-								int32x16 gatherInd = vec_cvt<int>(ssy) * this->drawCommands[1].renderW + vec_cvt<int>(ssx);
+								int32x16 gatherInd = vcvt<int>(ssy) * this->drawCommands[1].renderW + vcvt<int>(ssx);
 								float32x16 shadowMapDepths = gather<f32x16>(shadowMap_zBuffer, gatherInd, inShadowMapBounds, FLT_MAX);
 								if (Statsman::ENABLED)
 								{

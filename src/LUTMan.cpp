@@ -13,14 +13,14 @@ float32x16 LUTMan::cos(float32x16 x)
 	x -= periods * float(2 * M_PI); //now x is 0..2_PI range
 	float32x16 lutIndex = x * float(tables.cos_fp32.size() / (2 * M_PI));
 	
-	int32x16 lutIndexFirst = vec_cvt<int>(lutIndex);
+	int32x16 lutIndexFirst = vcvt<int>(lutIndex);
 	int32x16 lutIndexSecond = lutIndexFirst + 1;
 
 	float32x16 lut0 = load<f32x16>(&tables.cos_fp32[0]);
 	float32x16 lut1 = load<f32x16>(&tables.cos_fp32[16]);
 	//permutes already cut off MSB's, so we can use them without change
-	float32x16 v1 = permx2(lut0, lutIndexFirst, lut1);
-	float32x16 v2 = permx2(lut0, lutIndexSecond, lut1);
+	float32x16 v1 = permx2(lut0, lut1, lutIndexFirst);
+	float32x16 v2 = permx2(lut0, lut1, lutIndexSecond);
 	float32x16 lerpT = lutIndex - floor(lutIndex);
 	return v1 + (v2 - v1) * lerpT;
 }

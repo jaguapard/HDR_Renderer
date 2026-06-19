@@ -1,22 +1,14 @@
-#undef min
-#undef max
 #pragma once
 #include "namespace.h"
-#include "SIMD_Mask.h"
-#include "SIMD_Mask_impl.h"
 #include "SIMD_Vector.h"
-#include "SIMD_Vector_impl.h"
+#include "Dispatcher.h" //TODO: remove this from releases?
 #include "funcs.h"
 #include "funcs_impl.h"
 #include "operators.h"
+#include "SIMD_BitMask_impl.h"
 
 namespace AVXXY_NAMESPACE
 {
-	typedef SIMD_Mask<8> mask8;
-	typedef SIMD_Mask<16> mask16;
-	typedef SIMD_Mask<32> mask32;
-	typedef SIMD_Mask<64> mask64;
-
 	typedef SIMD_Vector<int8_t, 2> i8x2;
 	typedef SIMD_Vector<int8_t, 4> i8x4;
 	typedef SIMD_Vector<int8_t, 8> i8x8;
@@ -120,5 +112,4 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<uint64_t, 8> zmm_u64;
 	typedef SIMD_Vector<float, 16> zmm_f32;
 	typedef SIMD_Vector<double, 8> zmm_f64;
-
 }

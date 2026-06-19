@@ -3,9 +3,9 @@
 
 namespace AVXXY_NAMESPACE
 {
-	namespace capabilities
+	namespace internals
 	{
-		struct Arch
+		struct FeatureSet
 		{
 			struct _AVX512
 			{
@@ -34,7 +34,7 @@ namespace AVXXY_NAMESPACE
 
 			bool AVX2 = false;
 			bool FMA3 = false;
-			bool FP16C = false;
+			bool F16C = false;
 
 			bool AVX = false;
 			bool AES = false;
@@ -48,21 +48,21 @@ namespace AVXXY_NAMESPACE
 			bool MMX = false;
 			//bool FPU = false;
 
-			constexpr bool operator==(const Arch& other) const = default;
+			constexpr bool operator==(const FeatureSet& other) const = default;
 		};
 
-		static constexpr Arch zen4 = []() {
-			Arch a;
-			Arch::_AVX512 x;
+		static constexpr FeatureSet FS_zen4 = []() {
+			FeatureSet a;
+			FeatureSet::_AVX512 x;
 			x.BF16 = x.VAES = x.GFNI = x.VPCLMULQDQ = x.VNNI = x.BITALG = x.VPOPCNTDQ = x.VBMI2 = x.VBMI = x.IFMA = x.BW = x.DQ = x.VL = x.CD = x.F = true;
 			a.AVX512 = x;
 
 			//a.FPU = 
 			a.MMX = a.SSE = a.SSE2 = a.SSE3 = a.SSE41 = a.SSE42 = a.SSE4A = a.SSSE3 = a.AES = a.AVX = a.AVX2 = a.FMA3 = true;
-			a.FP16C = true;
+			a.F16C = true;
 			return a;
 			}();
 
-		static constexpr Arch current = Arch();
+		static constexpr FeatureSet FS_current = FS_zen4;// FeatureSet();
 	}
 }

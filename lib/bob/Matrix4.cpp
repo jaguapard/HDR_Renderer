@@ -83,7 +83,7 @@ bob::_SSE_Vec4_float Matrix4::operator*(const bob::_SSE_Vec4_float v) const
 		}
 	}
 	return ret;
-//#endif
+	//#endif
 }
 
 /*
@@ -116,7 +116,7 @@ Matrix4 Matrix4::transposed() const
 		}
 	}
 	return ret;
-//#endif
+	//#endif
 }
 
 bob::_SSE_Vec4_float Matrix4::multiplyByTransposed(const bob::_SSE_Vec4_float v) const
@@ -282,7 +282,7 @@ Matrix4 Matrix4::identity(float value, int dim)
 	Matrix4 ret = Matrix4::zeros();
 	for (int i = 0; i < dim; ++i) ret.elements[i][i] = value;
 	return ret;
-//#endif
+	//#endif
 }
 
 Matrix4 Matrix4::zeros()
@@ -316,21 +316,21 @@ float Matrix4::det3(int excludeRow, int excludeCol) const
 
 
 //todo: these will need to be changed to faster versions
-AVXxy::f32x16 sin16(AVXxy::f32x16 x)
+AVXXY_NAMESPACE::f32x16 sin16(AVXXY_NAMESPACE::f32x16 x)
 {
-	AVXxy::f32x16 ret;
+	AVXXY_NAMESPACE::f32x16 ret;
 	for (int i = 0; i < 16; ++i) ret[i] = sinf(x[i]);
 	return ret;
 }
-AVXxy::f32x16 cos16(AVXxy::f32x16 x)
+AVXXY_NAMESPACE::f32x16 cos16(AVXXY_NAMESPACE::f32x16 x)
 {
-	AVXxy::f32x16 ret;
+	AVXXY_NAMESPACE::f32x16 ret;
 	for (int i = 0; i < 16; ++i) ret[i] = cosf(x[i]);
 	return ret;
 }
-MatrixPack16_4x4 MatrixPack16_4x4::rotationX(AVXxy::f32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationX(AVXXY_NAMESPACE::f32x16 theta)
 {
-	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXXY_NAMESPACE::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = sinTheta;
@@ -354,9 +354,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationX(AVXxy::f32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::rotationY(AVXxy::f32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationY(AVXXY_NAMESPACE::f32x16 theta)
 {
-	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXXY_NAMESPACE::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = 0.f;
@@ -380,9 +380,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationY(AVXxy::f32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::rotationZ(AVXxy::f32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationZ(AVXXY_NAMESPACE::f32x16 theta)
 {
-	AVXxy::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
+	AVXXY_NAMESPACE::f32x16 sinTheta = sin16(theta), cosTheta = cos16(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = 1.f;
 	ret.elements[0][1] = 0.f;
@@ -411,9 +411,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationXYZ(const bob::Vec4_f32x16& angle)
 	return rotationZ(angle.z) * rotationY(angle.y) * rotationX(angle.x);
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(AVXxy::f32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(AVXXY_NAMESPACE::f32x16 theta)
 {
-	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXXY_NAMESPACE::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = sinTheta;
@@ -437,9 +437,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationX(AVXxy::f32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(AVXxy::f32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(AVXXY_NAMESPACE::f32x16 theta)
 {
-	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXXY_NAMESPACE::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = cosTheta;
 	ret.elements[0][1] = 0.f;
@@ -463,9 +463,9 @@ MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationY(AVXxy::f32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationZ(AVXxy::f32x16 theta)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationZ(AVXXY_NAMESPACE::f32x16 theta)
 {
-	AVXxy::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
+	AVXXY_NAMESPACE::f32x16 sinTheta = LUTMan::sin(theta), cosTheta = LUTMan::cos(theta);
 	MatrixPack16_4x4 ret;
 	ret.elements[0][0] = 1.f;
 	ret.elements[0][1] = 0.f;
