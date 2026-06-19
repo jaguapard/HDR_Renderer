@@ -6,7 +6,6 @@
 #include "../FeatureSet.h"
 #include "../funcs.h"
 #include "../tables.h"
-#include "../tags.h"
 
 namespace AVXXY_NAMESPACE
 {
@@ -179,7 +178,7 @@ namespace AVXXY_NAMESPACE
 				static SIMD_Vector<S,N> eval(op_mask2vec<S,N>, const SIMD_BitMask<N>& a)
 				{
 					using T = SIMD_Vector<S, N>;
-					if constexpr (sizeof(T) > 32) return { mask2vec<S,N/2>(a.lo()),mask2vec<S,N/2>(a.hi()) };
+					if constexpr (sizeof(T) > 32) return { mask2vec<S>(a.lo()),mask2vec<S>(a.hi()) };
 					else if constexpr (ymm_sized<T> && any_i64<S>)
 					{
 						__m256i broadcasted = _mm256_set1_epi64x(a);
@@ -255,12 +254,12 @@ namespace AVXXY_NAMESPACE
 						auto ch = compress(mask.hi(), a.hi(), src.lo()); //doesn't matter which src, since that's useless anyway
 						size_t popcnt_lo = std::popcount(typename SIMD_BitMask<N>::UintT(mask.lo())); //TODO: _mm_popcnt_u* if is supported?
 						size_t popcnt_hi = std::popcount(typename SIMD_BitMask<N>::UintT(mask.hi()));
-						
+
 						static_assert(sizeof(S) == 4);
 						float* p = (float*)&ret;
 						_mm256_storeu_ps(p, vreinterpret<__m256>(cl));
 						SIMD_BitMask<N / 2> cm = (uint64_t(1) << popcnt_hi) - 1;
-						_mm256_maskstore_ps(p + popcnt_lo, mask2vec<int32_t,N/2>(cm), vreinterpret<__m256>(ch)); //don't overwrite src remains
+						_mm256_maskstore_ps(p + popcnt_lo, mask2vec<int32_t, N / 2>(cm), vreinterpret<__m256>(ch)); //don't overwrite src remains
 						return ret;
 					}
 					else if constexpr (ymm_sized<T> && sizeof(S) == 4)
