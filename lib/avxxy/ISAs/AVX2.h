@@ -121,7 +121,7 @@ namespace AVXXY_NAMESPACE
 					using I = same_size_int_t<S>::type;
 					if constexpr (std::is_unsigned_v<S>)
 					{
-						S xorv = S(1) << (sizeof(S) * 8 - 1); //xor with 0x800..000 before comparison
+						I xorv = I(1) << (sizeof(S) * 8 - 1); //xor with 0x800..000 before comparison
 						return cmp_greater(vcvt<I>(a) ^ xorv, vcvt<I>(b) ^ xorv);
 					}
 					else if constexpr (sizeof(T) > 32) return { cmp_greater(a.lo(),b.lo()), cmp_greater(a.hi(),b.hi()) };
