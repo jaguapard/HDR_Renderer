@@ -220,6 +220,9 @@ namespace AVXXY_NAMESPACE
 	template <typename S, size_t N> SIMD_BitMask<N> vec2mask(const SIMD_Vector<S, N>& v);
 	//Sets all bits of each element to 0 if corresponding mask bit is 0, or 1 otherwise
 	template <typename S, size_t N> SIMD_Vector<S,N> mask2vec(const SIMD_BitMask<N>& mask);
+
+	template <typename S, size_t N> requires (sizeof(S)*8 >= N) 
+	SIMD_Vector<typename concepts::same_size_uint_t<S>::type, N> conflict(const SIMD_Vector<S, N>& a);
 	/**
 	@brief performs a lookup from lookup table using indices. The indices wrap around (-1 becomes LutElementCount-1, LutElementCount becomes 0, etc)
 	//TODO: update the tooltip when implementing it

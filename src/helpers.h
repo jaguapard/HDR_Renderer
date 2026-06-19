@@ -121,7 +121,7 @@ __forceinline void deduplicate_epi32x16(int32x16 inputValues, int32_t invalidVal
 	//Replace inactive lanes with guaranteed-invalid values so masked-off garbage
 	//cannot participate in conflict detection.
 	int32x16 cleaned = mask_mov(i32x16(invalidValue), activeMask, inputValues);
-	int32x16 conflicts = _mm512_conflict_epi32(cleaned);
+	int32x16 conflicts = conflict(cleaned);
 	Mask16 uniqueMask = activeMask & (conflicts == 0); 	//Keep only active lanes that have no prior occurrence.
 
 	outUniqueValues = compress(uniqueMask, cleaned);

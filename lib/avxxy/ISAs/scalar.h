@@ -36,9 +36,10 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
+					requires (sizeof(S) * 8 >= N)
 				static SIMD_Vector<typename same_size_uint_t<S>::type, N> eval(op_conflict, const SIMD_Vector<S, N>& a)
 				{
-					using U = typename same_size_uint_t<S>::type;
+					using U = same_size_uint_t<S>::type;
 					using T = SIMD_Vector<U, N>;
 					T ret;
 					for (size_t i = 0; i < N; ++i)
