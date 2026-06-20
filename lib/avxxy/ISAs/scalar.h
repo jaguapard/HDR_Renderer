@@ -228,7 +228,7 @@ namespace AVXXY_NAMESPACE
 				}
 				template<typename S, size_t N, size_t Scale, typename I>
 					requires (concepts::any_int<I>)
-				static SIMD_Vector<S, N> eval(op_gather<S, N, Scale>, const void* base, const SIMD_Vector<I, N>& ind, const SIMD_Mask<S, N>& mask = SIMD_Mask<S, N>::AllOnes(), const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S, N> eval(op_gather<S, N, Scale>, const void* base, const SIMD_Vector<I, N>& ind, const SIMD_Mask<S, N>& mask, const SIMD_Vector<S, N>& src = 0)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -546,9 +546,9 @@ namespace AVXXY_NAMESPACE
 				{
 					using U = concepts::same_size_uint_t<S>::type;
 					using X = typename bits_to_uint_t<N>::type;
-					X ret;
+					X ret = 0;
 					constexpr U sb = U(1) << (sizeof(U) * 8 - 1);
-					for (size_t i = 0; i < N; ++i) if (static_cast<U>(a[i]) & sb) ret |= X(1) << i;
+					for (size_t i = 0; i < N; ++i) if (std::bit_cast<U>(a[i]) & sb) ret |= X(1) << i;
 					return ret;
 				}
 			private:
