@@ -531,8 +531,14 @@ namespace AVXXY_NAMESPACE
 				static SIMD_Vector<S, N> eval(op_movm<S,N>, const typename bits_to_uint_t<N>::type& mask)
 				{
 					using U = concepts::same_size_uint_t<S>::type;
+					using MU = bits_to_uint_t<N>::type;
 					SIMD_Vector<S, N> ret;
-					for (size_t i = 0; i < N; ++i) ret[i] = mask & (decltype(mask)(1) << i) ? std::bit_cast<S>(~U(0)) : S(0);
+					for (size_t i = 0; i < N; ++i)
+					{
+						U x = mask & (MU(1) << i) ? ~U(0) : U(0);
+						S y = std::bit_cast<S>(x);
+						ret[i] = y;
+					}
 					return ret;
 				}
 				template<typename S, size_t N>
