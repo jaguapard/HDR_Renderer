@@ -71,7 +71,7 @@ __forceinline void interleaved_ph_to_ps(__m512i inp, float32x16& retLow, float32
 template <typename S>
 __forceinline SIMD_Mask<S, 64> duplicate_mmask_bits_16_to_64(SIMD_Mask<S, 16> m)
 {
-	i32x16 a = movm<int, 16>(m);
+	i32x16 a = movm<int32_t, 16>(m);
 	return movemask(vcast<u8x64>(a));
 }
 
@@ -96,8 +96,8 @@ __forceinline __mmask64 duplicate_mmask_bits_16_to_48(__mmask16 m)
 //Returns 32 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcdef will become 001122...ddeeff
 __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
 {
-	i16x16 a = mask2vec<uint16_t, 16>(m);
-	return vec2mask(vcast<u8x32>(a));
+	i32x16 a = movm<uint16_t, 16>(m);
+	return movemask(vcast<u8x32>(a));
 }
 
 /**
@@ -126,7 +126,7 @@ __forceinline void deduplicate_epi32x16(int32x16 inputValues, int32_t invalidVal
 	m_i32x16 uniqueMask = activeMask & (conflicts == 0); 	//Keep only active lanes that have no prior occurrence.
 
 	outUniqueValues = compress(uniqueMask, cleaned);
-	if (outUniqueCount) *outUniqueCount = std::popcount((uint32_t)uniqueMask);
+	if (outUniqueCount) *outUniqueCount = std::popcount((uint16_t)uniqueMask);
 	if (outUniqueMask) *outUniqueMask = uniqueMask;
 }
 

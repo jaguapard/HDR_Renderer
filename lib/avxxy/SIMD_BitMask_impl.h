@@ -36,11 +36,6 @@ namespace AVXXY_NAMESPACE
 	}*/
 
 	template<size_t N>
-	inline SIMD_Mask<S,N>::operator UintT() const
-	{
-		return underlying & AllOnes;
-	}
-	template<size_t N>
 	inline bool SIMD_Mask<S,N>::operator[](size_t i) const
 	{
 		return underlying & (UintT(1) << i);

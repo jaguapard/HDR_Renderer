@@ -37,6 +37,12 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
+	inline SIMD_Mask<S, N>::operator UintT() const
+	{
+		return this->as_uint();
+	}
+
+	template<typename S, size_t N>
 	inline typename SIMD_Mask<S, N>::UintT SIMD_Mask<S, N>::as_uint() const
 	{
 		if constexpr (IsBitMask) return underlying & AllOnesUint;

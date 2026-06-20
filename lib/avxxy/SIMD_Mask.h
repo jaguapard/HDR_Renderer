@@ -35,6 +35,8 @@ namespace AVXXY_NAMESPACE
 		template <typename S2>
 		SIMD_Mask(const SIMD_Mask<S2, N>& other);
 
+		operator UintT() const;
+
 		
 		template<typename T>
 		//requires (concepts::IsIntrinsicVector<T> && ((concepts::xmm_sized<VecT> && concepts::xmm_sized<T>) || (concepts::ymm_sized<VecT> && concepts::ymm_sized<T>) || (concepts::zmm_sized<VecT> && concepts::zmm_sized<T>)))
