@@ -148,7 +148,6 @@ namespace AVXXY_NAMESPACE
 			0
 		};
 
-		static constexpr FeatureSet FS_current = FS_zen4;// FeatureSet();
 		static constexpr FeatureSet FS_compile_target = {
 		#ifdef __MMX__
 					Feature::MMX |
@@ -273,6 +272,6 @@ namespace AVXXY_NAMESPACE
 		#endif
 				0
 		};
-
+		static constexpr FeatureSet FS_current = FS_compile_target;// FeatureSet();
 	}
 }
