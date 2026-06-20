@@ -32,11 +32,11 @@ namespace AVXXY_NAMESPACE
 		SIMD_Mask(const SIMD_Mask<S, N / 2>& lo, const SIMD_Mask<S, N / 2>& hi);
 		SIMD_Mask(const SIMD_Vector<S, N>& v);
 
-		/*
+		
 		template<typename T>
 		//requires (concepts::IsIntrinsicVector<T> && ((concepts::xmm_sized<VecT> && concepts::xmm_sized<T>) || (concepts::ymm_sized<VecT> && concepts::ymm_sized<T>) || (concepts::zmm_sized<VecT> && concepts::zmm_sized<T>)))
-		requires (std::is_convertible_v<T, VecT> && concepts::IsIntrinsicVector<T>)
-		SIMD_Mask(const T& intrVec);*/
+		requires (std::is_convertible_v<T, SIMD_Vector<S,N>> && concepts::IsIntrinsicVector<T>)
+		SIMD_Mask(const T& intrVec);
 
 		//Returns the vector type, where each lane is filled with 1 bits if corresponding mask bits are set, or 0 otherwise.
 		//Thus, a SIMD_Mask<float, 4> with bits 0100 will return {0, std::bit_cast<float>(0xFFFFFFFF), 0, 0}

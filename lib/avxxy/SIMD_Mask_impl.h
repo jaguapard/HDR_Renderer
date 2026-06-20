@@ -74,4 +74,12 @@ namespace AVXXY_NAMESPACE
 		//SIMD_Mask<S, N> ret;
 		//if constexpr (IsBitMask) ret.underlying = 
 	}
+
+	template<typename S, size_t N>
+	template<typename T>
+		requires (std::is_convertible_v<T, SIMD_Vector<S, N>>&& concepts::IsIntrinsicVector<T>)
+	inline SIMD_Mask<S, N>::SIMD_Mask(const T& intrVec)
+	{
+		*this = SIMD_Vector<S, N>(intrVec);
+	}
 }

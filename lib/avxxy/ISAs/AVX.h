@@ -199,8 +199,8 @@ namespace AVXXY_NAMESPACE
 				{
 					using T = SIMD_Vector<S, N>;
 					if constexpr (sizeof(T) > 32)  return { cmp_less(a.lo(),b.lo()), cmp_less(a.hi(),b.hi()) };
-					else if constexpr (ymm_sized<T> && is_f64<S>) return vec2mask(T(_mm256_cmp_pd(a, b, _CMP_LT_OQ)));
-					else if constexpr (ymm_sized<T> && is_f32<S>) return vec2mask(T(_mm256_cmp_ps(a, b, _CMP_LT_OQ)));
+					else if constexpr (ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd(a, b, _CMP_LT_OQ);
+					else if constexpr (ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps(a, b, _CMP_LT_OQ);
 					else static_assert(always_false_v<T>);
 				}
 				template<typename S, size_t N>

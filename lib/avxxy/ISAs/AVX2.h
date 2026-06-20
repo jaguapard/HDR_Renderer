@@ -399,8 +399,8 @@ namespace AVXXY_NAMESPACE
 						T ret = src;
 						auto cl = compress(mask.lo(), a.lo(), src.lo());
 						auto ch = compress(mask.hi(), a.hi(), src.lo()); //doesn't matter which src, since that's useless anyway
-						size_t popcnt_lo = std::popcount(typename SIMD_Mask<S,N>::UintT(mask.lo())); //TODO: _mm_popcnt_u* if is supported?
-						size_t popcnt_hi = std::popcount(typename SIMD_Mask<S,N>::UintT(mask.hi()));
+						size_t popcnt_lo = std::popcount(mask.lo().as_uint()); //TODO: _mm_popcnt_u* if is supported?
+						size_t popcnt_hi = std::popcount(mask.hi().as_uint());
 
 						static_assert(sizeof(S) == 4);
 						float* p = (float*)&ret;
@@ -412,7 +412,7 @@ namespace AVXXY_NAMESPACE
 					}
 					else if constexpr (ymm_sized<T> && sizeof(S) == 4)
 					{
-						auto permx_ind = vcvt<canon_t>(SIMD_Vector<int8_t, N>(_mm_loadu_si64(&tables::compress_to_permx8[mask])));
+						auto permx_ind = vcvt<canon_t>(SIMD_Vector<int8_t, N>(_mm_loadu_si64(&tables::compress_to_permx8[mask.as_uint()])));
 						auto tmp = permx(a, permx_ind); //permx_ind is setup in such a way that is can be used both as index register and blend mask without extra conversions
 						if constexpr (is_f32<S>) return _mm256_blendv_ps(tmp, src, _mm256_castsi256_ps(permx_ind));
 						else if constexpr (any_i32<S>) return _mm256_blendv_epi8(tmp, src, permx_ind);
