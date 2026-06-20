@@ -422,6 +422,25 @@ namespace AVXXY_NAMESPACE
 					else static_assert(always_false_v<T>);
 				}
 
+				template<typename S, size_t N, typename I>
+					requires (sizeof(S) >= 4 && concepts::any_int<I> && sizeof(SIMD_Vector<S, N>) > 16)
+				static SIMD_Vector<S, N> eval(op_permx2, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind)
+				{
+					using namespace concepts;
+					using canon_t = typename same_size_uint_t<S>::type;
+					using T = SIMD_Vector<S, N>;
+					//if constexpr (any_small_int<S>) return vcvt<S>(permx2(vcvt<uint32_t>(a), vcvt<uint32_t>(b), vcvt<uint32_t>(ind)));
+					//else 
+					if constexpr (sizeof(I) != sizeof(S)) return permx2(a, b, vcvt<canon_t>(ind));
+					else if constexpr (sizeof(T) > 16 && sizeof(S) >= 4)
+					{
+						T pa = permx(a, ind);
+						T pb = permx(b, ind);
+						return mask_mov(pb, (ind & (2 * N - 1)) < N, pa);
+					}
+					else static_assert(always_false_v<T>);
+				}
+
 				template<typename S, size_t N>
 					requires (any_i32<S> || any_i64<S>)
 				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_Mask<S,N>& mask = SIMD_Mask<S,N>::AllOnes)
