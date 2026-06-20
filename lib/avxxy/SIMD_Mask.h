@@ -62,6 +62,7 @@ namespace AVXXY_NAMESPACE
 		SIMD_Mask<S, N> operator&(const SIMD_Mask<S, N>& other) const;
 		SIMD_Mask<S, N> operator|(const SIMD_Mask<S, N>& other) const;
 		SIMD_Mask<S, N> operator^(const SIMD_Mask<S, N>& other) const;
+		SIMD_Mask<S, N> operator~() const;
 		SIMD_Mask<S, N>& operator&=(const SIMD_Mask<S, N>& other);
 		SIMD_Mask<S, N>& operator|=(const SIMD_Mask<S, N>& other);
 		SIMD_Mask<S, N>& operator^=(const SIMD_Mask<S, N>& other);

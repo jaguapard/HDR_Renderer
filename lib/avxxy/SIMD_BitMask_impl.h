@@ -69,32 +69,5 @@ namespace AVXXY_NAMESPACE
 	{
 		return underlying >> (N / 2);
 	}
-	
-	template<size_t N>
-	inline SIMD_Mask<S,N>& SIMD_Mask<S,N>::operator&=(const SIMD_Mask<S,N>& other)
-	{
-		*this = *this & other;
-		return *this;
-	}
-	template<size_t N>
-	inline SIMD_Mask<S,N>& SIMD_Mask<S,N>::operator|=(const SIMD_Mask<S,N>& other)
-	{
-		*this = *this | other;
-		return *this;
-	}
-	template<size_t N>
-	inline SIMD_Mask<S,N>& SIMD_Mask<S,N>::operator^=(const SIMD_Mask<S,N>& other)
-	{
-		*this = *this ^ other;
-		return *this;
-	}
-
-	template <size_t N>
-	static std::ostream& operator<<(std::ostream& os, const SIMD_Mask<S,N>& mask)
-	{
-		for (int i = 0; i < N; ++i) os << (mask[i] ? 1 : 0) << ",";
-		os << (mask[N - 1] ? 1 : 0);
-		return os;
-	}
 }
 #endif

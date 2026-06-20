@@ -70,9 +70,19 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	inline SIMD_Mask<S, N> SIMD_Mask<S, N>::operator&(const SIMD_Mask<S, N>& other) const
 	{
-		return underlying & other.underlying;
-		//SIMD_Mask<S, N> ret;
-		//if constexpr (IsBitMask) ret.underlying = 
+		return underlying & other.underlying; 
+	}
+
+	template<typename S, size_t N>
+	inline SIMD_Mask<S, N> SIMD_Mask<S, N>::operator|(const SIMD_Mask<S, N>& other) const
+	{
+		return underlying | other.underlying;
+	}
+
+	template<typename S, size_t N>
+	inline SIMD_Mask<S, N> SIMD_Mask<S, N>::operator^(const SIMD_Mask<S, N>& other) const
+	{
+		return underlying ^ other.underlying;
 	}
 
 	template<typename S, size_t N>
@@ -81,5 +91,38 @@ namespace AVXXY_NAMESPACE
 	inline SIMD_Mask<S, N>::SIMD_Mask(const T& intrVec)
 	{
 		*this = SIMD_Vector<S, N>(intrVec);
+	}
+
+	template<typename S, size_t N>
+	inline SIMD_Mask<S, N> SIMD_Mask<S, N>::operator~() const
+	{
+		return ~underlying;
+	}
+
+	template<typename S, size_t N>
+	inline SIMD_Mask<S, N>& SIMD_Mask<S, N>::operator&=(const SIMD_Mask<S, N>& other)
+	{
+		*this = *this & other;
+		return *this;
+	}
+	template<typename S, size_t N>
+	inline SIMD_Mask<S, N>& SIMD_Mask<S, N>::operator|=(const SIMD_Mask<S, N>& other)
+	{
+		*this = *this | other;
+		return *this;
+	}
+	template<typename S, size_t N>
+	inline SIMD_Mask<S, N>& SIMD_Mask<S, N>::operator^=(const SIMD_Mask<S, N>& other)
+	{
+		*this = *this ^ other;
+		return *this;
+	}
+
+	template<typename S, size_t N>
+	static std::ostream& operator<<(std::ostream& os, const SIMD_Mask<S, N>& mask)
+	{
+		for (int i = 0; i < N; ++i) os << (mask[i] ? 1 : 0) << ",";
+		os << (mask[N - 1] ? 1 : 0);
+		return os;
 	}
 }
