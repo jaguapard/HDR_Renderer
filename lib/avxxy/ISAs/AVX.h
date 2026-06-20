@@ -214,17 +214,17 @@ namespace AVXXY_NAMESPACE
 					else static_assert(always_false_v<T>);
 				}
 
-				/*
+				
 				template<typename S, size_t N>
 					requires (sizeof(S) >= 4 && sizeof(SIMD_Vector<S, N>) >= 17)
-				static SIMD_Mask<S, N>::UintT eval(op_maskvec2uint, const SIMD_Vector<S, N>& a)
+				static SIMD_Mask<S, N>::UintT eval(op_movemask, const SIMD_Vector<S, N>& a)
 				{
 					using T = SIMD_Vector<S, N>;
-					if constexpr (sizeof(T) > 32) return { vec2mask(a.lo()),vec2mask(a.hi()) };
+					if constexpr (sizeof(T) > 32) return concat_bitmasks<N/2>(movemask(a.lo()),movemask(a.hi()));
 					else if constexpr (ymm_sized<T> && sizeof(S) == 8) return _mm256_movemask_pd(vreinterpret<__m256d>(a));
 					else if constexpr (ymm_sized<T> && sizeof(S) == 4) return _mm256_movemask_ps(vreinterpret<__m256>(a));
 					else static_assert(always_false_v<T>);
-				}*/
+				}
 
 				/* TODO: low bits will result in tiny values, potentially crushing comparison with 0. May play around it by oring to get something into exponent.
 				* Watch out of signed 0 and NaN!
