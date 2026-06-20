@@ -322,7 +322,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 	settings.threadpool->blockUntilComplete(tasks);
 }
 
-RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 activeRays, bool shadowRays, uint32_t threadIndex)
+RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, m_i32x16 activeRays, bool shadowRays, uint32_t threadIndex)
 {
 	Vec4_f32x16 rcpRayDirs = Vec4_f32x16(1.f, 1.f, 1.f, 0.f) / rayDirs;
 	std::array<OctreeNode*, 2048> stack;

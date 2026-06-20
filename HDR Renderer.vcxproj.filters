@@ -290,6 +290,15 @@
     <ClInclude Include="lib\avxxy\ISAs\scalar.h">
       <Filter>Header Files\lib\avxxy\isas</Filter>
     </ClInclude>
+    <ClInclude Include="lib\avxxy\SIMD_Mask.h">
+      <Filter>Header Files\lib\avxxy</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\SIMD_Mask_impl.h">
+      <Filter>Header Files\lib\avxxy</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\tables.h">
+      <Filter>Header Files\lib\avxxy</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\Renderers\HardwareRasterizing\Shaders\cbuff.hlsli">

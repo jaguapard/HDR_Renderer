@@ -45,5 +45,5 @@ protected:
 	RayCasting::Octree octree;
 	static inline constexpr bool discardUntexturedTriangles = true;
 
-	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 activeRays, bool shadowRays, uint32_t threadIndex);
+	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, m_i32x16 activeRays, bool shadowRays, uint32_t threadIndex);
 };

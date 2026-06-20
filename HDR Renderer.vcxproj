@@ -540,7 +540,10 @@
     <ClInclude Include="lib\avxxy\operators.h" />
     <ClInclude Include="lib\avxxy\SIMD_BitMask.h" />
     <ClInclude Include="lib\avxxy\SIMD_BitMask_impl.h" />
+    <ClInclude Include="lib\avxxy\SIMD_Mask.h" />
+    <ClInclude Include="lib\avxxy\SIMD_Mask_impl.h" />
     <ClInclude Include="lib\avxxy\SIMD_Vector.h" />
+    <ClInclude Include="lib\avxxy\tables.h" />
     <ClInclude Include="lib\avxxy\tags.h" />
     <ClInclude Include="lib\avxxy\utils.h" />
     <ClInclude Include="lib\bob\Matrix4.h" />
