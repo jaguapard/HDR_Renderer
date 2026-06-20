@@ -15,5 +15,3 @@ typedef f32x16 float32x16;
 typedef f32x8 float32x8;
 typedef i32x8 int32x8;
 typedef i32x16 int32x16;
-typedef SIMD_BitMask<16> Mask16;
-typedef SIMD_BitMask<8> Mask8;

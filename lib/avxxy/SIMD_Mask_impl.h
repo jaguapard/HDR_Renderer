@@ -96,7 +96,8 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	inline SIMD_Mask<S, N> SIMD_Mask<S, N>::operator~() const
 	{
-		return ~underlying;
+		if constexpr (IsBitMask) return ~underlying;
+		else return logic_not(underlying);
 	}
 
 	template<typename S, size_t N>
