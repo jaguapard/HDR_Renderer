@@ -144,7 +144,7 @@ namespace AVXXY_NAMESPACE
 					}
 					else
 					{
-						auto vec_mask = mask2vec<I, N>(mask);
+						auto vec_mask = SIMD_Mask<I, N>(mask).as_vector();
 						if constexpr (ymm_sized<T> && sizeof(S) == 8) _mm256_maskstore_pd(sp, vec_mask, vec);
 						else if constexpr (ymm_sized<T> && sizeof(S) == 4) _mm256_maskstore_ps(sp, vec_mask, vec);
 						else if constexpr (xmm_sized<T> && sizeof(S) == 8) _mm_maskstore_pd(sp, vec_mask, vec);

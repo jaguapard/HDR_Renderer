@@ -19,6 +19,6 @@ struct BoundingBox
 	//Checks intersection of 16 rays against this bounding box, and writes out {minT, maxT} of the intersections.
 	//Return value: mask with bits set for rays hitting this bounding box or cleared otherwise. ret_tMin and ret_tMax are undefined for rays not hitting this bounding box
 	m_f32x16 getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigin, Vec4_f32x16 rcpRayDir, float32x16& ret_tMin, float32x16& ret_tMax) const;
-	float32x8 getMinAndMaxIntestionsFor(Vec4_f32x8 rayOrigin, Vec4_f32x8 rcpRayDir, float32x8& ret_tMin, float32x8& ret_tMax) const;
+	m_f32x8 getMinAndMaxIntestionsFor(Vec4_f32x8 rayOrigin, Vec4_f32x8 rcpRayDir, float32x8& ret_tMin, float32x8& ret_tMax) const;
 	static BoundingBox infinite();
 };

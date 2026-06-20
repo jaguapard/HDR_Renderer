@@ -71,7 +71,7 @@ std::pair<float, float> BoundingBox::getMinAndMaxIntestionsFor(Vec4f rayOrigin, 
 	return { tmin_total, tmax_total };
 }
 
-m_i32x16 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigins, Vec4_f32x16 rcpRayDirs, float32x16& ret_tMin, float32x16& ret_tMax) const
+m_f32x16 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigins, Vec4_f32x16 rcpRayDirs, float32x16& ret_tMin, float32x16& ret_tMax) const
 {
 	float32x16 tx1 = (float32x16(this->xmin) - rayOrigins.x) * rcpRayDirs.x;
 	float32x16 ty1 = (float32x16(this->ymin) - rayOrigins.y) * rcpRayDirs.y;
@@ -95,7 +95,7 @@ m_i32x16 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigins, Vec4_f32
 	ret_tMax = tmax_total;
 	return tmin_total <= tmax_total; //TODO: should this have equality?
 }
-float32x8 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x8 rayOrigins, Vec4_f32x8 rcpRayDirs, float32x8& ret_tMin, float32x8& ret_tMax) const
+m_f32x8 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x8 rayOrigins, Vec4_f32x8 rcpRayDirs, float32x8& ret_tMin, float32x8& ret_tMax) const
 {
 	float32x8 tx1 = (float32x8(this->xmin) - rayOrigins.x) * rcpRayDirs.x;
 	float32x8 ty1 = (float32x8(this->ymin) - rayOrigins.y) * rcpRayDirs.y;

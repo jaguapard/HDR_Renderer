@@ -95,12 +95,9 @@ namespace AVXXY_NAMESPACE
 	template<typename S2>
 	inline SIMD_Mask<S, N>::SIMD_Mask(const SIMD_Mask<S2, N>& other)
 	{
-		if constexpr (sizeof(S) == sizeof(S2))
-		{
-			if constexpr (IsBitMask) underlying = other.underlying;
-			else underlying = vcast<VecT>(other.underlying);
-		}
-		else static_assert(concepts::always_false_v<SIMD_Mask<S, N>>);
+		if constexpr (IsBitMask) underlying = other.underlying;
+		else if constexpr (sizeof(S) == sizeof(S2)) underlying = vcast<VecT>(other.underlying);
+		else *this = UintT(other);
 	}
 
 	template<typename S, size_t N>
