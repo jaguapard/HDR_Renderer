@@ -54,15 +54,5 @@ namespace AVXXY_NAMESPACE
 	{
 		return UintT(*this);
 	}
-	template<size_t N>
-	inline SIMD_BitMask<N / 2> SIMD_Mask<S,N>::lo() const
-	{
-		return underlying;
-	}
-	template<size_t N>
-	inline SIMD_BitMask<N / 2> SIMD_Mask<S,N>::hi() const
-	{
-		return underlying >> (N / 2);
-	}
 }
 #endif

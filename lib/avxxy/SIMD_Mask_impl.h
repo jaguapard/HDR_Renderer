@@ -135,6 +135,21 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N>
+	inline SIMD_Mask<S, N / 2> SIMD_Mask<S, N>::lo() const
+	{
+		static_assert(N % 2 == 0);
+		if constexpr (IsBitMask) return underlying;
+		else return underlying.lo();
+	}
+	template<typename S, size_t N>
+	inline SIMD_Mask<S, N / 2> SIMD_Mask<S, N>::hi() const
+	{
+		static_assert(N % 2 == 0);
+		if constexpr (IsBitMask) return underlying >> (sizeof(UintT)*4);
+		else return underlying.hi();
+	}
+
+	template<typename S, size_t N>
 	static std::ostream& operator<<(std::ostream& os, const SIMD_Mask<S, N>& mask)
 	{
 		for (int i = 0; i < N; ++i) os << (mask[i] ? 1 : 0) << ",";
