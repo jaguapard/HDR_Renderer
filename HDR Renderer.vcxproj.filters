@@ -299,6 +299,36 @@
     <ClInclude Include="lib\avxxy\tables.h">
       <Filter>Header Files\lib\avxxy</Filter>
     </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX2.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512_BW.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512_CD.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512_DQ.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512_F.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512_VBMI.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512_VBMI2.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\AVX512_VL.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
+    <ClInclude Include="lib\avxxy\ISAs\F16C.h">
+      <Filter>Header Files\lib\avxxy\isas</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\Renderers\HardwareRasterizing\Shaders\cbuff.hlsli">
