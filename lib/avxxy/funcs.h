@@ -2,7 +2,7 @@
 #include "SIMD_Vector.h"
 #include "SIMD_Mask.h"
 
-template <typename S, size_t N> class SIMD_Mask;
+//template <typename S, size_t N> class SIMD_Mask;
 namespace AVXXY_NAMESPACE
 {
 	//Performs element-wise addition of vectors and returns the result
