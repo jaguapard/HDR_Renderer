@@ -71,7 +71,7 @@ std::pair<float, float> BoundingBox::getMinAndMaxIntestionsFor(Vec4f rayOrigin, 
 	return { tmin_total, tmax_total };
 }
 
-Mask16 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigins, Vec4_f32x16 rcpRayDirs, float32x16& ret_tMin, float32x16& ret_tMax) const
+m_i32x16 BoundingBox::getMinAndMaxIntestionsFor(Vec4_f32x16 rayOrigins, Vec4_f32x16 rcpRayDirs, float32x16& ret_tMin, float32x16& ret_tMax) const
 {
 	float32x16 tx1 = (float32x16(this->xmin) - rayOrigins.x) * rcpRayDirs.x;
 	float32x16 ty1 = (float32x16(this->ymin) - rayOrigins.y) * rcpRayDirs.y;

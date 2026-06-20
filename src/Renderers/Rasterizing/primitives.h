@@ -40,7 +40,7 @@ namespace Rasterizing
 			return ret;
 		}
 
-		static __forceinline VertexPack16 maskMove(const VertexPack16& zero, const VertexPack16& one, Mask16 mask)
+		static __forceinline VertexPack16 maskMove(const VertexPack16& zero, const VertexPack16& one, m_i32x16 mask)
 		{
 			VertexPack16 ret;
 			ret.space.x = mask_mov(zero.space.x, mask, one.space.x);
@@ -107,7 +107,7 @@ namespace Rasterizing
 		void clear();
 		void reserve(size_t newSize);
 
-		__forceinline void gatherXYZUV(int32x16 ind, Mask16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
+		__forceinline void gatherXYZUV(int32x16 ind, m_i32x16 mask, Vec4_f32x16& retXYZ, float32x16& retU, float32x16& retV) const
 		{
 			if (!mask) return;
 			std::array<float32x16, 4> a = aos2soa_gather_and_transpose<float32x16, 4>(this->xyzp.data(), ind, mask);
@@ -115,7 +115,7 @@ namespace Rasterizing
 			interleaved_ph_to_ps(vcast<u32x16>(a[3]), retU, retV);
 		}
 
-		__forceinline void gatherNormals(int32x16 ind, Mask16 mask, Vec4_f32x16& ret) const
+		__forceinline void gatherNormals(int32x16 ind, m_i32x16 mask, Vec4_f32x16& ret) const
 		{
 			int32x16 f = gather<i32x16>(this->normals.data(), ind, mask);
 			int32x16 xy = f & 0xFFFFFFFE; //LSB of x (LSB of mantissa) holds the sign bit of z, so discard it before conversion
@@ -148,7 +148,7 @@ namespace Rasterizing
 		void clear();
 		//std::vector<uint32_t> modelInd;
 		
-		__forceinline void gatherVertexAndDiffuseMapIndices(int32x16 ind, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
+		__forceinline void gatherVertexAndDiffuseMapIndices(int32x16 ind, m_i32x16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
 		{
 			auto a = aos2soa_gather_and_transpose<int32x16, 4>(this->vind_diffuseInd.data(), ind, mask);
 			retVind0 = a[0];
@@ -157,7 +157,7 @@ namespace Rasterizing
 			retDiffMapInd = a[3];
 		}
 		//loads and returns vertex indices for 16 sequential triangles, starting from startInd. Masked off elements values are not defined
-		__forceinline void loadVertexAndDiffuseMapIndices16(uint32_t startInd, Mask16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
+		__forceinline void loadVertexAndDiffuseMapIndices16(uint32_t startInd, m_i32x16 mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
 		{
 			const uint32_t* p = this->vind_diffuseInd.data() + startInd * 4;
 

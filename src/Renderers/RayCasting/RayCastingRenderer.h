@@ -28,7 +28,7 @@ namespace RayCasting
 		float32x16 t = FLT_MAX, worldBarycentrics[3], textureCoords[2];
 		int32x16 modelIndices, triangleIndices;
 		Vec4_f32x16 normals;
-		Mask16 raysHit = 0;
+		m_i32x16 raysHit = 0;
 	};
 }
 

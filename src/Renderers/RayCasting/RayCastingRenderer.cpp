@@ -54,7 +54,7 @@ float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f 
 //Checks 16 rays for intersection with 1 triangle, returning mask of rays hitting the triangle.
 //Intersection T is written out retT. The values of T are undefined for non-intersecting rays
 //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
-Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x16& retT)
+m_i32x16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x16& retT)
 {
 	constexpr float epsilon = std::numeric_limits<float>::epsilon();
 	constexpr float eps = std::numeric_limits<float>::epsilon();
@@ -62,7 +62,7 @@ Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, V
 	Vec4_f32x16 edge1 = triB - triA;
 	Vec4_f32x16 edge2 = triC - triA;
 
-	Mask16 activeRays = 0xFFFF;
+	m_i32x16 activeRays = 0xFFFF;
 	// Backface culling, assuming CW-wound triangles.
 	/*
 	const Vec4_f32x16 normal = edge1.cross3d(edge2); // No need to normalize
@@ -99,7 +99,7 @@ Mask16 raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, V
 //Checks 8 rays for intersection with 1 triangle, returning mask of rays hitting the triangle.
 //Intersection T is written out retT. The values of T are undefined for non-intersecting rays
 //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
-Mask8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x8& retT)
+m_i32x8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x8& retT)
 {
 	constexpr float epsilon = std::numeric_limits<float>::epsilon();
 	const f32x8 eps = std::numeric_limits<float>::epsilon();
@@ -107,7 +107,7 @@ Mask8 raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec4
 	Vec4_f32x8 edge1 = triB - triA;
 	Vec4_f32x8 edge2 = triC - triA;
 
-	Mask8 activeRays = 0xFF;
+	m_i32x8 activeRays = 0xFF;
 	// Backface culling, assuming CW-wound triangles.
 	/*
 	const Vec4_f32x8 normal = edge1.cross3d(edge2); // No need to normalize
@@ -276,7 +276,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			{
 			int threadIndexFake = (yStart/4) % threadCount;
 			float32x16 y = float32x16(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3) + yStart;
-			for (float32x16 x = float32x16(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3); Mask16 bounds = x < bufW & y < bufH; x += 4)
+			for (float32x16 x = float32x16(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3); m_i32x16 bounds = x < bufW & y < bufH; x += 4)
 			{
 				float32x16 progressX = x / float(bufH);
 				float32x16 progressY = y / float(bufH);
@@ -336,7 +336,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 		++nodesInspected;
 		OctreeNode* currNode = stack[--stackTopIndex];
 		float32x16 bboxTmin, bboxTmax; //not used
-		Mask16 raysIntersectingNodeBoundingBox = activeRays & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax) & ret.t > bboxTmin;
+		m_i32x16 raysIntersectingNodeBoundingBox = activeRays & currNode->bbox.getMinAndMaxIntestionsFor(rayOrigins, rcpRayDirs, bboxTmin, bboxTmax) & ret.t > bboxTmin;
 		rayNodeIntersections += std::popcount((uint32_t)raysIntersectingNodeBoundingBox);
 		rayNodeTests += 16;
 		if (!raysIntersectingNodeBoundingBox) continue;
@@ -348,7 +348,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			uint32_t modelIndex = content->modelIndex;
 			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
 			float32x16 t;
-			Mask16 raysHittingThisTriangle = activeRays & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
+			m_i32x16 raysHittingThisTriangle = activeRays & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
 			triangleIntersectionTestsLive += std::popcount((uint32_t)raysHittingThisTriangle);
 			triangleIntersectionTests += 16;
 			if (!raysHittingThisTriangle) continue;
@@ -362,7 +362,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			//auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle); //todo: add t < ret.t?
 			float32x16 textureAlpha = texture.gatherA(uv.x, uv.y, raysHittingThisTriangle);
 
-			Mask16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
+			m_i32x16 toOverride = raysHittingThisTriangle & t < ret.t & textureAlpha >= 1.f;
 			ret.raysHit |= toOverride;
 			if (!shadowRays)
 			{

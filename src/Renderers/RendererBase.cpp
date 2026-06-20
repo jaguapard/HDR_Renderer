@@ -1,6 +1,6 @@
 #include "RendererBase.h"
 
-void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask)
+void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, m_i32x16 mask)
 {
 	//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
 	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
@@ -22,7 +22,7 @@ void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack
 }
 
 //TODO: verify that it works
-Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask)
+Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, m_i32x16 mask)
 {
 	int loadInd = y * w + x;
 	const int64_t* p = (const int64_t*)frameBuffer;
@@ -41,7 +41,7 @@ Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* fra
 }
 
 //TODO: verify that it works
-void RendererBase::scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, Mask16 mask, void* frameBuf, int framebufW)
+void RendererBase::scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, m_i32x16 mask, void* frameBuf, int framebufW)
 {
 	int32x16 scatterInd = y * framebufW + x;
 	u16x16 fp16_r = vcvt_fp32_fp16(colors.r);

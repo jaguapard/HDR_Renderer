@@ -24,8 +24,8 @@ public:
 	virtual void loadScene(RendererLoadSceneData scd) = 0;
 	virtual void renderFrame(const GameSettings& settings) = 0;
 	virtual ~RendererBase() {};
-	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, Mask16 mask);
-	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, Mask16 mask);
+	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, m_i32x16 mask);
+	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, m_i32x16 mask);
 	
 	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them to ret
 	//Only x and y values from input vectors are used for the calculations, the rest are ignored.
@@ -113,7 +113,7 @@ public:
 	}
 
 	//Writes out colors to pixels (x,y) of the framebuffer using mask
-	static void scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, Mask16 mask, void* frameBuf, int framebufW);
+	static void scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, m_i32x16 mask, void* frameBuf, int framebufW);
 protected:
 	TextureManager& textureManager = TextureManager::getInstance();
 };

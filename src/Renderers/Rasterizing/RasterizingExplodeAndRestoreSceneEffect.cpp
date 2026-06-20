@@ -33,7 +33,7 @@ void Rasterizing::ExplodeAndRestoreSceneEffect::onFrameStart(double gameTime)
 	else this->lerpBase = 1 - (gameTime - this->flipTime) / (this->endTime - this->flipTime);
 }
 
-void Rasterizing::ExplodeAndRestoreSceneEffect::applyToTrianglesInPlace(std::array<VertexPack16, 3>& verts, const int32x16 triangleInd, Mask16 mask) const
+void Rasterizing::ExplodeAndRestoreSceneEffect::applyToTrianglesInPlace(std::array<VertexPack16, 3>& verts, const int32x16 triangleInd, m_i32x16 mask) const
 {
 	float32x16 triangleArea = (verts[0].space - verts[1].space).cross3d(verts[0].space - verts[2].space).len3d() * 0.5f;
 	//don't affect large triangles, since they pollute the screen with their movement and rotation. Also looks better, like only flimsy things exploding, while wall and floors stay firm

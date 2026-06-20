@@ -13,7 +13,7 @@ namespace Rasterizing
 		void onFrameStart(double gameTime);
 
 		//Applies this effect to triangles passed in-place. Masked out triangles are passed through from input without change
-		void applyToTrianglesInPlace(std::array<VertexPack16, 3>& verts, const int32x16 triangleInd, Mask16 mask) const;
+		void applyToTrianglesInPlace(std::array<VertexPack16, 3>& verts, const int32x16 triangleInd, m_i32x16 mask) const;
 
 		//Wheter or not this effect is finished. Using the effect past it's finish time is undefined behavior.
 		bool isFinished() const;
