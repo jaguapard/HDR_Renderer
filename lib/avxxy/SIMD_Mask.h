@@ -37,6 +37,10 @@ namespace AVXXY_NAMESPACE
 
 		operator UintT() const;
 
+		template<typename T>
+		requires (concepts::IsIntrinsicVector<T>&& std::is_convertible_v<SIMD_Vector<S, N>, T>)
+		operator T() const;
+
 		//bool operator!
 
 		

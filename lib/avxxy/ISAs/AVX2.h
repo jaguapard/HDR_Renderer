@@ -463,6 +463,61 @@ namespace AVXXY_NAMESPACE
 						else static_assert(always_false_v<T>);
 					}
 				}
+
+				template<typename S, size_t N, size_t Scale, typename I>
+					requires (concepts::any_int<I> && sizeof(S) >= 4)
+				static SIMD_Vector<S, N> eval(op_gather<S, N, Scale>, const void* base, const SIMD_Vector<I, N>& ind, const SIMD_Mask<S, N>& mask, const SIMD_Vector<S, N>& src)
+				{
+					//put everything up here to prevent else if chain breaks (since compilation gives useless errors by thinking unsanitized inputs surviving to native gathers
+					using CanonicalIndex_t = std::conditional_t<(sizeof(I) <= 4), int32_t, int64_t>;
+					using RetVec_t = SIMD_Vector<S, N>;
+					using IndVec_t = SIMD_Vector<I, N>;
+					constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
+
+					//if scale is not native, emulate it by gathering with scale 1 and manually calculated byte offsets. 
+					//TODO: Can optimize a little by checking if Scale*maxint(I) fits into smaller sizes
+					if constexpr (Scale != 1 && Scale != 2 && Scale != 4 && Scale != 8) return gather<S, N, 1>(base, vcvt<int64_t>(ind) * Scale, mask, src);
+
+					//TODO: emulation of small int gathers (where elements gathered are small ints)
+					else if constexpr (!std::is_same_v<I, CanonicalIndex_t>) return gather<S, N, Scale>(base, vcvt<CanonicalIndex_t>(ind), mask, src);
+					else if constexpr (MaxSize > 32)
+					{
+						return {
+							gather<S, N / 2, Scale, I>(base, ind.lo(), mask.lo(), src.lo()),
+							gather<S, N / 2, Scale, I>(base, ind.hi(), mask.hi(), src.hi())
+						};
+					}
+					else if constexpr (is_ymm_size(MaxSize))
+					{
+						//clang is a cry-baby with ind here for some reason, so force convert it. Pay attention to size!
+						std::conditional_t<(concepts::ymm_sized<IndVec_t>), __m256i, __m128i> ni = ind;
+						if constexpr (is_i64<I> && is_f64<S>) return _mm256_mask_i64gather_pd(src, base, ni, mask, Scale);
+						else if constexpr (is_i64<I> && is_f32<S>) return _mm256_mask_i64gather_ps(src, base, ni, mask, Scale);
+						else if constexpr (is_i64<I> && any_i64<S>) return _mm256_mask_i64gather_epi64(src, base, ni, mask, Scale);
+						else if constexpr (is_i64<I> && any_i32<S>) return _mm256_mask_i64gather_epi32(src, base, ni, mask, Scale);
+
+						else if constexpr (is_i32<I> && is_f64<S>) return _mm256_mask_i32gather_pd(src, base, ni, mask, Scale);
+						else if constexpr (is_i32<I> && is_f32<S>) return _mm256_mask_i32gather_ps(src, base, ni, mask, Scale);
+						else if constexpr (is_i32<I> && any_i64<S>) return _mm256_mask_i32gather_epi64(src, base, ni, mask, Scale);
+						else if constexpr (is_i32<I> && any_i32<S>) return _mm256_mask_i32gather_epi32(src, base, ni, mask, Scale);
+						else static_assert(always_false_v<I, S>);
+					}
+					else if constexpr (is_xmm_size(MaxSize))
+					{
+						__m128i ni = ind;
+						if constexpr (is_i64<I> && is_f64<S>) return _mm_mask_i64gather_pd(src, base, ni, mask, Scale);
+						else if constexpr (is_i64<I> && is_f32<S>) return _mm_mask_i64gather_ps(src, base, ni, mask, Scale);
+						else if constexpr (is_i64<I> && any_i64<S>) return _mm_mask_i64gather_epi64(src, base, ni, mask, Scale);
+						else if constexpr (is_i64<I> && any_i32<S>) return _mm_mask_i64gather_epi32(src, base, ni, mask, Scale);
+
+						else if constexpr (is_i32<I> && is_f64<S>) return _mm_mask_i32gather_pd(src, base, ni, mask, Scale);
+						else if constexpr (is_i32<I> && is_f32<S>) return _mm_mask_i32gather_ps(src, base, ni, mask, Scale);
+						else if constexpr (is_i32<I> && any_i64<S>) return _mm_mask_i32gather_epi64(src, base, ni, mask, Scale);
+						else if constexpr (is_i32<I> && any_i32<S>) return _mm_mask_i32gather_epi32(src, base, ni, mask, Scale);
+						else static_assert(always_false_v<I, S>);
+					}
+					else static_assert(always_false_v<I, S>);
+				}
 			};
 		}
 	}

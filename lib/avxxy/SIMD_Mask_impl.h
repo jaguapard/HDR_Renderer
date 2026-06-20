@@ -102,6 +102,14 @@ namespace AVXXY_NAMESPACE
 
 	template<typename S, size_t N>
 	template<typename T>
+		requires (concepts::IsIntrinsicVector<T>&& std::is_convertible_v<SIMD_Vector<S, N>, T>)
+	inline SIMD_Mask<S, N>::operator T() const
+	{
+		return this->as_vector();
+	}
+
+	template<typename S, size_t N>
+	template<typename T>
 		requires (std::is_convertible_v<T, SIMD_Vector<S, N>>&& concepts::IsIntrinsicVector<T>)
 	inline SIMD_Mask<S, N>::SIMD_Mask(const T& intrVec)
 	{
