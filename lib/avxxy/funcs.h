@@ -225,6 +225,17 @@ namespace AVXXY_NAMESPACE
 
 	template <typename S, size_t N> requires (sizeof(S) * 8 >= N)
 		SIMD_Vector<typename concepts::same_size_uint_t<S>::type, N> conflict(const SIMD_Vector<S, N>& a);
+
+	template<typename T> requires (concepts::any_int<T>) typename concepts::bits_to_uint_t<sizeof(T)*4>::type lower_half(const T& a);
+	template<typename T> requires (concepts::any_int<T>) typename concepts::bits_to_uint_t<sizeof(T)*4>::type upper_half(const T& a);
+
+	//Concatenates unsigned integer representations of bit masks and returns the result.
+	//Returned mask size is N1+N2 bits and must be below or equal to 64 bits
+	//@tparam N1 size of mask `a` in bits
+	//@tparam N2 size of mask `b` in bits. Defaults to equal to N1
+	template<size_t N1, size_t N2=N1> 
+	requires (N1+N2 <= 64)
+	uint64_t concat_bitmasks(uint64_t a, uint64_t b);
 	/**
 	@brief performs a lookup from lookup table using indices. The indices wrap around (-1 becomes LutElementCount-1, LutElementCount becomes 0, etc)
 	//TODO: update the tooltip when implementing it

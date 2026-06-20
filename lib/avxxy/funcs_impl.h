@@ -268,4 +268,23 @@ namespace AVXXY_NAMESPACE
 	{
 		return internals::DefaultDispatcher::run(internals::op_conflict{}, a);
 	}
+	template<typename T>
+		requires (concepts::any_int<T>)
+	typename concepts::bits_to_uint_t<sizeof(T) * 4>::type lower_half(const T& a)
+	{
+		return a;
+	}
+	template<typename T>
+		requires (concepts::any_int<T>)
+	typename concepts::bits_to_uint_t<sizeof(T) * 4>::type upper_half(const T& a)
+	{
+		return a >> (sizeof(T) * 4);
+	}
+
+	template<size_t N1, size_t N2>
+		requires (N1 + N2 <= 64)
+	uint64_t concat_bitmasks(uint64_t a, uint64_t b)
+	{
+		return a | (b << N1);
+	}
 }

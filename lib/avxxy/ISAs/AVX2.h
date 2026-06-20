@@ -289,13 +289,13 @@ namespace AVXXY_NAMESPACE
 				{
 					return ~cmp_less(a, b);
 				}
-				/*
+				
 				template<typename S, size_t N>
 				requires (any_small_int<S> && sizeof(SIMD_Vector<S,N>) >= 17) //|| (FS.has(SSSE3) && any_i16<S>))
-				static SIMD_Mask<S,N>::UintT eval(op_maskvec2uint, const SIMD_Vector<S, N>& a)
+				static typename bits_to_uint_t<N>::type eval(op_movemask, const SIMD_Vector<S, N>& a)
 				{
 					using T = SIMD_Vector<S, N>;
-					if constexpr (sizeof(T) > 32) return { vec2mask(a.lo()),vec2mask(a.hi()) };
+					if constexpr (sizeof(T) > 32) return concat_bitmasks<N/2>(movemask(a.lo()), movemask(a.hi()));
 					else if constexpr (ymm_sized<T> && any_i8<S>) return _mm256_movemask_epi8(a);
 					else if constexpr (FS.has(SSSE3) && ymm_sized<T> && any_i16<S>)
 					{
@@ -313,11 +313,12 @@ namespace AVXXY_NAMESPACE
 				
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) >= 17)
-				static SIMD_Vector<S,N> eval(op_uint2maskvec<S,N>, const SIMD_Mask<S,N>::UintT& a)
+				static SIMD_Vector<S,N> eval(op_movm<S,N>, const typename bits_to_uint_t<N>::type& a)
 				{
 					using T = SIMD_Vector<S, N>;
+					using U = decltype(a);
 					SIMD_Vector<S, N> ret;
-					if constexpr (sizeof(T) > 32) return { mask2vec<S>(a.lo()),mask2vec<S>(a.hi()) };
+					if constexpr (sizeof(T) > 32) return { movm<S,N / 2>(lower_half(a)),movm<S,N / 2>(upper_half(a)) };
 					else if constexpr (ymm_sized<T> && sizeof(S) == 8)
 					{
 						__m256i broadcasted = _mm256_set1_epi64x(a);
@@ -357,7 +358,7 @@ namespace AVXXY_NAMESPACE
 					}
 					else static_assert(always_false_v<T>);
 				}
-				*/
+				
 				template<typename S, size_t N, typename I>
 					requires (sizeof(S) >= 4 && concepts::any_int<I> && sizeof(SIMD_Vector<S, N>) >= 17)
 				static SIMD_Vector<S, N> eval(op_permx, const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
