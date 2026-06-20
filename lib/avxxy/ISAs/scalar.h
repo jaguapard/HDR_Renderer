@@ -1,7 +1,7 @@
 #pragma once
 #include "../namespace.h"
 #include "../tags.h"
-#include "../SIMD_BitMask.h"
+#include "../SIMD_Mask.h"
 #include "../SIMD_Vector.h"
 #include "../FeatureSet.h"
 #include <iostream>
@@ -211,7 +211,7 @@ namespace AVXXY_NAMESPACE
 
 
 				template<typename S, size_t N>
-				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const SIMD_Mask<S, N>& mask = SIMD_Mask<S, N>::AllOnes(), const SIMD_Vector<S, N>& src = 0)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -220,7 +220,7 @@ namespace AVXXY_NAMESPACE
 					return ret;
 				}
 				template<typename S, size_t N>
-				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes)
+				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_Mask<S, N>& mask = SIMD_Mask<S, N>::AllOnes())
 				{
 					scream();
 					S* sp = static_cast<S*>(p);
@@ -228,7 +228,7 @@ namespace AVXXY_NAMESPACE
 				}
 				template<typename S, size_t N, size_t Scale, typename I>
 					requires (concepts::any_int<I>)
-				static SIMD_Vector<S, N> eval(op_gather<S, N, Scale>, const void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S, N> eval(op_gather<S, N, Scale>, const void* base, const SIMD_Vector<I, N>& ind, const SIMD_Mask<S, N>& mask = SIMD_Mask<S, N>::AllOnes(), const SIMD_Vector<S, N>& src = 0)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -238,7 +238,7 @@ namespace AVXXY_NAMESPACE
 				}
 				template<typename S, size_t N, size_t Scale, typename I>
 					requires (concepts::any_int<I>)
-				static void eval(op_scatter<Scale>, const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes)
+				static void eval(op_scatter<Scale>, const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const SIMD_Mask<S, N>& mask = SIMD_Mask<S, N>::AllOnes())
 				{
 					scream();
 					size_t addr = size_t(base);
@@ -247,7 +247,7 @@ namespace AVXXY_NAMESPACE
 
 
 				template<typename S, size_t N>
-				static SIMD_Vector<S, N> eval(op_compress, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S, N> eval(op_compress, const SIMD_Mask<S, N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -258,7 +258,7 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-				static SIMD_Vector<S, N> eval(op_mask_mov, const SIMD_Vector<S, N>& ifBitClear, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& ifBitSet)
+				static SIMD_Vector<S, N> eval(op_mask_mov, const SIMD_Vector<S, N>& ifBitClear, const SIMD_Mask<S, N>& mask, const SIMD_Vector<S, N>& ifBitSet)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -280,50 +280,50 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-				static SIMD_BitMask<N> eval(op_cmpeq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S, N> eval(op_cmpeq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_BitMask<N> ret = 0;
+					SIMD_Mask<S, N> ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] == b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_BitMask<N> eval(op_cmpneq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S, N> eval(op_cmpneq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_BitMask<N> ret = 0;
+					SIMD_Mask<S, N> ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] != b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_BitMask<N> eval(op_cmplt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S, N> eval(op_cmplt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_BitMask<N> ret = 0;
+					SIMD_Mask<S, N> ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] < b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_BitMask<N> eval(op_cmple, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S, N> eval(op_cmple, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_BitMask<N> ret = 0;
+					SIMD_Mask<S, N> ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] <= b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_BitMask<N> eval(op_cmpgt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S, N> eval(op_cmpgt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_BitMask<N> ret = 0;
+					SIMD_Mask<S, N> ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] > b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_BitMask<N> eval(op_cmpge, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S, N> eval(op_cmpge, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_BitMask<N> ret = 0;
+					SIMD_Mask<S, N> ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] >= b[i]);
 					return ret;
 				}
@@ -528,20 +528,21 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-				static SIMD_Vector<S, N> eval(op_mask2vec<S,N>, const SIMD_BitMask<N>& mask)
+				static SIMD_Vector<S, N> eval(op_movm<S,N>, const typename bits_to_uint_t<N>::type& mask)
 				{
 					using U = concepts::same_size_uint_t<S>::type;
 					SIMD_Vector<S, N> ret;
-					for (size_t i = 0; i < N; ++i) ret[i] = mask[i] ? std::bit_cast<S>(~U(0)) : S(0);
+					for (size_t i = 0; i < N; ++i) ret[i] = mask & (decltype(mask)(1) << i) ? std::bit_cast<S>(~U(0)) : S(0);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_BitMask<N> eval(op_vec2mask, const SIMD_Vector<S, N>& a)
+				static typename bits_to_uint_t<N>::type eval(op_movemask, const SIMD_Vector<S, N>& a)
 				{
 					using U = concepts::same_size_uint_t<S>::type;
-					SIMD_BitMask<N> ret;
+					using X = typename bits_to_uint_t<N>::type;
+					X ret;
 					constexpr U sb = U(1) << (sizeof(U) * 8 - 1);
-					for (size_t i = 0; i < N; ++i) ret.setBit(i, std::bit_cast<U>(a[i]) & sb);
+					for (size_t i = 0; i < N; ++i) if (static_cast<U>(a[i]) & sb) ret |= X(1) << i;
 					return ret;
 				}
 			private:

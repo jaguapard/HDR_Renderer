@@ -4,6 +4,7 @@
 
 namespace AVXXY_NAMESPACE
 {
+#if 0
 	//Represents a compacted mask with N bits.
 	template<size_t N>
 	struct SIMD_BitMask
@@ -49,10 +50,11 @@ namespace AVXXY_NAMESPACE
 		SIMD_BitMask<N / 2> lo() const;
 		SIMD_BitMask<N / 2> hi() const;
 
-		SIMD_BitMask<N>& operator&=(const SIMD_BitMask<N>& other);
-		SIMD_BitMask<N>& operator|=(const SIMD_BitMask<N>& other);
-		SIMD_BitMask<N>& operator^=(const SIMD_BitMask<N>& other);
+		SIMD_Mask<S,N>& operator&=(const SIMD_Mask<S,N>& other);
+		SIMD_Mask<S,N>& operator|=(const SIMD_Mask<S,N>& other);
+		SIMD_Mask<S,N>& operator^=(const SIMD_Mask<S,N>& other);
 	private:
 		UintT underlying;
 	};
+#endif
 }

@@ -159,7 +159,7 @@ namespace AVXXY_NAMESPACE
 
 				template<typename S, size_t N>
 				requires (any_int<S> && sizeof(SIMD_Vector<S,N>) > 16)
-				static SIMD_Vector<S, N> eval(op_mask_mov, const SIMD_Vector<S, N>& ifBitClear, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& ifBitSet)
+				static SIMD_Vector<S, N> eval(op_mask_mov, const SIMD_Vector<S, N>& ifBitClear, const SIMD_Mask<S,N>& mask, const SIMD_Vector<S, N>& ifBitSet)
 				{
 					using T = SIMD_Vector<S, N>;
 					if constexpr (sizeof(T) > 32) return { mask_mov(ifBitClear.lo(), mask.lo(), ifBitSet.lo()), mask_mov(ifBitClear.hi(), mask.hi(), ifBitSet.hi()) };
@@ -228,7 +228,7 @@ namespace AVXXY_NAMESPACE
 
 				template<typename S, size_t N>
 				requires (sizeof(SIMD_Vector<S, N>) > 16 && any_int<S>)
-				static SIMD_BitMask<N> eval(op_cmpeq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S,N> eval(op_cmpeq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					using namespace concepts;
 					using T = SIMD_Vector<S, N>;
@@ -242,7 +242,7 @@ namespace AVXXY_NAMESPACE
 
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) > 16 && any_int<S>)
-				static SIMD_BitMask<N> eval(op_cmpneq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S,N> eval(op_cmpneq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					using namespace concepts;
 					using T = SIMD_Vector<S, N>;
@@ -251,7 +251,7 @@ namespace AVXXY_NAMESPACE
 
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) > 16 && any_int<S>)
-				static SIMD_BitMask<N> eval(op_cmpgt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S,N> eval(op_cmpgt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					using namespace concepts;
 					using T = SIMD_Vector<S, N>;
@@ -270,28 +270,28 @@ namespace AVXXY_NAMESPACE
 				}
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) > 16 && any_int<S>)
-				static SIMD_BitMask<N> eval(op_cmplt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S,N> eval(op_cmplt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					return cmp_greater(b, a); //flip arguments
 				}
 
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) > 16 && any_int<S>)
-				static SIMD_BitMask<N> eval(op_cmple, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S,N> eval(op_cmple, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					return ~cmp_greater(a, b);
 				}
 
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) > 16 && any_int<S>)
-				static SIMD_BitMask<N> eval(op_cmpge, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static SIMD_Mask<S,N> eval(op_cmpge, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					return ~cmp_less(a, b);
 				}
-
+				/*
 				template<typename S, size_t N>
 				requires (any_small_int<S> && sizeof(SIMD_Vector<S,N>) >= 17) //|| (FS.has(SSSE3) && any_i16<S>))
-				static SIMD_BitMask<N> eval(op_vec2mask, const SIMD_Vector<S, N>& a)
+				static SIMD_Mask<S,N>::UintT eval(op_maskvec2uint, const SIMD_Vector<S, N>& a)
 				{
 					using T = SIMD_Vector<S, N>;
 					if constexpr (sizeof(T) > 32) return { vec2mask(a.lo()),vec2mask(a.hi()) };
@@ -309,10 +309,10 @@ namespace AVXXY_NAMESPACE
 					}
 					else static_assert(always_false_v<T>);
 				}
-
+				
 				template<typename S, size_t N>
 					requires (sizeof(SIMD_Vector<S, N>) >= 17)
-				static SIMD_Vector<S,N> eval(op_mask2vec<S,N>, const SIMD_BitMask<N>& a)
+				static SIMD_Vector<S,N> eval(op_uint2maskvec<S,N>, const SIMD_Mask<S,N>::UintT& a)
 				{
 					using T = SIMD_Vector<S, N>;
 					SIMD_Vector<S, N> ret;
@@ -356,7 +356,7 @@ namespace AVXXY_NAMESPACE
 					}
 					else static_assert(always_false_v<T>);
 				}
-
+				*/
 				template<typename S, size_t N, typename I>
 					requires (sizeof(S) >= 4 && concepts::any_int<I> && sizeof(SIMD_Vector<S, N>) >= 17)
 				static SIMD_Vector<S, N> eval(op_permx, const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
@@ -388,7 +388,7 @@ namespace AVXXY_NAMESPACE
 
 				template<typename S, size_t N>
 					requires (sizeof(S) == 4 && sizeof(SIMD_Vector<S, N>) >= 17)
-				static SIMD_Vector<S, N> eval(op_compress, const SIMD_BitMask<N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S, N> eval(op_compress, const SIMD_Mask<S,N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
 				{
 					using T = SIMD_Vector<S, N>;
 					using canon_t = same_size_int_t<S>::type;
@@ -398,13 +398,13 @@ namespace AVXXY_NAMESPACE
 						T ret = src;
 						auto cl = compress(mask.lo(), a.lo(), src.lo());
 						auto ch = compress(mask.hi(), a.hi(), src.lo()); //doesn't matter which src, since that's useless anyway
-						size_t popcnt_lo = std::popcount(typename SIMD_BitMask<N>::UintT(mask.lo())); //TODO: _mm_popcnt_u* if is supported?
-						size_t popcnt_hi = std::popcount(typename SIMD_BitMask<N>::UintT(mask.hi()));
+						size_t popcnt_lo = std::popcount(typename SIMD_Mask<S,N>::UintT(mask.lo())); //TODO: _mm_popcnt_u* if is supported?
+						size_t popcnt_hi = std::popcount(typename SIMD_Mask<S,N>::UintT(mask.hi()));
 
 						static_assert(sizeof(S) == 4);
 						float* p = (float*)&ret;
 						store(cl, p);
-						SIMD_BitMask<N / 2> cm = (uint64_t(1) << popcnt_hi) - 1;
+						SIMD_Mask<canon_t, N / 2> cm = (uint64_t(1) << popcnt_hi) - 1;
 						store(ch, p + popcnt_lo, cm); //don't overwrite src remains
 						//_mm256_maskstore_ps(p + popcnt_lo, mask2vec<int32_t, N / 2>(cm), vreinterpret<__m256>(ch)); //don't overwrite src remains
 						return ret;
@@ -422,7 +422,7 @@ namespace AVXXY_NAMESPACE
 
 				template<typename S, size_t N>
 					requires (any_i32<S> || any_i64<S>)
-				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes)
+				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_Mask<S,N>& mask = SIMD_Mask<S,N>::AllOnes)
 				{
 					using T = SIMD_Vector<S, N>;
 					using I = same_size_int_t<S>::type;
@@ -445,7 +445,7 @@ namespace AVXXY_NAMESPACE
 
 				template<typename S, size_t N>
 					requires (any_i32<S> || any_i64<S>)
-				static SIMD_Vector<S,N> eval(op_load<S, N>, const void* p, const SIMD_BitMask<N>& mask = SIMD_BitMask<N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S,N> eval(op_load<S, N>, const void* p, const SIMD_Mask<S,N>& mask = SIMD_Mask<S,N>::AllOnes, const SIMD_Vector<S, N>& src = 0)
 				{
 					using T = SIMD_Vector<S, N>;
 					using I = same_size_int_t<S>::type;

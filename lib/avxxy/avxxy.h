@@ -5,16 +5,17 @@
 #include "funcs.h"
 #include "funcs_impl.h"
 #include "operators.h"
-#include "SIMD_BitMask_impl.h"
+#include "SIMD_Mask_impl.h"
 
 namespace AVXXY_NAMESPACE
 {
+	/*
 	typedef SIMD_BitMask<2> bitmask2;
 	typedef SIMD_BitMask<4> bitmask4;
 	typedef SIMD_BitMask<8> bitmask8;
 	typedef SIMD_BitMask<16> bitmask16;
 	typedef SIMD_BitMask<32> bitmask32;
-	typedef SIMD_BitMask<64> bitmask64;
+	typedef SIMD_BitMask<64> bitmask64;*/
 
 	typedef SIMD_Vector<int8_t, 2> i8x2;
 	typedef SIMD_Vector<int8_t, 4> i8x4;
