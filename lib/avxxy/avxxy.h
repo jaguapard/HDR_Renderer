@@ -9,14 +9,6 @@
 
 namespace AVXXY_NAMESPACE
 {
-	/*
-	typedef SIMD_BitMask<2> bitmask2;
-	typedef SIMD_BitMask<4> bitmask4;
-	typedef SIMD_BitMask<8> bitmask8;
-	typedef SIMD_BitMask<16> bitmask16;
-	typedef SIMD_BitMask<32> bitmask32;
-	typedef SIMD_BitMask<64> bitmask64;*/
-
 	typedef SIMD_Vector<int8_t, 2> i8x2;
 	typedef SIMD_Vector<int8_t, 4> i8x4;
 	typedef SIMD_Vector<int8_t, 8> i8x8;
@@ -120,4 +112,77 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<uint64_t, 8> zmm_u64;
 	typedef SIMD_Vector<float, 16> zmm_f32;
 	typedef SIMD_Vector<double, 8> zmm_f64;
+
+
+
+
+	typedef SIMD_Mask<int8_t, 2> m_i8x2;
+	typedef SIMD_Mask<int8_t, 4> m_i8x4;
+	typedef SIMD_Mask<int8_t, 8> m_i8x8;
+	typedef SIMD_Mask<int8_t, 16> m_i8x16;
+	typedef SIMD_Mask<int8_t, 32> m_i8x32;
+	typedef SIMD_Mask<int8_t, 64> m_i8x64;
+
+	typedef SIMD_Mask<uint8_t, 2> m_u8x2;
+	typedef SIMD_Mask<uint8_t, 4> m_u8x4;
+	typedef SIMD_Mask<uint8_t, 8> m_u8x8;
+	typedef SIMD_Mask<uint8_t, 16> m_u8x16;
+	typedef SIMD_Mask<uint8_t, 32> m_u8x32;
+	typedef SIMD_Mask<uint8_t, 64> m_u8x64;
+
+	typedef SIMD_Mask<int16_t, 2> m_i16x2;
+	typedef SIMD_Mask<int16_t, 4> m_i16x4;
+	typedef SIMD_Mask<int16_t, 8> m_i16x8;
+	typedef SIMD_Mask<int16_t, 16> m_i16x16;
+	typedef SIMD_Mask<int16_t, 32> m_i16x32;
+	typedef SIMD_Mask<int16_t, 64> m_i16x64;
+
+	typedef SIMD_Mask<uint16_t, 2> m_u16x2;
+	typedef SIMD_Mask<uint16_t, 4> m_u16x4;
+	typedef SIMD_Mask<uint16_t, 8> m_u16x8;
+	typedef SIMD_Mask<uint16_t, 16> m_u16x16;
+	typedef SIMD_Mask<uint16_t, 32> m_u16x32;
+	typedef SIMD_Mask<uint16_t, 64> m_u16x64;
+
+	typedef SIMD_Mask<int32_t, 2> m_i32x2;
+	typedef SIMD_Mask<int32_t, 4> m_i32x4;
+	typedef SIMD_Mask<int32_t, 8> m_i32x8;
+	typedef SIMD_Mask<int32_t, 16> m_i32x16;
+	typedef SIMD_Mask<int32_t, 32> m_i32x32;
+	typedef SIMD_Mask<int32_t, 64> m_i32x64;
+
+	typedef SIMD_Mask<uint32_t, 2> m_u32x2;
+	typedef SIMD_Mask<uint32_t, 4> m_u32x4;
+	typedef SIMD_Mask<uint32_t, 8> m_u32x8;
+	typedef SIMD_Mask<uint32_t, 16> m_u32x16;
+	typedef SIMD_Mask<uint32_t, 32> m_u32x32;
+	typedef SIMD_Mask<uint32_t, 64> m_u32x64;
+
+	typedef SIMD_Mask<int64_t, 2> m_i64x2;
+	typedef SIMD_Mask<int64_t, 4> m_i64x4;
+	typedef SIMD_Mask<int64_t, 8> m_i64x8;
+	typedef SIMD_Mask<int64_t, 16> m_i64x16;
+	typedef SIMD_Mask<int64_t, 32> m_i64x32;
+	typedef SIMD_Mask<int64_t, 64> m_i64x64;
+
+	typedef SIMD_Mask<uint64_t, 2> m_u64x2;
+	typedef SIMD_Mask<uint64_t, 4> m_u64x4;
+	typedef SIMD_Mask<uint64_t, 8> m_u64x8;
+	typedef SIMD_Mask<uint64_t, 16> m_u64x16;
+	typedef SIMD_Mask<uint64_t, 32> m_u64x32;
+	typedef SIMD_Mask<uint64_t, 64> m_u64x64;
+
+	typedef SIMD_Mask<float, 2> m_f32x2;
+	typedef SIMD_Mask<float, 4> m_f32x4;
+	typedef SIMD_Mask<float, 8> m_f32x8;
+	typedef SIMD_Mask<float, 16> m_f32x16;
+	typedef SIMD_Mask<float, 32> m_f32x32;
+	typedef SIMD_Mask<float, 64> m_f32x64;
+
+	typedef SIMD_Mask<double, 2> m_f64x2;
+	typedef SIMD_Mask<double, 4> m_f64x4;
+	typedef SIMD_Mask<double, 8> m_f64x8;
+	typedef SIMD_Mask<double, 16> m_f64x16;
+	typedef SIMD_Mask<double, 32> m_f64x32;
+	typedef SIMD_Mask<double, 64> m_f64x64;
 }
