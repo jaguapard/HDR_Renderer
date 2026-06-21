@@ -134,7 +134,7 @@ namespace AVXXY_NAMESPACE
 	{
 		SIMD_Mask<LS, N> ret;
 		if constexpr (IsBitMask) ret.underlying = movemask(VecT(intr));
-		else ret.underlying = intr;
+		else memcpy(&ret.underlying, &intr, std::min(sizeof(ret), sizeof(intr)));
 	}
 
 	/*
@@ -179,14 +179,14 @@ namespace AVXXY_NAMESPACE
 	{
 		static_assert(N % 2 == 0);
 		if constexpr (IsBitMask) return underlying;
-		else return underlying.lo();
+		else return SIMD_Mask<LS,N/2>::constructNoClean(underlying.lo());
 	}
 	template<concepts::LaneSizeEnum LS, size_t N>
 	inline SIMD_Mask<LS, N / 2> SIMD_Mask<LS, N>::hi() const
 	{
 		static_assert(N % 2 == 0);
 		if constexpr (IsBitMask) return underlying >> (sizeof(UintT) * 4);
-		else return underlying.hi();
+		else return SIMD_Mask<LS, N / 2>::constructNoClean(underlying.hi());
 	}
 
 	template<concepts::LaneSizeEnum LS, size_t N>
