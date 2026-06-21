@@ -17,7 +17,7 @@ for i in [0,15]:
 @returns Array of FieldCount 512-bit vectors, with values transposed to SoA layout
 */
 template<typename ReturnType, uint32_t FieldCount>
-__forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(const void* base, i32x16 ind, m_f32x16 mask)
+__forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(const void* base, i32x16 ind, mask16d mask)
 	requires (sizeof(ReturnType) == 64 && FieldCount >= 1)
 {
 	//Unmasked elements use safe dummy index for load (first valid index is broadcasted to all lanes and replaces unmasked ones).

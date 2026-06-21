@@ -69,7 +69,7 @@ __forceinline void interleaved_ph_to_ps(__m512i inp, float32x16& retLow, float32
 
 //Returns 64 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 000011112222...dddd
 template <typename S>
-__forceinline SIMD_Mask<S, 64> duplicate_mmask_bits_16_to_64(SIMD_Mask<S, 16> m)
+__forceinline mask_t<S, 64> duplicate_mmask_bits_16_to_64(mask_t<S, 16> m)
 {
 	i32x16 a = movm<int32_t, 16>(m);
 	return movemask(vcast<u8x64>(a));
@@ -117,13 +117,13 @@ __forceinline __mmask32 duplicate_mmask_bits_16_to_32(__mmask16 m)
  * @param outUniqueCount  Optional. Receives the number of unique active values.
  * @param outUniqueMask   Optional. Receives a mask of lanes corresponding to first occurrences.
  */
-__forceinline void deduplicate_epi32x16(int32x16 inputValues, int32_t invalidValue, m_i32x16 activeMask, int32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, m_i32x16* outUniqueMask = nullptr)
+__forceinline void deduplicate_epi32x16(int32x16 inputValues, int32_t invalidValue, mask16d activeMask, int32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, mask16d* outUniqueMask = nullptr)
 {
 	//Replace inactive lanes with guaranteed-invalid values so masked-off garbage
 	//cannot participate in conflict detection.
 	int32x16 cleaned = mask_mov(i32x16(invalidValue), activeMask, inputValues);
 	int32x16 conflicts = conflict(cleaned);
-	m_i32x16 uniqueMask = activeMask & (conflicts == 0); 	//Keep only active lanes that have no prior occurrence.
+	mask16d uniqueMask = activeMask & (conflicts == 0); 	//Keep only active lanes that have no prior occurrence.
 
 	outUniqueValues = compress(uniqueMask, cleaned);
 	if (outUniqueCount) *outUniqueCount = std::popcount((uint16_t)uniqueMask);
@@ -135,7 +135,7 @@ Removes duplicate active values from a 16-lane vector and packs the unique value
 Does NOT check for NANs or infinities, operates only on bitwise representations!
 Check deduplicate_epi32x16 for more details
 */
-__forceinline void deduplicate_ps512(float32x16 inputValues, float invalidValue, m_i32x16 activeMask, float32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, m_i32x16* outUniqueMask = nullptr)
+__forceinline void deduplicate_ps512(float32x16 inputValues, float invalidValue, mask16d activeMask, float32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, mask16d* outUniqueMask = nullptr)
 {
 	int32x16 unique;
 	deduplicate_epi32x16(_mm512_castps_si512(inputValues), std::bit_cast<int32_t>(invalidValue), activeMask, unique, outUniqueCount, outUniqueMask);

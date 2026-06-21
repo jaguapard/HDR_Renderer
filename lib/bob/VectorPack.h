@@ -61,12 +61,12 @@ namespace bob
 		__forceinline VectorPack<PackType>& operator/=(const VectorPack<PackType>& other);
 
 		/*
-		__forceinline std::array<m_i32x16, 4> operator>(const VectorPack<PackType>& other) const;
-		__forceinline std::array<m_i32x16, 4> operator>=(const VectorPack<PackType>& other) const;
-		__forceinline std::array<m_i32x16, 4> operator<(const VectorPack<PackType>& other) const;
-		__forceinline std::array<m_i32x16, 4> operator<=(const VectorPack<PackType>& other) const;
-		__forceinline std::array<m_i32x16, 4> operator==(const VectorPack<PackType>& other) const;
-		__forceinline std::array<m_i32x16, 4> operator!=(const VectorPack<PackType>& other) const;*/
+		__forceinline std::array<mask16d, 4> operator>(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator>=(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator<(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator<=(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator==(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator!=(const VectorPack<PackType>& other) const;*/
 
 
 		__forceinline VectorPack<PackType> operator+(const PackType& other) const;
@@ -225,49 +225,49 @@ namespace bob
 	}
 	/*
 	template <typename PackType>
-	__forceinline std::array<m_i32x16, 4> VectorPack<PackType>::operator>(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator>(const VectorPack<PackType>& other) const
 	{
-		std::array<m_i32x16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] > other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<m_i32x16, 4> VectorPack<PackType>::operator>=(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator>=(const VectorPack<PackType>& other) const
 	{
-		std::array<m_i32x16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] >= other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<m_i32x16, 4> VectorPack<PackType>::operator<(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator<(const VectorPack<PackType>& other) const
 	{
-		std::array<m_i32x16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] < other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<m_i32x16, 4> VectorPack<PackType>::operator<=(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator<=(const VectorPack<PackType>& other) const
 	{
-		std::array<m_i32x16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] <= other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<m_i32x16, 4> VectorPack<PackType>::operator==(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator==(const VectorPack<PackType>& other) const
 	{
-		std::array<m_i32x16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] == other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<m_i32x16, 4> VectorPack<PackType>::operator!=(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator!=(const VectorPack<PackType>& other) const
 	{
-		std::array<m_i32x16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] != other[i];
 		return ret;
 	}*/
