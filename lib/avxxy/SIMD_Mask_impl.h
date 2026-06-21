@@ -127,6 +127,16 @@ namespace AVXXY_NAMESPACE
 		}
 	}
 
+	template<concepts::LaneSizeEnum LS, size_t N>
+	template<typename T>
+		requires (concepts::IsIntrinsicTypeThatCanHold<T, typename SIMD_Mask<LS,N>::VecT>)
+	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::constructNoClean(const T& intr)
+	{
+		SIMD_Mask<LS, N> ret;
+		if constexpr (IsBitMask) ret.underlying = movemask(VecT(intr));
+		else ret.underlying = intr;
+	}
+
 	/*
 	template<concepts::LaneSizeEnum LS, size_t N>
 	template<typename T>
