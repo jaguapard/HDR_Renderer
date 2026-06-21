@@ -69,19 +69,19 @@ namespace AVXXY_NAMESPACE
 	template<concepts::LaneSizeEnum LS, size_t N>
 	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator&(const SIMD_Mask<LS, N>& other) const
 	{
-		return underlying & other.underlying;
+		return SIMD_Mask<LS, N>::constructNoClean(underlying & other.underlying);
 	}
 
 	template<concepts::LaneSizeEnum LS, size_t N>
 	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator|(const SIMD_Mask<LS, N>& other) const
 	{
-		return underlying | other.underlying;
+		return SIMD_Mask<LS, N>::constructNoClean(underlying | other.underlying);
 	}
 
 	template<concepts::LaneSizeEnum LS, size_t N>
 	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator^(const SIMD_Mask<LS, N>& other) const
 	{
-		return underlying ^ other.underlying;
+		return SIMD_Mask<LS, N>::constructNoClean(underlying ^ other.underlying);
 	}
 
 	template<concepts::LaneSizeEnum LS, size_t N>
@@ -152,7 +152,7 @@ namespace AVXXY_NAMESPACE
 	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator~() const
 	{
 		if constexpr (IsBitMask) return ~underlying;
-		else return logic_not(underlying);
+		else return SIMD_Mask<LS, N>::constructNoClean(logic_not(underlying));
 	}
 
 	template<concepts::LaneSizeEnum LS, size_t N>
