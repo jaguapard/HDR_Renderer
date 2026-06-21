@@ -234,10 +234,10 @@ namespace AVXXY_NAMESPACE
 					using T = SIMD_Vector<S, N>;
 					using M = typename SIMD_Vector<S, N>::MaskT;
 					if constexpr (sizeof(T) > 32) return { cmp_equal(a.lo(),b.lo()), cmp_equal(a.hi(),b.hi()) };
-					else if constexpr (ymm_sized<T> && any_i64<S>) return _mm256_cmpeq_epi64(a, b);
-					else if constexpr (ymm_sized<T> && any_i32<S>) return _mm256_cmpeq_epi32(a, b);
-					else if constexpr (ymm_sized<T> && any_i16<S>) return _mm256_cmpeq_epi16(a, b);
-					else if constexpr (ymm_sized<T> && any_i8<S>) return _mm256_cmpeq_epi8(a, b);
+					else if constexpr (ymm_sized<T> && any_i64<S>) return mask_t<S, N>::constructNoClean(_mm256_cmpeq_epi64(a, b));
+					else if constexpr (ymm_sized<T> && any_i32<S>) return mask_t<S, N>::constructNoClean(_mm256_cmpeq_epi32(a, b));
+					else if constexpr (ymm_sized<T> && any_i16<S>) return mask_t<S, N>::constructNoClean(_mm256_cmpeq_epi16(a, b));
+					else if constexpr (ymm_sized<T> && any_i8<S>) return mask_t<S, N>::constructNoClean(_mm256_cmpeq_epi8(a, b));
 					else static_assert(always_false_v<T>);
 				}
 
@@ -263,10 +263,10 @@ namespace AVXXY_NAMESPACE
 						return cmp_greater(vcvt<I>(a) ^ xorv, vcvt<I>(b) ^ xorv);
 					}
 					else if constexpr (sizeof(T) > 32) return { cmp_greater(a.lo(),b.lo()), cmp_greater(a.hi(),b.hi()) };
-					else if constexpr (ymm_sized<T> && is_i64<S>) return _mm256_cmpgt_epi64(a, b);
-					else if constexpr (ymm_sized<T> && is_i32<S>) return _mm256_cmpgt_epi32(a, b);
-					else if constexpr (ymm_sized<T> && is_i16<S>) return _mm256_cmpgt_epi16(a, b);
-					else if constexpr (ymm_sized<T> && is_i8<S>) return _mm256_cmpgt_epi8(a, b);
+					else if constexpr (ymm_sized<T> && is_i64<S>) return mask_t<S,N>::constructNoClean(_mm256_cmpgt_epi64(a, b));
+					else if constexpr (ymm_sized<T> && is_i32<S>) return mask_t<S, N>::constructNoClean(_mm256_cmpgt_epi32(a, b));
+					else if constexpr (ymm_sized<T> && is_i16<S>) return mask_t<S, N>::constructNoClean(_mm256_cmpgt_epi16(a, b));
+					else if constexpr (ymm_sized<T> && is_i8<S>) return mask_t<S, N>::constructNoClean(_mm256_cmpgt_epi8(a, b));
 					else static_assert(always_false_v<T>);
 				}
 				template<typename S, size_t N>
