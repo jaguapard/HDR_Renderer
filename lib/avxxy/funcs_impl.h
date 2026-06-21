@@ -268,17 +268,20 @@ namespace AVXXY_NAMESPACE
 	{
 		return internals::DefaultDispatcher::run(internals::op_conflict{}, a);
 	}
-	template<typename T>
+	template<size_t N, typename T>
 		requires (concepts::any_int<T>)
 	typename concepts::bits_to_uint_t<sizeof(T) * 4>::type lower_half(const T& a)
 	{
-		return a;
+		static_assert(N % 2 == 0);
+		uint64_t u = uint64_t(1) << (N / 2);
+		return a & (u - 1);
 	}
-	template<typename T>
+	template<size_t N, typename T>
 		requires (concepts::any_int<T>)
 	typename concepts::bits_to_uint_t<sizeof(T) * 4>::type upper_half(const T& a)
 	{
-		return a >> (sizeof(T) * 4);
+		static_assert(N % 2 == 0);
+		return a >> (N / 2);
 	}
 
 	template<size_t N1, size_t N2>

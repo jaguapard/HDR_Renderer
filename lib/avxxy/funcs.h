@@ -97,7 +97,7 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//ret[i] = mask[i] ? reinterpret_cast<const S*>(p)[i] : src[i]
 	template<typename T> requires (T::IsSimdVector)
-		__forceinline T load(const void* p, const SIMD_Mask<typename T::ScalarType, T::LaneCount>& mask = SIMD_Mask<typename T::ScalarType, T::LaneCount>::AllOnes(), const T& src = 0)
+		__forceinline T load(const void* p, const typename T::MaskType& mask = T::MaskType::AllOnes(), const T& src = 0)
 	{
 		return load<typename T::ScalarType, T::LaneCount>(p, mask, src);
 	}
@@ -129,7 +129,7 @@ namespace AVXXY_NAMESPACE
 	//ret[i] = mask[i] ? *reinterpret_cast<const S*>(size_t(base) + Scale*ind[i]) : src[i]
 	template <typename T, size_t Scale = sizeof(typename T::ScalarType), typename I>
 		requires (T::IsSimdVector)
-	__forceinline T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const SIMD_Mask<typename T::ScalarType, T::LaneCount>& mask = SIMD_Mask<typename T::ScalarType, T::LaneCount>::AllOnes(), const T& src = 0)
+	__forceinline T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const typename T::MaskType& mask = T::MaskType::AllOnes(), const T& src = 0)
 	{
 		return __gather_impl<typename T::ScalarType, T::LaneCount, Scale>(base, ind, mask, src);
 	}
@@ -226,8 +226,8 @@ namespace AVXXY_NAMESPACE
 	template <typename S, size_t N> requires (sizeof(S) * 8 >= N)
 		SIMD_Vector<typename concepts::same_size_uint_t<S>::type, N> conflict(const SIMD_Vector<S, N>& a);
 
-	template<typename T> requires (concepts::any_int<T>) typename concepts::bits_to_uint_t<sizeof(T)*4>::type lower_half(const T& a);
-	template<typename T> requires (concepts::any_int<T>) typename concepts::bits_to_uint_t<sizeof(T)*4>::type upper_half(const T& a);
+	template<size_t N, typename T> requires (concepts::any_int<T>) typename concepts::bits_to_uint_t<sizeof(T)*4>::type lower_half(const T& a);
+	template<size_t N, typename T> requires (concepts::any_int<T>) typename concepts::bits_to_uint_t<sizeof(T)*4>::type upper_half(const T& a);
 
 	//Concatenates unsigned integer representations of bit masks and returns the result.
 	//Returned mask size is N1+N2 bits and must be below or equal to 64 bits

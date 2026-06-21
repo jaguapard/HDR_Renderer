@@ -211,7 +211,7 @@ namespace AVXXY_NAMESPACE
 
 
 				template<typename S, size_t N>
-				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const SIMD_Mask<S, N>& mask = SIMD_Mask<S, N>::AllOnes(), const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S, N> eval(op_load<S, N>, const void* p, const typename SIMD_Vector<S, N>::MaskT& mask, const SIMD_Vector<S, N>& src)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -220,7 +220,7 @@ namespace AVXXY_NAMESPACE
 					return ret;
 				}
 				template<typename S, size_t N>
-				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const SIMD_Mask<S, N>& mask = SIMD_Mask<S, N>::AllOnes())
+				static void eval(op_store, SIMD_Vector<S, N> vec, void* p, const typename SIMD_Vector<S, N>::MaskT& mask)
 				{
 					scream();
 					S* sp = static_cast<S*>(p);
@@ -228,7 +228,7 @@ namespace AVXXY_NAMESPACE
 				}
 				template<typename S, size_t N, size_t Scale, typename I>
 					requires (concepts::any_int<I>)
-				static SIMD_Vector<S, N> eval(op_gather<S, N, Scale>, const void* base, const SIMD_Vector<I, N>& ind, const SIMD_Mask<S, N>& mask, const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S, N> eval(op_gather<S, N, Scale>, const void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskT& mask, const SIMD_Vector<S, N>& src = 0)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -238,7 +238,7 @@ namespace AVXXY_NAMESPACE
 				}
 				template<typename S, size_t N, size_t Scale, typename I>
 					requires (concepts::any_int<I>)
-				static void eval(op_scatter<Scale>, const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const SIMD_Mask<S, N>& mask = SIMD_Mask<S, N>::AllOnes())
+				static void eval(op_scatter<Scale>, const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskT& mask = typename SIMD_Vector<S, N>::MaskT::AllOnes())
 				{
 					scream();
 					size_t addr = size_t(base);
@@ -247,7 +247,7 @@ namespace AVXXY_NAMESPACE
 
 
 				template<typename S, size_t N>
-				static SIMD_Vector<S, N> eval(op_compress, const SIMD_Mask<S, N>& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
+				static SIMD_Vector<S, N> eval(op_compress, const typename SIMD_Vector<S, N>::MaskT& mask, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& src = 0)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -258,7 +258,7 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-				static SIMD_Vector<S, N> eval(op_mask_mov, const SIMD_Vector<S, N>& ifBitClear, const SIMD_Mask<S, N>& mask, const SIMD_Vector<S, N>& ifBitSet)
+				static SIMD_Vector<S, N> eval(op_mask_mov, const SIMD_Vector<S, N>& ifBitClear, const typename SIMD_Vector<S, N>::MaskT& mask, const SIMD_Vector<S, N>& ifBitSet)
 				{
 					scream();
 					SIMD_Vector<S, N> ret;
@@ -280,50 +280,50 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-				static SIMD_Mask<S, N> eval(op_cmpeq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static typename SIMD_Vector<S, N>::MaskT eval(op_cmpeq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_Mask<S, N> ret = 0;
+					typename SIMD_Vector<S, N>::MaskT ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] == b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_Mask<S, N> eval(op_cmpneq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static typename SIMD_Vector<S, N>::MaskT eval(op_cmpneq, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_Mask<S, N> ret = 0;
+					typename SIMD_Vector<S, N>::MaskT ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] != b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_Mask<S, N> eval(op_cmplt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static typename SIMD_Vector<S, N>::MaskT eval(op_cmplt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_Mask<S, N> ret = 0;
+					typename SIMD_Vector<S, N>::MaskT ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] < b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_Mask<S, N> eval(op_cmple, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static typename SIMD_Vector<S, N>::MaskT eval(op_cmple, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_Mask<S, N> ret = 0;
+					typename SIMD_Vector<S, N>::MaskT ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] <= b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_Mask<S, N> eval(op_cmpgt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static typename SIMD_Vector<S, N>::MaskT eval(op_cmpgt, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_Mask<S, N> ret = 0;
+					typename SIMD_Vector<S, N>::MaskT ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] > b[i]);
 					return ret;
 				}
 				template<typename S, size_t N>
-				static SIMD_Mask<S, N> eval(op_cmpge, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+				static typename SIMD_Vector<S, N>::MaskT eval(op_cmpge, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				{
 					scream();
-					SIMD_Mask<S, N> ret = 0;
+					typename SIMD_Vector<S, N>::MaskT ret = 0;
 					for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] >= b[i]);
 					return ret;
 				}
@@ -528,7 +528,7 @@ namespace AVXXY_NAMESPACE
 				}
 
 				template<typename S, size_t N>
-				static SIMD_Vector<S, N> eval(op_movm<S,N>, const typename bits_to_uint_t<N>::type& mask)
+				static SIMD_Vector<S, N> eval(op_movm<S, N>, const typename bits_to_uint_t<N>::type& mask)
 				{
 					using U = concepts::same_size_uint_t<S>::type;
 					using MU = bits_to_uint_t<N>::type;
