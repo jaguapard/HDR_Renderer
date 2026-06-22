@@ -238,4 +238,12 @@ namespace AVXXY_NAMESPACE
 	//For each element in `a`, computes the number of set bits and stores the computed value into corresponding element of returned vector
 	//for (size_t i = 0; i < N; ++i) ret[i] = popcnt(a[i])
 	template<typename S, size_t N> SIMD_Vector<typename meta::ScalarTraits<S>::UintT, N> vpopcnt(const SIMD_Vector<S, N>& a);
+
+	//Extracts uppermost bit of each element and returns them as mask.
+	template <typename S, size_t N> mask_t<S,N> movemask(const SIMD_Vector<S, N>& v);
+	//Sets all bits of each element to 0 if corresponding mask bit is 0, or 1 otherwise.
+	//@tparam S scalar type of the returned vector
+	//@tparam N number of lanes in returned vector, same as bit count of input mask
+	//@tparam C size class of the input mask
+	template <typename S, size_t N, meta::ScalarSizeClassEnum C> SIMD_Vector<S, N> movm(const SIMD_Mask<C, N>& mask);
 }

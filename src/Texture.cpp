@@ -129,7 +129,7 @@ Texture::Texture(const SDL_Surface* s)
             p2 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed2);
             mask16d m1 = p1.a > 0.f;
             mask16d m2 = p2.a > 0.f;
-            uint32_t mt = (m2.as_uint() << 16) | m1.as_uint();
+            uint32_t mt = (uint32_t(m2) << 16) | m1;
             this->mipLevels[0].opacityMap[i / 32] = mt;
             //if (~mt) this->mipLevels[0]isFullyOpaque = false;
         }

@@ -35,6 +35,7 @@ namespace AVXXY_NAMESPACE
 				std::conditional_t<LS == ScalarSizeClassEnum::word, uint16_t,
 				std::conditional_t<LS == ScalarSizeClassEnum::dword, uint32_t, uint64_t>>>;
 			static constexpr UintT AllOnesUint = ~UintT(0);
+			static constexpr UintT SignMask = UintT(1) << (sizeof(UintT) * 8 - 1);
 			static constexpr ScalarSizeClassEnum size_class = LS;
 		};
 		

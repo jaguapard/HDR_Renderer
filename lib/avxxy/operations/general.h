@@ -271,5 +271,40 @@ namespace AVXXY_NAMESPACE
 				return ret;
 			}
 		};
+
+		struct op_movm : OperationBase
+		{
+			template<typename S, size_t N, meta::ScalarSizeClassEnum C>
+			static SIMD_Vector<S, N> run(const SIMD_Mask<C, N>& mask)
+			{
+				scream();
+				SIMD_Vector<S, N> ret;
+				using Tr = ScalarTraits<S>;
+				for (size_t i = 0; i < N; ++i)
+				{
+					typename Tr::UintT u = mask[i] ? Tr::AllOnesUint : 0;
+					ret[i] = std::bit_cast<S>(u);
+				}
+				return ret;
+			}
+			//mask_t<S, N> movemask(const SIMD_Vector<S, N>& v)
+		};
+
+		struct op_movemask : OperationBase
+		{
+			template<typename S, size_t N>
+			static mask_t<S, N> run(const SIMD_Vector<S, N>& vec)
+			{
+				mask_t<S, N> ret;
+				using Tr = ScalarTraits<S>;
+				using U = Tr::UintT;
+				for (size_t i = 0; i < N; ++i)
+				{
+					U sb = std::bit_cast<U>(vec[i]) & Tr::SignMask;
+					ret.setBit(i, sb);
+				}
+				return ret;
+			}
+		};
 	}
 }
