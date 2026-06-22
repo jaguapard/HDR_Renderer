@@ -50,6 +50,7 @@ namespace AVXXY_NAMESPACE
 		using IntT = concepts::bits_to_int_t<N>;
 		using VecT = SIMD_Vector<IntT, N>;
 		using IntrinsicT = concepts::intinsic_vec_t<IntT, N>;
+		using Self = SIMD_Mask<LS, N>;
 
 		static inline constexpr UintT AllOnesUint = (N == sizeof(UintT) * 8) ? ~UintT(0) : ((UintT(1) << N) - 1);
 		static inline constexpr bool IsVectorMask = !internals::FS_current.has(internals::Feature::AVX512_F);
@@ -115,8 +116,13 @@ namespace AVXXY_NAMESPACE
 		//except basic size checks.
 		//This function is dangerous and should only ever be used for trivial conversions
 		template<typename T>
-			requires (concepts::IsIntrinsicTypeThatCanHold<T, typename SIMD_Mask<LS, N>::VecT>)
-		static SIMD_Mask<LS, N> constructNoClean(const T& intr);
+			requires ((concepts::IsIntrinsicTypeThatCanHold<T, typename SIMD_Mask<LS, N>::VecT>) || (T::IsSimdVector && sizeof(T) == sizeof(Self) && N == T::LaneCount))
+		static SIMD_Mask<LS, N> constructNoClean(const T& intr)
+		{
+			SIMD_Mask<LS, N> ret;
+			if constexpr (IsBitMask) ret.underlying = movemask(VecT(intr));
+			else memcpy(&ret.underlying, &intr, std::min(sizeof(ret), sizeof(intr)));
+		}
 	private:
 		std::conditional_t<IsBitMask, UintT, VecT> underlying;
 	};
