@@ -179,7 +179,7 @@ void RasterizingRenderer::renderFrame(const GameSettings& settings)
 	int w = settings.outputTextureW;
 	int h = settings.outputTextureH;
 	uint64_t skyColorFP16; 
-	auto fp16_sky = (vcvt_fp32_fp16(load<f32x4>(&this->skyColor)));
+	auto fp16_sky = (vcvt<fp16_t>(load<f32x4>(&this->skyColor)));
 	memcpy(&skyColorFP16, &fp16_sky, 8);
 	this->depthBufMain.resize(w, h);
 	this->triangleIndexBuf.resize(w, h);
