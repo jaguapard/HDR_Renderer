@@ -11,11 +11,11 @@ namespace AVXXY_NAMESPACE
 	{
 		uint16_t value;
 
+		fp16_t() {};
 		fp16_t(float x)
 		{
 			value = _scalar_fp32_to_fp16(x);
 		}
-
 
 		operator float() const
 		{
@@ -25,6 +25,9 @@ namespace AVXXY_NAMESPACE
 	struct bf16_t
 	{
 		uint16_t value;
+		bf16_t() {};
+		//bf16_t(float f);
+		//operator float() const;
 	};
 
 

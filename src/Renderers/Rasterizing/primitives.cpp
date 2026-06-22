@@ -12,8 +12,7 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 		this->xyzp.push_back(x);
 		this->xyzp.push_back(y);
 		this->xyzp.push_back(z);
-		f32x4 f32 = f32x4(u, v, nx, ny);
-		u16x4 f16 = vcvt_fp32_fp16(f32);
+		fp16x4 f16 = f32x4(u, v, nx, ny);
 		int32_t nx_fp16 = f16[2];
 		int32_t ny_fp16 = f16[3];
 		nx_fp16 &= 0xFFFE; //steal lowest mantissa bit for z sign
