@@ -45,8 +45,8 @@ Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const u32x16& packed)
         fp16_ba = mask_mov(fp16_ba, ba >= lo & ba < hi, perm_ba);
     }
 
-    ret.r = fp16_rg.lo();
-    ret.g = fp16_rg.hi();
-    ret.b = fp16_ba.lo();
+    ret.r = vcast<fp16x16>(fp16_rg.lo());
+    ret.g = vcast<fp16x16>(fp16_rg.hi());
+    ret.b = vcast<fp16x16>(fp16_ba.lo());
     return ret;
 }

@@ -23,13 +23,16 @@ namespace AVXXY_NAMESPACE
 	inline SIMD_Mask<LS,N>::BitsUintT SIMD_Mask<LS, N>::_movemask() const
 	{
 		if constexpr (IsBitMask) return underlying & AllOnesUint;
-		//scalar movemask
-		BitsUintT ret = 0;
-		for (size_t i = 0; i < N; ++i)
+		else
 		{
-			if (underlying[i] < 0) ret |= BitsUintT(1) << i;
+			//scalar movemask
+			BitsUintT ret = 0;
+			for (size_t i = 0; i < N; ++i)
+			{
+				if (underlying[i] < 0) ret |= BitsUintT(1) << i;
+			}
+			return ret;
 		}
-		return ret;
 	}
 
 	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
