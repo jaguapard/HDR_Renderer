@@ -245,5 +245,5 @@ namespace AVXXY_NAMESPACE
 	//@tparam S scalar type of the returned vector
 	//@tparam N number of lanes in returned vector, same as bit count of input mask
 	//@tparam C size class of the input mask
-	template <typename S, size_t N, meta::ScalarSizeClassEnum C> SIMD_Vector<S, N> movm(const SIMD_Mask<C, N>& mask);
+	template <typename S, meta::ScalarSizeClassEnum C, size_t N> SIMD_Vector<S, N> movm(const SIMD_Mask<C, N>& mask);
 }

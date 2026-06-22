@@ -1,0 +1,53 @@
+#pragma once
+#include "FeatureSet.h"
+#include <tuple>
+#include "ISAs/Scalar.h"
+#include "ISAs/AVX512_F.h"
+#include "meta/meta.h"
+namespace AVXXY_NAMESPACE
+{
+	namespace internals
+	{
+		class Dispatcher
+		{
+		public:
+			//static inline constexpr FeatureSet FS = FS_current;
+			//struct null_t {};
+
+			using order = std::tuple<
+				std::conditional_t<FS.has(Feature::AVX512_F), ISA_AVX512_F, null_t>,
+				ISA_Scalar>;
+
+			//Dispatches operation through this dispatcher. Attempts to pick best available implementation for target operation respecting template argument feature set limitations
+			template<typename Op, typename... Args>
+			static auto run(Args&&... args)
+			{
+				//don't allow outsiders to poison I, that's why this run_private exists
+				return run_private<Op>(std::forward<Args>(args)...);
+			}
+
+		private:
+			template<typename Op, size_t I = 0, typename... Args>
+			static auto run_private(Args&&... args)
+			{
+				if constexpr (I < std::tuple_size_v<order>)
+				{
+					using instr_set_t = std::tuple_element_t<I, order>;
+					//Search tuple for fitting implementation, and return the value returned by first valid implementation.
+					//If no implementations exist, static_assert triggers
+					if constexpr (requires {instr_set_t::template eval<Op>(std::forward<Args>(args)...); })
+					{
+						auto ret = instr_set_t::template eval<Op>(std::forward<Args>(args)...);
+						//if null_t is returned, it means that implementation exists, but it all fell through to the null_t return,
+						//This is considered invalid, so continue searching
+						if constexpr (std::is_same_v<decltype(ret), null_t>) return run_private<Op, I + 1>(std::forward<Args>(args)...);
+						else return ret;
+					}
+					else return run_private<Op, I + 1>(std::forward<Args>(args)...);
+				}
+				else static_assert(meta::always_false_v<Op, Args...>, "AVXxy routing: no implementation exists for operation");
+			}
+
+		};
+	}
+}
