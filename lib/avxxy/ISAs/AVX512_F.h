@@ -19,12 +19,12 @@ namespace AVXXY_NAMESPACE
 					else if constexpr (is_f32<S>) return _mm512_add_ps(a, b);
 					else if constexpr (any_i64<S>) return _mm512_add_epi64(a, b);
 					else if constexpr (any_i32<S>) return _mm512_add_epi32(a, b);
-					else return null_t{};
+					else return fail_ack_t{};
 				}
 				//TODO: check these!
 				//else if constexpr (!FS.has(Feature::AVX2) && std::is_signed_v<S>) return vcvt<S>(add(vcvt<int32_t>(a), vcvt<int32_t>(b)));
 				//else if constexpr (!FS.has(Feature::AVX2) && std::is_unsigned_v<S>) return vcvt<S>(add(vcvt<uint32_t>(a), vcvt<uint32_t>(b)));
-				else return null_t{};
+				else return fail_ack_t{};
 			}
 		};
 	}

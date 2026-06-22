@@ -236,7 +236,7 @@ namespace AVXXY_NAMESPACE
 				scream();
 				S* sp = static_cast<S*>(p);
 				for (size_t i = 0; i < N; ++i) if (mask[i]) sp[i] = vec[i];
-				return alive_sentinel_t{};
+				return success_ack_t{};
 			}
 			template<typename Op, typename I>
 				requires (meta::any_int<I>&& meta::IsGatherOp<Op>)
@@ -255,7 +255,7 @@ namespace AVXXY_NAMESPACE
 				scream();
 				size_t addr = size_t(base);
 				for (size_t i = 0; i < N; ++i) if (mask[i]) *(S*)(addr + Op::Scale * ind[i]) = v[i];
-				return alive_sentinel_t{};
+				return success_ack_t{};
 			}
 
 

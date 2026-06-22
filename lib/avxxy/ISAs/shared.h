@@ -9,7 +9,9 @@ namespace AVXXY_NAMESPACE
 {
 	namespace internals
 	{
-		struct null_t {};
-		struct alive_sentinel_t {};
+		//This type is returned when implementation was considered for evaluation, but didn't return anything else (i.e. failed due to size, type, accompanying ISA absent or other requirements)
+		struct fail_ack_t {};
+		//This type is returned when a function doesn't return a value, but needs to indicate success to the dispatcher (for example, scatter or store operations)
+		struct success_ack_t {};
 	}
 }

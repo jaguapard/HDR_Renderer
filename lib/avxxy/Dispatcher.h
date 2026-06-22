@@ -12,10 +12,10 @@ namespace AVXXY_NAMESPACE
 		{
 		public:
 			//static inline constexpr FeatureSet FS = FS_current;
-			//struct null_t {};
+			//struct fail_ack_t {};
 
 			using order = std::tuple<
-				std::conditional_t<FS.has(Feature::AVX512_F), ISA_AVX512_F, null_t>,
+				std::conditional_t<FS.has(Feature::AVX512_F), ISA_AVX512_F, fail_ack_t>,
 				ISA_Scalar>;
 
 			//Dispatches operation through this dispatcher. Attempts to pick best available implementation for target operation respecting template argument feature set limitations
@@ -38,9 +38,9 @@ namespace AVXXY_NAMESPACE
 					if constexpr (requires {instr_set_t::template eval<Op>(std::forward<Args>(args)...); })
 					{
 						auto ret = instr_set_t::template eval<Op>(std::forward<Args>(args)...);
-						//if null_t is returned, it means that implementation exists, but it all fell through to the null_t return,
+						//if fail_ack_t is returned, it means that implementation exists, but it all fell through to the fail_ack_t return,
 						//This is considered invalid, so continue searching
-						if constexpr (std::is_same_v<decltype(ret), null_t>) return run_private<Op, I + 1>(std::forward<Args>(args)...);
+						if constexpr (std::is_same_v<decltype(ret), fail_ack_t>) return run_private<Op, I + 1>(std::forward<Args>(args)...);
 						else return ret;
 					}
 					else return run_private<Op, I + 1>(std::forward<Args>(args)...);
