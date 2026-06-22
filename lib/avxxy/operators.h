@@ -1,5 +1,5 @@
 #pragma once
-#include "SIMD_BitMask.h"
+#include "SIMD_Mask.h"
 #include "SIMD_Vector.h"
 #include "funcs.h"
 namespace AVXXY_NAMESPACE

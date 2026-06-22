@@ -1,179 +1,82 @@
 #pragma once
 #include "SIMD_Mask.h"
 #include <iostream>
-#include "funcs.h"
+//#include "funcs.h"
 
 namespace AVXXY_NAMESPACE
 {
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::AllOnes()
+	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+	inline SIMD_Mask<LS,N>::VecT SIMD_Mask<LS, N>::_movm(UintT bits)
 	{
-		return (N == sizeof(UintT) * 8) ? ~UintT(0) : ((UintT(1) << N) - 1);
-	}
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N>::SIMD_Mask(UintT bits)
-	{
-		if constexpr (IsBitMask) this->underlying = bits & AllOnesUint;
-		else
+		using T = SIMD_Mask<LS, N>::SizeTraits;
+		SIMD_Mask<LS, N>::VecT ret;
+		//scalar movm
+		for (size_t i = 0; i < N; ++i)
 		{
-			this->underlying = movm<IntT, N>(bits);
+			ret[i] = bits & (UintT(1) << i) ? T::AllOnesUint : 0;
 		}
+		return ret;
+		
 	}
 
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS, N / 2>& lo, const SIMD_Mask<LS, N / 2>& hi)
-	{
-		if constexpr (IsBitMask) this->underlying = concat_bitmasks<N / 2>(lo.underlying, hi.underlying) & AllOnesUint;
-		else this->underlying = { lo.underlying, hi.underlying };
-	}
-
-	/*
-	template<concepts::LaneSizeEnum LS, size_t N>
-	template <typename S>
-	inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Vector<S, N>& v)
-	{
-		if constexpr (IsBitMask) this->underlying = movemask(v);
-		else *this = movemask(v.underlying);
-	}*/
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N>::operator UintT() const
-	{
-		return this->as_uint();
-	}
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N>::UintT SIMD_Mask<LS, N>::as_uint() const
+	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+	inline SIMD_Mask<LS,N>::UintT SIMD_Mask<LS, N>::_movemask() const
 	{
 		if constexpr (IsBitMask) return underlying & AllOnesUint;
-		else return movemask(underlying);
-	}
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N>::IntT SIMD_Mask<LS, N>::as_int() const
-	{
-		return as_uint();
+		//scalar movemask
+		UintT ret = 0;
+		for (size_t i = 0; i < N; ++i)
+		{
+			if (underlying[i] < 0) ret |= UintT(1) << i;
+		}
+		return ret;
 	}
 
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline bool SIMD_Mask<LS, N>::operator[](size_t i) const
+	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+	inline SIMD_Mask<LS, N>::SIMD_Mask(UintT bits)
 	{
-		using U = typename VecT::UintScalarT;
-		if constexpr (IsBitMask) return underlying & (UintT(1) << i) & AllOnesUint;
-		else
+		if constexpr (IsBitMask) underlying = bits & AllOnesUint;
+		else underlying = SIMD_Mask<LS, N>::_movm(bits);
+	}
+
+	template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
+	inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS, N / 2>& lo, const SIMD_Mask<LS, N / 2>& hi)
+	{
+		if constexpr (IsBitMask) return UintT(lo) | (UintT(hi) << (N / 2));
+		else 
 		{
-			UintT u = movemask(underlying);
-			return u & (U(1) << i) & AllOnesUint;
+			SIMD_Mask<LS, N> ret;
+			ret.underlying = { lo.underlying, hi.underlying };
+			return ret;
 		}
 	}
 
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator&(const SIMD_Mask<LS, N>& other) const
-	{
-		return SIMD_Mask<LS, N>::constructNoClean(underlying & other.underlying);
-	}
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator|(const SIMD_Mask<LS, N>& other) const
-	{
-		return SIMD_Mask<LS, N>::constructNoClean(underlying | other.underlying);
-	}
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator^(const SIMD_Mask<LS, N>& other) const
-	{
-		return SIMD_Mask<LS, N>::constructNoClean(underlying ^ other.underlying);
-	}
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	template<concepts::LaneSizeEnum LS2>
-	inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS2, N>& other)
-	{
-		if constexpr (IsBitMask) underlying = other.underlying;
-		else if constexpr (LS == LS2) underlying = vcast<VecT>(other.underlying);
-		else *this = UintT(other);
-	}
-	/*
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	template<typename T>
-		requires (concepts::IsIntrinsicVector<T>&& std::is_convertible_v<SIMD_Vector<S, N>, T>)
-	inline SIMD_Mask<LS, N>::operator T() const
-	{
-		return this->as_vector();
-	}
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	template<typename T>
-		requires (std::is_convertible_v<T, SIMD_Vector<S, N>>&& concepts::IsIntrinsicVector<T>)
-	inline SIMD_Mask<LS, N>::SIMD_Mask(const T& intrVec)
-	{
-		*this = SIMD_Vector<S, N>(intrVec);
-	}*/
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	template<typename S>
-	inline SIMD_Vector<S, N> SIMD_Mask<LS, N>::as_vector() const
-	{
-		if constexpr (IsBitMask) return movm<S, N>(underlying & AllOnesUint);
-		else
-		{
-			/*
-			if constexpr (sizeof(S) == sizeof(IntT))
-			{
-				return vcast<SIMD_Vector<S, N>>(underlying < 0); //TODO: check all of it ensure strict masks! (elements in each lane are all zeroes or all ones)
-			}
-			else*/
-				return movm<S, N>(movemask(underlying) & AllOnesUint);
-		}
-	}
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator~() const
-	{
-		SIMD_Mask<LS, N> ret;
-		if constexpr (IsBitMask) return ~underlying;
-		else return SIMD_Mask<LS, N>::constructNoClean(logic_not(underlying));
-	}
-
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator&=(const SIMD_Mask<LS, N>& other)
-	{
-		*this = *this & other;
-		return *this;
-	}
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator|=(const SIMD_Mask<LS, N>& other)
-	{
-		*this = *this | other;
-		return *this;
-	}
-	template<concepts::LaneSizeEnum LS, size_t N>
-	inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator^=(const SIMD_Mask<LS, N>& other)
-	{
-		*this = *this ^ other;
-		return *this;
-	}
-
-	template<concepts::LaneSizeEnum LS, size_t N>
+	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
 	inline SIMD_Mask<LS, N / 2> SIMD_Mask<LS, N>::lo() const
 	{
 		static_assert(N % 2 == 0);
 		if constexpr (IsBitMask) return underlying;
-		else return SIMD_Mask<LS,N/2>::constructNoClean(underlying.lo());
+		else return underlying.lo();
 	}
-	template<concepts::LaneSizeEnum LS, size_t N>
+	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
 	inline SIMD_Mask<LS, N / 2> SIMD_Mask<LS, N>::hi() const
 	{
 		static_assert(N % 2 == 0);
-		if constexpr (IsBitMask) return underlying >> (sizeof(UintT) * 4);
-		else return SIMD_Mask<LS, N / 2>::constructNoClean(underlying.hi());
+		if constexpr (IsBitMask) return underlying >> (N/2);
+		else return underlying.hi();
 	}
 
-	template<concepts::LaneSizeEnum LS, size_t N>
-	static std::ostream& operator<<(std::ostream& os, const SIMD_Mask<LS, N>& mask)
+	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+	inline SIMD_Mask<LS, N>::operator UintT() const
 	{
-		for (int i = 0; i < N; ++i) os << (mask[i] ? 1 : 0) << ",";
-		os << (mask[N - 1] ? 1 : 0);
-		return os;
+		if constexpr (IsBitMask) return underlying & AllOnesUint;
+		else return this->_movemask();
+	}
+
+	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+	template<meta::ScalarSizeClassEnum LS2, size_t N2> requires (N >= N2)
+	inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS2, N2>& other)
+	{
+		*this = other._movemask();
 	}
 }

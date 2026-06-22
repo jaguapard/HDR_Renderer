@@ -1,108 +1,72 @@
 #pragma once
 #include "namespace.h"
-#include "concepts.h"
+#include "meta/meta.h"
 #include "FeatureSet.h"
 
 namespace AVXXY_NAMESPACE
 {
 	template<typename S, size_t N>
-		requires concepts::IsValid_SIMD_Vector<S, N>
+		requires meta::IsValid_SIMD_Vector<S, N>
 	class SIMD_Vector;
 
-	template<concepts::LaneSizeEnum LS, size_t N>
+	template<size_t N>
+	concept IsValid_SIMD_Mask = N >= 2 && N <= 64 && meta::isPowerOf2(N);
+
+	template<meta::ScalarSizeClassEnum LS, size_t N>
+	requires IsValid_SIMD_Mask<N>
 	class SIMD_Mask;
 
-	template<concepts::LaneSizeEnum LS>
-	struct LaneSizeTraits
-	{
-		using IntT = std::conditional_t<LS == concepts::LaneSizeEnum::byte, int8_t,
-			std::conditional_t<LS == concepts::LaneSizeEnum::word, int16_t,
-			std::conditional_t<LS == concepts::LaneSizeEnum::dword, int32_t,
-			std::conditional_t<LS == concepts::LaneSizeEnum::qword, int64_t, void>>>>;
-		using UintT = std::conditional_t<LS == concepts::LaneSizeEnum::byte, uint8_t,
-			std::conditional_t<LS == concepts::LaneSizeEnum::word, uint16_t,
-			std::conditional_t<LS == concepts::LaneSizeEnum::dword, uint32_t,
-			std::conditional_t<LS == concepts::LaneSizeEnum::qword, uint64_t, void>>>>;
-		
-		//	requires (LS == concepts::LaneSizeEnum::dword || LS == concepts::LaneSizeEnum::qword)
-		//using FloatT = 
-	};
 
-	/*
-	template<typename N>
-	struct SizedUint
-	{
-		concepts::bits_to_uint_t<N>::type storage;
-
-	};*/
-	template<concepts::LaneSizeEnum LS, size_t N>
+	//SIMD_Mask is a semantic type that can be either vector mask or bit mask underneath, depending on current feature set.
+	//AVX512F or absent SSE makes this a bit mask. Otherwise, it's a vector mask 
+	//@tparam LS size class of the masks' elements. Ignored in case of bit mask
+	//@tparam N logical bit count of the mask. The actual storage holds at least this much bits
+	template<meta::ScalarSizeClassEnum LS, size_t N>
+		requires IsValid_SIMD_Mask<N>
 	class SIMD_Mask
 	{
 	public:
-		static_assert(N >= 2);
-		static_assert(N <= 64);
-		static_assert(utils::isPowerOf2(N));
-		template <concepts::LaneSizeEnum FriendS, size_t FriendN>
+		template <meta::ScalarSizeClassEnum FriendLS, size_t FriendN>
+			requires IsValid_SIMD_Mask<FriendN>
 		friend class SIMD_Mask;
 
-		static inline constexpr size_t BitCount = N;
-		using UintT = concepts::bits_to_uint_t<N>;//typename LaneSizeTraits<LS>::UintT;
-		using IntT = concepts::bits_to_int_t<N>;
+		//Smallest unsigned integer type is able to hold of this mask's bits
+		using UintT = meta::ScalarSizeTraits<LS>::UintT;
+		//Smallest signed integer type is able to hold of this mask's bits
+		using IntT = meta::ScalarSizeTraits<LS>::IntT;
+		//Vector type that has lane count equal to this mask's bit count, and whose lane size is the same as size class of this mask
 		using VecT = SIMD_Vector<IntT, N>;
-		using IntrinsicT = concepts::intinsic_vec_t<IntT, N>;
-		using Self = SIMD_Mask<LS, N>;
 
+		static inline constexpr bool IsBitMask = internals::FS_current.has(internals::AVX512_F) || !internals::FS_current.has(internals::SSE);
+		static inline constexpr bool IsVectorMask = !IsBitMask;
 		static inline constexpr UintT AllOnesUint = (N == sizeof(UintT) * 8) ? ~UintT(0) : ((UintT(1) << N) - 1);
-		static inline constexpr bool IsVectorMask = !internals::FS_current.has(internals::Feature::AVX512_F);
-		static inline constexpr bool IsBitMask = !IsVectorMask;
-		static SIMD_Mask<LS, N> AllOnes();
-
+		
 		SIMD_Mask() {};
 		SIMD_Mask(UintT bits);
+		//Construct this mask by extracting uppermost bits of each lane and storing them the mask
+		template<typename T> SIMD_Mask(const SIMD_Vector<T, N>& vec);
+		//Constructs this mask by concatenating two masks of half it's size.
+		//@param lo Lower half for the constructed mask
+		//@param hi Upper half for the constructed mask
 		SIMD_Mask(const SIMD_Mask<LS, N / 2>& lo, const SIMD_Mask<LS, N / 2>& hi);
-		//template <typename S>
-		//SIMD_Mask(const SIMD_Vector<S, N>& v);
 
-		template <concepts::LaneSizeEnum LS2>
-		SIMD_Mask(const SIMD_Mask<LS2, N>& other);
+		//Constructs this mask from other mask type. Logical bits are preserved.
+		//If constructed mask has more bits that the input mask, the upper bits of the constructed mask are set to zero
+		template <meta::ScalarSizeClassEnum LS2, size_t N2> requires (N >= N2)
+		SIMD_Mask(const SIMD_Mask<LS2, N2>& other);
 
-		operator UintT() const;
-
-		/*
-		template<typename T>
-		requires (concepts::IsIntrinsicVector<T>&& std::is_convertible_v<SIMD_Vector<S, N>, T>)
-		operator T() const;*/
-
-		//bool operator!
-
-		
-		//template<typename T>
-		//requires (concepts::IsIntrinsicVector<T> && ((concepts::xmm_sized<VecT> && concepts::xmm_sized<T>) || (concepts::ymm_sized<VecT> && concepts::ymm_sized<T>) || (concepts::zmm_sized<VecT> && concepts::zmm_sized<T>)))
-		//requires (std::is_convertible_v<T, SIMD_Vector<S,N>> && concepts::IsIntrinsicVector<T>)
-		//SIMD_Mask(const T& intrVec);
-
-		//Returns the vector type, where each lane is filled with 1 bits if corresponding mask bits are set, or 0 otherwise.
-		//Thus, a SIMD_Mask<float, 4> with bits 0100 will return {0, std::bit_cast<float>(0xFFFFFFFF), 0, 0}
-		template<typename S = IntT>
-			//requires (LS == concepts::TypeToLaneSizeEnum<S>)
-		SIMD_Vector<S, N> as_vector() const;
-
-		//Returns this mask converted to smallest signed integer type that can hold it
-		IntT as_int() const;
-
-		//Returns this mask converted to smallest unsigned integer type that can hold it
-		UintT as_uint() const;
-		//explicit operator UintT() const;
-		//explicit operator IntT() const;
-		//explicit operator VecT() const;
 		//Returns true if bit i is set, false otherwise. Cannot be used to modify mask bits, for that use setBit
 		bool operator[](size_t i) const;
 
 		//Sets the bit i of the mask to 1 if value is true, or 0 otherwise
 		void setBit(size_t i, bool value);
 
+		//Returns lower half of this mask
 		SIMD_Mask<LS, N / 2> lo() const;
+		//Return upper half of this mask
 		SIMD_Mask<LS, N / 2> hi() const;
+
+		operator UintT() const;
 
 		SIMD_Mask<LS, N> operator&(const SIMD_Mask<LS, N>& other) const;
 		SIMD_Mask<LS, N> operator|(const SIMD_Mask<LS, N>& other) const;
@@ -111,22 +75,14 @@ namespace AVXXY_NAMESPACE
 		SIMD_Mask<LS, N>& operator&=(const SIMD_Mask<LS, N>& other);
 		SIMD_Mask<LS, N>& operator|=(const SIMD_Mask<LS, N>& other);
 		SIMD_Mask<LS, N>& operator^=(const SIMD_Mask<LS, N>& other);
-
-		//Builds a SIMD_Mask from the type without any cleaning or type checking,
-		//except basic size checks.
-		//This function is dangerous and should only ever be used for trivial conversions
-		template<typename T>
-			requires ((concepts::IsIntrinsicTypeThatCanHold<T, typename SIMD_Mask<LS, N>::VecT>) || (T::IsSimdVector && sizeof(T) == sizeof(Self) && N == T::LaneCount))
-		static SIMD_Mask<LS, N> constructNoClean(const T& intr)
-		{
-			SIMD_Mask<LS, N> ret;
-			if constexpr (IsBitMask) ret.underlying = movemask(VecT(intr));
-			else memcpy(&ret.underlying, &intr, std::min(sizeof(ret), sizeof(intr)));
-		}
 	private:
+		using SizeTraits = meta::ScalarSizeTraits<LS>;
 		std::conditional_t<IsBitMask, UintT, VecT> underlying;
-	};
 
-	template<typename S, size_t N>
-	using mask_t = SIMD_Mask<concepts::TypeToLaneSizeEnum<S>, N>;
+		//deposits uint bits to each lane of the vector.
+		static VecT _movm(UintT value);
+
+		//extracts uppermost bits out of each lane of this mask and puts them into returned bits
+		UintT _movemask() const;
+	};
 }
