@@ -150,8 +150,8 @@ namespace AVXXY_NAMESPACE
 			{
 				scream();
 				SIMD_Vector<S, N> ret;
-				using T = meta::ScalarTraits<S>::UintT;
-				for (size_t i = 0; i < N; ++i) ret[i] = std::bit_cast<S>(std::bit_cast<T>(a[i]) | std::bit_cast<T>(b[i]));
+				using U = meta::ScalarTraits<S>::UintT;
+				for (size_t i = 0; i < N; ++i) ret[i] = std::bit_cast<S>(U(std::bit_cast<U>(a[i]) | std::bit_cast<U>(b[i])));
 				return ret;
 			}
 		};
@@ -266,8 +266,8 @@ namespace AVXXY_NAMESPACE
 			{
 				scream();
 				SIMD_Vector<S, N> ret;
-				using T = typename meta::ScalarTraits<S>::UintT;
-				for (size_t i = 0; i < N; ++i) ret[i] = std::bit_cast<S>(S(std::bit_cast<T>(a[i]) ^ std::bit_cast<T>(b[i])));
+				using U = typename meta::ScalarTraits<S>::UintT;
+				for (size_t i = 0; i < N; ++i) ret[i] = std::bit_cast<S>(U(std::bit_cast<U>(a[i]) ^ std::bit_cast<U>(b[i])));
 				return ret;
 			}
 		};

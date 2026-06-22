@@ -31,18 +31,18 @@ namespace AVXXY_NAMESPACE
 		friend class SIMD_Mask;
 
 		//Smallest unsigned integer type is able to hold of this mask's bits
-		using UintT = meta::ScalarSizeTraits<LS>::UintT;
+		using BitsUintT = meta::bits_to_uint_t<N>;
 		//Smallest signed integer type is able to hold of this mask's bits
-		using IntT = meta::ScalarSizeTraits<LS>::IntT;
+		using VecIntT = meta::ScalarSizeTraits<LS>::IntT;
 		//Vector type that has lane count equal to this mask's bit count, and whose lane size is the same as size class of this mask
-		using VecT = SIMD_Vector<IntT, N>;
+		using VecT = SIMD_Vector<VecIntT, N>;
 
 		static inline constexpr bool IsBitMask = internals::FS_current.has(internals::AVX512_F) || !internals::FS_current.has(internals::SSE);
 		static inline constexpr bool IsVectorMask = !IsBitMask;
-		static inline constexpr UintT AllOnesUint = meta::ScalarSizeTraits<LS>::AllOnesUint;
+		static inline constexpr BitsUintT AllOnesUint = (N == sizeof(BitsUintT) * 8 ? ~BitsUintT(0) : ((BitsUintT(1) << N) - 1));
 		
 		SIMD_Mask() {};
-		SIMD_Mask(UintT bits);
+		SIMD_Mask(BitsUintT bits);
 		//Construct this mask by extracting uppermost bits of each lane and storing them the mask
 		template<typename T> SIMD_Mask(const SIMD_Vector<T, N>& vec);
 		//Constructs this mask by concatenating two masks of half it's size.
@@ -66,7 +66,7 @@ namespace AVXXY_NAMESPACE
 		//Return upper half of this mask
 		SIMD_Mask<LS, N / 2> hi() const;
 
-		operator UintT() const;
+		operator BitsUintT() const;
 
 		SIMD_Mask<LS, N> operator&(const SIMD_Mask<LS, N>& other) const;
 		SIMD_Mask<LS, N> operator|(const SIMD_Mask<LS, N>& other) const;
@@ -77,12 +77,12 @@ namespace AVXXY_NAMESPACE
 		SIMD_Mask<LS, N>& operator^=(const SIMD_Mask<LS, N>& other);
 	private:
 		using SizeTraits = meta::ScalarSizeTraits<LS>;
-		std::conditional_t<IsBitMask, UintT, VecT> underlying;
+		std::conditional_t<IsBitMask, BitsUintT, VecT> underlying;
 
 		//deposits uint bits to each lane of the vector.
-		static VecT _movm(UintT value);
+		static VecT _movm(BitsUintT value);
 
 		//extracts uppermost bits out of each lane of this mask and puts them into returned bits
-		UintT _movemask() const;
+		BitsUintT _movemask() const;
 	};
 }

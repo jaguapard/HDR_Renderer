@@ -7,12 +7,12 @@ namespace AVXXY_NAMESPACE
 	{
 		enum class VectorSizeClassEnum
 		{
-			XMM = 16, YMM = 32, ZMM = 64, XL = 65,
+			XMM = -16, YMM = -32, ZMM = -64, XL = -65,
 		};
 
 		enum class ScalarSizeClassEnum
 		{
-			byte = 1, word = 2, dword = 4, qword = 8,
+			byte = -1, word = -2, dword = -4, qword = -8,
 		};
 	}
 }

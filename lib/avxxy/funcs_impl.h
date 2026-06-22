@@ -81,6 +81,7 @@ namespace AVXXY_NAMESPACE
 		return internals::op_cvt::run<To>(value);
 	}
 	template<typename T, typename S, size_t N>
+		requires (meta::IsSimdVector<T>)
 	__forceinline T vcast(const SIMD_Vector<S, N>& value)
 	{
 		T ret;
@@ -209,6 +210,7 @@ namespace AVXXY_NAMESPACE
 		return internals::op_compress::run(mask, a, src);
 	}
 	template<typename S, size_t N>
+		requires (sizeof(S) * 8 >= N)
 	__forceinline SIMD_Vector<typename meta::ScalarTraits<S>::UintT, N> conflict(const SIMD_Vector<S, N>& a)
 	{
 		return internals::op_conflict::run(a);

@@ -59,6 +59,13 @@ namespace AVXXY_NAMESPACE
 			std::conditional_t<sizeof(S)* N <= 32, ymm_t<S>,
 			std::conditional_t<sizeof(S)* N <= 64, zmm_t<S>,
 			std::array<zmm_t<S>, sizeof(S)* N / 64>>>>;
+
+		template<size_t N>
+		requires (N<=64)
+		using bits_to_uint_t =
+			std::conditional_t<N <= 8, uint8_t,
+			std::conditional_t<N <= 16, uint16_t,
+			std::conditional_t<N <= 32, uint32_t, uint64_t>>>;
 		/*
 		template<typename S, size_t N>
 			requires (IsScalarType<S>)
