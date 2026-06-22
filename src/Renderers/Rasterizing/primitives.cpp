@@ -13,12 +13,12 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 		this->xyzp.push_back(y);
 		this->xyzp.push_back(z);
 		fp16x4 f16 = f32x4(u, v, nx, ny);
-		int32_t nx_fp16 = f16[2];
-		int32_t ny_fp16 = f16[3];
+		int32_t nx_fp16 = std::bit_cast<uint16_t>(f16[2]);
+		int32_t ny_fp16 = std::bit_cast<uint16_t>(f16[3]);
 		nx_fp16 &= 0xFFFE; //steal lowest mantissa bit for z sign
 		if (nz < 0) nx_fp16 |= 1;
-		uint32_t uv = f16[0];
-		uv |= uint32_t(f16[1]) << 16;
+		uint32_t uv = std::bit_cast<uint16_t>(f16[0]);
+		uv |= uint32_t(std::bit_cast<uint16_t>(f16[1])) << 16;
 		this->xyzp.push_back(std::bit_cast<float>(uv));
 		this->normals.push_back(std::bit_cast<float>(nx_fp16 | (ny_fp16 << 16)));
 		size_t sz = this->xyzp.capacity() / 4;
