@@ -122,13 +122,13 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N>
 	__forceinline void store(const SIMD_Vector<S, N>& v, void* p, const mask_t<S, N>& mask)
 	{
-		return internals::Dispatcher::run<internals::op_store>(v, p, mask);
+		internals::Dispatcher::run<internals::op_store>(v, p, mask);
 	}
 
 	template<typename S, size_t N, size_t Scale, typename I>
 	__forceinline void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask)
 	{
-		return internals::Dispatcher::run<internals::op_scatter<Scale>>(vec, base, ind, mask);
+		internals::Dispatcher::run<internals::op_scatter<Scale>>(vec, base, ind, mask);
 	}
 	template<typename S, size_t N>
 	__forceinline mask_t<S, N> cmp_equal(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)

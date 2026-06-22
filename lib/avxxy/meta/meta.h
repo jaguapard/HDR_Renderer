@@ -153,9 +153,9 @@ namespace AVXXY_NAMESPACE
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool not_int = !std::is_integral_v<T>;
 
 		template <typename T> concept IsCvtOp = requires {typename T::cvt_to_t; };
-		template <typename T> concept IsLoadOp = requires {typename T::_avxxy_is_load_tag; };
-		template <typename T> concept IsGatherOp = requires {typename T::_avxxy_is_gather_tag; };
-		template <typename T> concept IsScatterOp = requires {typename T::_avxxy_is_scatter_tag; };
-		template <typename T> concept IsMovmOp = requires {typename T::_avxxy_is_movm_tag; };
+		template <typename T> concept IsLoadOp = requires {T::_avxxy_is_load_tag; };
+		template <typename T> concept IsGatherOp = requires {T::_avxxy_is_gather_tag; };
+		template <typename T> concept IsScatterOp = requires {T::_avxxy_is_scatter_tag; };
+		template <typename T> concept IsMovmOp = requires { T::_avxxy_is_movm_tag; };
 	}
 }

@@ -10,5 +10,6 @@ namespace AVXXY_NAMESPACE
 	namespace internals
 	{
 		struct null_t {};
+		struct alive_sentinel_t {};
 	}
 }
