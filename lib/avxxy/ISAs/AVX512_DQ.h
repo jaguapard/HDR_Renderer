@@ -90,7 +90,7 @@ namespace AVXXY_NAMESPACE
 			//TODO: add movm, movmask
 
 			template<typename Op, typename S, size_t N>
-			static auto eval(op_mul, const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+			static auto eval(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 				requires (std::same_as<Op, op_mul>&& any_i64<S>)
 			{
 				using namespace meta;
