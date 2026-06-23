@@ -6,6 +6,9 @@ namespace AVXXY_NAMESPACE
 {
 	namespace internals
 	{
+#if 1
+		struct ISA_Scalar {};
+#else
 		struct ISA_Scalar
 		{
 			//static inline constexpr FeatureSet FS = internals::FS_current;
@@ -438,5 +441,6 @@ namespace AVXXY_NAMESPACE
 #endif
 			}
 		};
+#endif
 	}
 }

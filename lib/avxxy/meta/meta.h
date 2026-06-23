@@ -37,6 +37,7 @@ namespace AVXXY_NAMESPACE
 			static constexpr UintT AllOnesUint = ~UintT(0);
 			static constexpr UintT SignMask = UintT(1) << (sizeof(UintT) * 8 - 1);
 			static constexpr ScalarSizeClassEnum size_class = LS;
+			static constexpr size_t ByteSize = sizeof(UintT);
 		};
 		
 		template<typename T> requires (IsScalarType<T>)

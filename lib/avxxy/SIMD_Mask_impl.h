@@ -98,6 +98,14 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+	template<typename T> requires (meta::IsIntrinsicVector<T> && (meta::ScalarSizeTraits<LS>::ByteSize* N == sizeof(T)))
+	inline SIMD_Mask<LS, N>::operator T() const
+	{
+		if constexpr (IsBitMask) return movm<VecIntT>(*this);
+		else return underlying < VecT(0);
+	}
+
+	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
 	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator&(const SIMD_Mask<LS, N>& other) const
 	{
 		SIMD_Mask<LS, N> ret;

@@ -4,6 +4,9 @@ namespace AVXXY_NAMESPACE
 {
 	namespace internals
 	{
+#if 1
+		struct ISA_AVX512_VBMI {};
+#else
 		struct ISA_AVX512_VBMI
 		{
 			//static inline constexpr FeatureSet FS = internals::FS_current;
@@ -47,5 +50,6 @@ namespace AVXXY_NAMESPACE
 				else return fail_ack_t{};
 			}
 		};
+#endif
 	}
 }

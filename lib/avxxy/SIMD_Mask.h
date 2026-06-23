@@ -68,6 +68,10 @@ namespace AVXXY_NAMESPACE
 
 		operator BitsUintT() const;
 
+		template<typename T>
+		requires (meta::IsIntrinsicVector<T> && (meta::ScalarSizeTraits<LS>::ByteSize * N == sizeof(T)))
+		operator T() const;
+
 		SIMD_Mask<LS, N> operator&(const SIMD_Mask<LS, N>& other) const;
 		SIMD_Mask<LS, N> operator|(const SIMD_Mask<LS, N>& other) const;
 		SIMD_Mask<LS, N> operator^(const SIMD_Mask<LS, N>& other) const;

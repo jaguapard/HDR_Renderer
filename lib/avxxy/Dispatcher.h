@@ -8,6 +8,7 @@
 #include "ISAs/AVX512_CD.h"
 #include "ISAs/AVX512_VBMI.h"
 #include "ISAs/AVX512_VBMI2.h"
+#include "ISAs/AVX2.h"
 #include "ISAs/F16C.h"
 #include "meta/meta.h"
 namespace AVXXY_NAMESPACE
@@ -29,6 +30,7 @@ namespace AVXXY_NAMESPACE
 				std::conditional_t<FS.has(Feature::AVX512_BW), ISA_AVX512_BW, Dummy>,
 				std::conditional_t<FS.has(Feature::AVX512_CD), ISA_AVX512_CD, Dummy>,
 				std::conditional_t<FS.has(Feature::AVX512_F), ISA_AVX512_F, Dummy>,
+				std::conditional_t<FS.has(Feature::AVX2), ISA_AVX2, Dummy>,
 				std::conditional_t<FS.has(Feature::F16C), ISA_F16C, Dummy>,
 				ISA_Scalar>;
 

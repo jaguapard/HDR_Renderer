@@ -6,6 +6,9 @@ namespace AVXXY_NAMESPACE
 	namespace internals
 	{
 		using namespace meta;
+#if 1
+		struct ISA_F16C {};
+#else
 		struct ISA_F16C
 		{
 			template <typename Op, size_t N>
@@ -29,5 +32,6 @@ namespace AVXXY_NAMESPACE
 				else static_assert(always_false_v<T>);
 			}
 		};
+#endif
 	}
 }

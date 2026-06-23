@@ -5,6 +5,9 @@ namespace AVXXY_NAMESPACE
 	namespace internals
 	{
 		using namespace meta;
+#if 1
+		struct ISA_AVX512_F {};
+#else
 		struct ISA_AVX512_F
 		{
 			template<typename Op, typename S, size_t N>
@@ -686,82 +689,6 @@ namespace AVXXY_NAMESPACE
 				else return fail_ack_t{};
 			}
 
-			template<typename Op, typename I>
-				requires (meta::any_int<I>&& IsGatherOp<Op>)
-			static auto eval(const void* base, const SIMD_Vector<I, Op::N>& ind, const typename SIMD_Vector<Op::S, Op::N>::MaskT& mask, const SIMD_Vector<Op::S, Op::N>& src)
-			{
-				//put everything up here to prevent else if chain breaks (since compilation gives useless errors by thinking unsanitized inputs surviving to native gathers
-				using namespace meta;
-				using CanonicalIndex_t = std::conditional_t<(sizeof(I) <= 4), int32_t, int64_t>;
-				using S = typename Op::S;
-				static constexpr size_t N = Op::N;
-				using RetVec_t = SIMD_Vector<S, N>;
-				using IndVec_t = SIMD_Vector<I, N>;
-				constexpr size_t Scale = Op::Scale;
-				constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
-
-				//if scale is not native, emulate it by gathering with scale 1 and manually calculated byte offsets. 
-				//TODO: Can optimize a little by checking if Scale*maxint(I) fits into smaller sizes
-				if constexpr (Scale != 1 && Scale != 2 && Scale != 4 && Scale != 8) return gather<S, N, 1>(base, vcvt<int64_t>(ind) * Scale, mask, src);
-
-				//TODO: emulation of small int gathers (where elements gathered are small ints)
-				else if constexpr (!std::is_same_v<I, CanonicalIndex_t>) return gather<S, N, Scale>(base, vcvt<CanonicalIndex_t>(ind), mask, src);
-
-				//if we get here, means that indices are already in good format (4-byte or 8-byte)
-				//break up large gather into halves
-				else if constexpr (MaxSize > 64) return RetVec_t{
-					gather<S, N / 2, Scale, I>(base, ind.lo(), mask.lo(), src.lo()),
-					gather<S, N / 2, Scale, I>(base, ind.hi(), mask.hi(), src.hi()) };
-				else if constexpr (is_zmm_size(MaxSize))
-				{
-					//clang is a cry-baby with ind here for some reason, so force convert it. Pay attention to size!
-					std::conditional_t<(meta::zmm_sized<IndVec_t>), __m512i, __m256i> ni = ind;
-					if constexpr (is_i64<I> && is_f64<S>) return _mm512_mask_i64gather_pd(src, mask, ni, base, Scale);
-					else if constexpr (is_i64<I> && is_f32<S>) return _mm512_mask_i64gather_ps(src, mask, ni, base, Scale);
-					else if constexpr (is_i64<I> && any_i64<S>) return _mm512_mask_i64gather_epi64(src, mask, ni, base, Scale);
-					else if constexpr (is_i64<I> && any_i32<S>) return _mm512_mask_i64gather_epi32(src, mask, ni, base, Scale);
-
-					else if constexpr (is_i32<I> && is_f64<S>) return _mm512_mask_i32gather_pd(src, mask, ni, base, Scale);
-					else if constexpr (is_i32<I> && is_f32<S>) return _mm512_mask_i32gather_ps(src, mask, ni, base, Scale);
-					else if constexpr (is_i32<I> && any_i64<S>) return _mm512_mask_i32gather_epi64(src, mask, ni, base, Scale);
-					else if constexpr (is_i32<I> && any_i32<S>) return _mm512_mask_i32gather_epi32(src, mask, ni, base, Scale);
-					else return fail_ack_t{};
-				}
-				else if constexpr (FS.has(AVX512_VL))
-				{
-					if constexpr (is_ymm_size(MaxSize))
-					{
-						std::conditional_t<(meta::ymm_sized<IndVec_t>), __m256i, __m128i> ni = ind;
-						if constexpr (is_i64<I> && is_f64<S>) return _mm256_mmask_i64gather_pd(src, mask, ni, base, Scale);
-						else if constexpr (is_i64<I> && is_f32<S>) return _mm256_mmask_i64gather_ps(src, mask, ni, base, Scale);
-						else if constexpr (is_i64<I> && any_i64<S>) return _mm256_mmask_i64gather_epi64(src, mask, ni, base, Scale);
-						else if constexpr (is_i64<I> && any_i32<S>) return _mm256_mmask_i64gather_epi32(src, mask, ni, base, Scale);
-
-						else if constexpr (is_i32<I> && is_f64<S>) return _mm256_mmask_i32gather_pd(src, mask, ni, base, Scale);
-						else if constexpr (is_i32<I> && is_f32<S>) return _mm256_mmask_i32gather_ps(src, mask, ni, base, Scale);
-						else if constexpr (is_i32<I> && any_i64<S>) return _mm256_mmask_i32gather_epi64(src, mask, ni, base, Scale);
-						else if constexpr (is_i32<I> && any_i32<S>) return _mm256_mmask_i32gather_epi32(src, mask, ni, base, Scale);
-						else return fail_ack_t{};
-					}
-					else if constexpr (is_xmm_size(MaxSize))
-					{
-						__m128i ni = ind;
-						if constexpr (is_i64<I> && is_f64<S>) return _mm_mmask_i64gather_pd(src, mask, ni, base, Scale);
-						else if constexpr (is_i64<I> && is_f32<S>) return _mm_mmask_i64gather_ps(src, mask, ni, base, Scale);
-						else if constexpr (is_i64<I> && any_i64<S>) return _mm_mmask_i64gather_epi64(src, mask, ni, base, Scale);
-						else if constexpr (is_i64<I> && any_i32<S>) return _mm_mmask_i64gather_epi32(src, mask, ni, base, Scale);
-
-						else if constexpr (is_i32<I> && is_f64<S>) return _mm_mmask_i32gather_pd(src, mask, ni, base, Scale);
-						else if constexpr (is_i32<I> && is_f32<S>) return _mm_mmask_i32gather_ps(src, mask, ni, base, Scale);
-						else if constexpr (is_i32<I> && any_i64<S>) return _mm_mmask_i32gather_epi64(src, mask, ni, base, Scale);
-						else if constexpr (is_i32<I> && any_i32<S>) return _mm_mmask_i32gather_epi32(src, mask, ni, base, Scale);
-						else return fail_ack_t{};
-					}
-					else return fail_ack_t{};
-				}
-				else return fail_ack_t{};
-			}
-
 			template<typename Op, typename S, size_t N, typename I>
 				requires (meta::any_int<I>&& meta::IsScatterOp<Op>)
 			static auto eval(const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskT& mask)
@@ -942,5 +869,6 @@ namespace AVXXY_NAMESPACE
 		private:
 
 		};
+#endif	
 	}
 }

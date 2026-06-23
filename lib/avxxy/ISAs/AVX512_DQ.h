@@ -5,6 +5,9 @@ namespace AVXXY_NAMESPACE
 	namespace internals
 	{
 		using namespace meta;
+#if 1
+		struct ISA_AVX512_DQ {};
+#else
 		struct ISA_AVX512_DQ
 		{
 			template<typename Op, typename S, size_t N>
@@ -102,5 +105,6 @@ namespace AVXXY_NAMESPACE
 				else return fail_ack_t{};
 			}
 		};
+#endif
 	}
 }

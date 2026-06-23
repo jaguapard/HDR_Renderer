@@ -5,6 +5,9 @@ namespace AVXXY_NAMESPACE
 	namespace internals
 	{
 		using namespace meta;
+#if 1
+		struct ISA_AVX512_CD {};
+		#else
 		struct ISA_AVX512_CD
 		{
 			//TODO: can make conflict detection for smaller scalar types too
@@ -26,5 +29,6 @@ namespace AVXXY_NAMESPACE
 
 			//TODO: add lzcnt
 		};
+#endif
 	}
 }
