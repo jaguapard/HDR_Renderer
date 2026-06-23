@@ -3,6 +3,7 @@
 #include <tuple>
 #include "ISAs/Scalar.h"
 #include "ISAs/AVX512_F.h"
+#include "ISAs/AVX512_BW.h"
 #include "meta/meta.h"
 namespace AVXXY_NAMESPACE
 {
@@ -10,12 +11,15 @@ namespace AVXXY_NAMESPACE
 	{
 		class Dispatcher
 		{
+		private:
+			struct Dummy {};
 		public:
 			//static inline constexpr FeatureSet FS = FS_current;
 			//struct fail_ack_t {};
 
 			using order = std::tuple<
-				std::conditional_t<FS.has(Feature::AVX512_F), ISA_AVX512_F, fail_ack_t>,
+				std::conditional_t<FS.has(Feature::AVX512_BW), ISA_AVX512_BW, Dummy>,
+				std::conditional_t<FS.has(Feature::AVX512_F), ISA_AVX512_F, Dummy>,
 				ISA_Scalar>;
 
 			//Dispatches operation through this dispatcher. Attempts to pick best available implementation for target operation respecting template argument feature set limitations
@@ -40,7 +44,7 @@ namespace AVXXY_NAMESPACE
 						auto ret = instr_set_t::template eval<Op>(std::forward<Args>(args)...);
 						//if fail_ack_t is returned, it means that implementation exists, but it all fell through to the fail_ack_t return,
 						//This is considered invalid, so continue searching
-						if constexpr (std::is_same_v<decltype(ret), fail_ack_t>) return run_private<Op, I + 1>(std::forward<Args>(args)...);
+						if constexpr (std::same_as<decltype(ret), fail_ack_t>) return run_private<Op, I + 1>(std::forward<Args>(args)...);
 						else return ret;
 					}
 					else return run_private<Op, I + 1>(std::forward<Args>(args)...);

@@ -84,16 +84,26 @@ namespace AVXXY_NAMESPACE
 		return internals::Dispatcher::run<internals::op_cvt<To>>(value);
 	}
 
-	template<typename T, typename S, size_t N>
-		requires (meta::IsSimdVector<T>)
-	__forceinline T vcast(const SIMD_Vector<S, N>& value)
+	template<typename S2, typename S, size_t N> requires (meta::IsScalarType<S2> && (sizeof(SIMD_Vector<S, N>) % sizeof(S2) == 0))
+	SIMD_Vector<S2, sizeof(SIMD_Vector<S, N>) / sizeof(S2)> vcast(const SIMD_Vector<S, N>& a)
 	{
-		T ret;
-		memcpy(&ret, &value, std::min(sizeof(ret), sizeof(value)));
-		return ret;
+		return vreinterpret_us<SIMD_Vector<S2, sizeof(SIMD_Vector<S, N>) / sizeof(S2)>>(a);
 	}
 	template<typename T, typename S, size_t N>
+		requires (meta::IsSimdVector<T> && (sizeof(SIMD_Vector<S, N>) % sizeof(typename T::ScalarT) == 0) && sizeof(SIMD_Vector<S, N>) == sizeof(T))
+	T vcast(const SIMD_Vector<S, N>& a)
+	{
+		return vreinterpret_us<T>(a);
+	}
+
+	
+	template<typename T, typename S, size_t N> requires (sizeof(T) == sizeof(SIMD_Vector<S, N>))
 	__forceinline T vreinterpret(const SIMD_Vector<S, N>& value)
+	{
+		return vreinterpret_us<T>(value);
+	}
+	template<typename T, typename S, size_t N>
+	T vreinterpret_us(const SIMD_Vector<S, N>& value)
 	{
 		T ret;
 		memcpy(&ret, &value, std::min(sizeof(ret), sizeof(value)));
