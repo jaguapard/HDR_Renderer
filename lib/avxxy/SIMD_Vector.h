@@ -107,6 +107,17 @@ namespace AVXXY_NAMESPACE
 		}
 
 
+		//Constructs vector by reinterperting the value of inp as vector of wanted type
+		//If input value is larger than returned vector, the input's upper bits are discarded
+		//If input value is smaller than returned vector, upper bits of returned vector values are underfined
+		template<typename T>
+		static SIMD_Vector<S, N> from_bits_us(const T& inp)
+		{
+			SIMD_Vector<S, N> ret;
+			memcpy(&ret.arr.data(), &inp, std::min(sizeof(inp), sizeof(ret)));
+			return ret;
+		}
+
 
 
 
