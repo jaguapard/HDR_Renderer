@@ -116,6 +116,10 @@ namespace AVXXY_NAMESPACE
 		template<typename T> inline constexpr bool ymm_sized = vector_size_class_v<T> == VectorSizeClassEnum::YMM;
 		template<typename T> inline constexpr bool zmm_sized = vector_size_class_v<T> == VectorSizeClassEnum::ZMM;
 
+		constexpr bool is_xmm_size(size_t N) { return N <= 16; }
+		constexpr bool is_ymm_size(size_t N) { return N > 16 && N <= 32; }
+		constexpr bool is_zmm_size(size_t N) { return N > 32 && N <= 64; }
+
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_fp16 = std::is_same_v<T, fp16_t>;
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_bf16 = std::is_same_v<T, bf16_t>;
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_f32 = std::is_same_v<T, float>;
