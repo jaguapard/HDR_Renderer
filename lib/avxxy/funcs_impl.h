@@ -81,7 +81,8 @@ namespace AVXXY_NAMESPACE
 	template<typename To, size_t N, typename From>
 	__forceinline SIMD_Vector<To, N> vcvt(const SIMD_Vector<From, N>& value)
 	{
-		return internals::Dispatcher::run<internals::op_cvt<To>>(value);
+		if constexpr ((meta::is_fp16<From> && !meta::is_f32<To>) || (!meta::is_f32<From> && meta::is_fp16<To>)) return vcvt<To>(vcvt<float>(value));
+		else return internals::Dispatcher::run<internals::op_cvt<To>>(value);
 	}
 
 	template<typename S2, typename S, size_t N> requires (meta::IsScalarType<S2> && (sizeof(SIMD_Vector<S, N>) % sizeof(S2) == 0))
