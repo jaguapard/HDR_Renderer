@@ -45,7 +45,8 @@ namespace AVXXY_NAMESPACE
 		//If SIMD_Vector and intrinsic vector sizes mismatch, only the lower sizeof(SIMD_Vector) bytes from intrinsic vector are copied to the constructed SIMD_Vector
 		SIMD_Vector(const IntrinsicT& intrinsicVec)
 		{
-			memcpy(arr.data(), &intrinsicVec, std::min(sizeof(arr), sizeof(intrinsicVec)));
+			if constexpr (sizeof(arr) == sizeof(intrinsicVec)) arr = std::bit_cast<decltype(arr)>(intrinsicVec);
+			else memcpy(arr.data(), &intrinsicVec, std::min(sizeof(arr), sizeof(intrinsicVec)));
 		}
 
 		//Converts the SIMD_Vector to it's intrinsic vector type.
@@ -53,8 +54,12 @@ namespace AVXXY_NAMESPACE
 		operator IntrinsicT() const
 		{
 			IntrinsicT ret;
-			memcpy(&ret, arr.data(), std::min(sizeof(arr), sizeof(ret)));
-			return ret;
+			if constexpr (sizeof(IntrinsicT) == sizeof(arr)) return std::bit_cast<IntrinsicT>(arr);
+			else
+			{
+				memcpy(&ret, arr.data(), std::min(sizeof(arr), sizeof(ret)));
+				return ret;
+			}
 		}
 
 		//Constructs vector from halves

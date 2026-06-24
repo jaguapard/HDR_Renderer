@@ -749,9 +749,10 @@ namespace AVXXY_NAMESPACE
 		constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
 
 		//convert index to __m128i/__m256i/__m512i to stop Clang from being a cry baby (it doesn't like index being non-intrinsic type and fails to compile)
-		//or make it useless dummy if we need to split
+		//or make it useless dummy if we need to split (doesn't work on MSVC for some reason, commenting out for now)
 		using intr_t = typed_intrinsic_storage_t<I, N>;
-		std::conditional_t<MaxSize <= 64, intr_t, int> ni = MaxSize <= 64 ? vreinterpret_us<intr_t>(ind) : 0;
+		//std::conditional_t<MaxSize <= 64, intr_t, int> ni = MaxSize <= 64 ? vreinterpret_us<intr_t>(ind) : 0;
+		intr_t ni = ind;
 
 		if constexpr (!is_f32<S> && !is_f64<S> && !any_int<S>) scatter<S, N, Scale, I>(vcast<U>(v), base, ind, mask);
 		//if scale is not native, emulate it by gathering with scale 1 and manually calculated byte offsets. 
@@ -1453,12 +1454,12 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N, size_t Scale, typename I>
-	__forceinline SIMD_Vector<S, N> __gather_impl(const void* base, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskT& mask, const SIMD_Vector<S, N>& src)
+	__forceinline SIMD_Vector<S, N> __gather_impl(const void* p, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskT& mask, const SIMD_Vector<S, N>& src)
 	{
 		using namespace meta;
 		using namespace internals;
 		using U = typename ScalarTraits<S>::UintT;
-		if constexpr (!is_f32<S> && !is_f64<S> && !any_int<S>) return vcast<S>(__gather_impl<U, N, Scale, I>(base, ind, mask, vcast<U>(src)));
+		if constexpr (!is_f32<S> && !is_f64<S> && !any_int<S>) return vcast<S>(__gather_impl<U, N, Scale, I>(p, ind, mask, vcast<U>(src)));
 		else
 		{
 			//put everything up here to prevent else if chain breaks (since compilation gives useless errors by thinking unsanitized inputs surviving to native gathers
@@ -1467,6 +1468,11 @@ namespace AVXXY_NAMESPACE
 			using RetVec_t = SIMD_Vector<S, N>;
 			using IndVec_t = SIMD_Vector<I, N>;
 			constexpr size_t MaxSize = std::max(sizeof(RetVec_t), sizeof(IndVec_t));
+
+			//MSVC wants proper types, not void, Clang is more lenient
+			using intr_base_ptr_t = std::conditional_t<is_f64<S>, double*,
+				std::conditional_t<is_f32<S>, float*, int32_t*>>;
+			const intr_base_ptr_t base = (const intr_base_ptr_t)p;
 
 			//if scale is not native, emulate it by gathering with scale 1 and manually calculated byte offsets. 
 			//TODO: Can optimize a little by checking if Scale*maxint(I) fits into smaller sizes

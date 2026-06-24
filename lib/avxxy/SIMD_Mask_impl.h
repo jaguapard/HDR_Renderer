@@ -103,7 +103,7 @@ namespace AVXXY_NAMESPACE
 	template<typename T> requires (meta::IsIntrinsicVector<T> && (meta::ScalarSizeTraits<LS>::ByteSize* N == sizeof(T)))
 		inline SIMD_Mask<LS, N>::operator T() const
 	{
-		if constexpr (IsBitMask) return movm<VecIntT>(*this);
+		if constexpr (IsBitMask) return vreinterpret<T>(movm<VecIntT>(*this));
 		else return this->_movm(*this);
 	}
 
