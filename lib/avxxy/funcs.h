@@ -60,6 +60,24 @@ namespace AVXXY_NAMESPACE
 	//Appends vector `what` to vector `to` and returns the result
 	template<typename S, size_t N> SIMD_Vector<S, N * 2> concat(const SIMD_Vector<S, N>& to, const SIMD_Vector<S, N>& what);
 
+	//vrzext - vector reinterpret and zero-extend
+	//Reinterprets input vector as raw memory, zero-extends each element vector to size of S2 and returns the resultant vector
+	//requires output scalar type to be larger or equal in size to input scalar type
+	//i.e. vrzext<double>(SIMD_Vector<int8_t, 8>> will put the input element into lowest byte of 8 byte lane of output, upper 7 bytes will be zeroes, then reinterpreted as doubles and returned
+	//If input and output scalar sizes match, the input vector is only reinterpreted as output vector
+	template<typename S2, typename S, size_t N>
+	requires (sizeof(S2) >= sizeof(S))
+	SIMD_Vector<S2, N> vrzext(const SIMD_Vector<S, N>& a);
+
+	//vrtrunc - vector reinterpret and truncate
+	//Reinterprets input vector as raw memory and returns only the lowest sizeof(S) bytes in each elemnt, reinterpreted back to output type
+	//requires output scalar type to be less or equal in size to input scalar type
+	//i.e. vrtrunc<int16_t>(SIMD_Vector<double, 8>> will discard upper 6 bytes each input double and return the low 2 bytes of each element reinterpreted as int16_t
+	//If input and output scalar sizes match, the input vector is only reinterpreted as output vector
+	template<typename S2, typename S, size_t N>
+	requires (sizeof(S2) <= sizeof(S))
+	SIMD_Vector<S2, N> vrtrunc(const SIMD_Vector<S, N>& a);
+
 
 	//Reinterprets input vector as vector of different scalar type
 	//Lane count of output vector is computed automatically to match input's total size

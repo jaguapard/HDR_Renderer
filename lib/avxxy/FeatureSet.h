@@ -272,7 +272,7 @@ namespace AVXXY_NAMESPACE
 		#endif
 				0
 		};
-		static constexpr FeatureSet FS_current = FS_zen4;
+		static constexpr FeatureSet FS_current = FS_compile_target;
 		static constexpr FeatureSet FS = FS_current;
 	}
 }
