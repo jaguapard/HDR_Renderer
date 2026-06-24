@@ -18,6 +18,7 @@ namespace AVXXY_NAMESPACE
 				if constexpr (sizeof(T) > 64) return T{ add(a.lo(), b.lo()), add(a.hi(), b.hi()) };
 				else if constexpr (zmm_sized<T>)
 				{
+
 					if constexpr (zmm_sized<T> && is_f64<S>) return _mm512_add_pd(a, b);
 					else if constexpr (zmm_sized<T> && is_f32<S>) return _mm512_add_ps(a, b);
 					else if constexpr (zmm_sized<T> && any_i64<S>) return _mm512_add_epi64(a, b);

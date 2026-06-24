@@ -48,7 +48,10 @@ namespace AVXXY_NAMESPACE
 		//Constructs this mask by concatenating two masks of half it's size.
 		//@param lo Lower half for the constructed mask
 		//@param hi Upper half for the constructed mask
-		SIMD_Mask(const SIMD_Mask<LS, N / 2>& lo, const SIMD_Mask<LS, N / 2>& hi);
+
+		template<size_t N2>
+		requires (N2 >= 2 && N2*2 == N)
+		SIMD_Mask(const SIMD_Mask<LS, N2>& lo, const SIMD_Mask<LS, N2>& hi);
 
 		//Constructs this mask from other mask type. Logical bits are preserved.
 		//If constructed mask has more bits that the input mask, the upper bits of the constructed mask are set to zero
@@ -62,9 +65,9 @@ namespace AVXXY_NAMESPACE
 		void setBit(size_t i, bool value);
 
 		//Returns lower half of this mask
-		SIMD_Mask<LS, N / 2> lo() const;
+		auto lo() const requires (N % 2 == 0 && IsValid_SIMD_Mask<N / 2>);
 		//Return upper half of this mask
-		SIMD_Mask<LS, N / 2> hi() const;
+		auto hi() const requires (N % 2 == 0 && IsValid_SIMD_Mask<N / 2>);
 
 		operator BitsUintT() const;
 

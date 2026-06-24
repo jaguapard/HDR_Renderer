@@ -58,7 +58,9 @@ namespace AVXXY_NAMESPACE
 		}
 
 		//Constructs vector from halves
-		SIMD_Vector(const SIMD_Vector<S, N / 2>& lo, const SIMD_Vector<S, N / 2>& hi)
+		template<size_t N2>
+		requires (N2 >= 2 && N2*2 == N)
+		SIMD_Vector(const SIMD_Vector<S, N2>& lo, const SIMD_Vector<S, N2>& hi)
 		{
 			static_assert(N % 2 == 0);
 			memcpy(arr.data(), lo.arr.data(), sizeof(arr) / 2);
@@ -78,7 +80,7 @@ namespace AVXXY_NAMESPACE
 			return ret;
 		}
 		//Copies and returns lower half of this vector
-		SIMD_Vector<S, N / 2> lo() const
+		auto lo() const
 			requires (N >= 4)
 		{
 			SIMD_Vector<S, N / 2> ret;
@@ -86,7 +88,7 @@ namespace AVXXY_NAMESPACE
 			return ret;
 		}
 		//Copies and returns upper half of this vector
-		SIMD_Vector<S, N / 2> hi() const
+		auto hi() const
 			requires (N >= 4)
 		{
 			SIMD_Vector<S, N / 2> ret;
