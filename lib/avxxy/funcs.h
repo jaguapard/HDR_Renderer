@@ -29,23 +29,23 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N> SIMD_Vector<S, N> logic_not(const SIMD_Vector<S, N>& a);
 	//Shift packed integers in `a` left by the amount specified by the corresponding element of `amount` while shifting in zeros, and returns the result
 	template<typename S, size_t N, typename I> 
-	requires (meta::any_int<S> && meta::any_int<S>)
+		requires (meta::any_int<S>&& meta::any_int<I>)
 	SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount);
 	//Shift packed integers in `a` right by the amount specified by the corresponding element of `amount` while shifting in zeros, and returns the result
 	template<typename S, size_t N, typename I> 
-		requires (meta::any_int<S>&& meta::any_int<S>)
+		requires (meta::any_int<S>&& meta::any_int<I>)
 	SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount);
 
 	//Performs permutation on the elements from vector `a`. Elements of the returned vector are gathered from vector `a` by indices passed in `ind`.
 	//Indices outside the range [0, N-1] wrap around N (-1 maps to N-1, N maps to 0).
 	//ret[i] = a[ind[i] & (N-1)]
-	template<typename S, size_t N, typename I> SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind);
+	template<typename S, size_t N, typename I> requires (meta::any_int<I>) SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind);
 	//Appends vector `b` to vector `a`, then performs permutation on the elements from this temporary value. 
 	//Elements of the returned vector are gathered from temporary vector by indices passed in `ind` 
 	//Indices outside the range [0, 2*N-1] wrap around 2*N (-1 maps to 2*N-1, 2*N maps to 0).
 	//t = ind[i] & (2*N - 1)
 	//ret[i] = t < N ? a[t] : b[t-N]
-	template<typename S, size_t N, typename I> SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind);
+	template<typename S, size_t N, typename I> requires (meta::any_int<I>) SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind);
 
 	//Converts the input to single-precision floating point numbers, then returns the square root of this value
 	template<typename S, size_t N> SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a);
@@ -144,7 +144,7 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//By default, scale is set to the size of vector's scalar type
 	//ret[i] = mask[i] ? *reinterpret_cast<const S*>(size_t(base) + Scale*ind[i]) : src[i]
-	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (std::is_integral_v<I> && sizeof(I) <= 8 && meta::IsScalarType<S>)
+	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (meta::any_int<I> && sizeof(I) <= 8 && meta::IsScalarType<S>)
 		__forceinline SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask = mask_t<S, N>::AllOnesUint, const SIMD_Vector<S, N>& src = 0)
 	{
 		return __gather_impl<S, N, Scale>(base, ind, mask, src);
@@ -169,7 +169,9 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//By default, scale is set to the size of vector's scalar type
 	//if (mask[i]) *reinterpret_cast<S*>(size_t(base) + Scale*ind[i]) = v[i]
-	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask = mask_t<S, N>::AllOnesUint);
+	template<typename S, size_t N, size_t Scale = sizeof(S), typename I>
+	requires (meta::any_int<I>) 
+	void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask = mask_t<S, N>::AllOnesUint);
 
 	//Performs the element-wise comparsion and returns the resultant mask.
 	//If elements are equal, the corresponding mask bit is set to 1

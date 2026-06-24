@@ -129,7 +129,7 @@ namespace AVXXY_NAMESPACE
 			Feature::F16C |
 			Feature::FMA3 |
 			Feature::AVX2 |
-			/*
+			
 			Feature::AVX512_F |
 			Feature::AVX512_CD |
 			Feature::AVX512_VL |
@@ -144,7 +144,7 @@ namespace AVXXY_NAMESPACE
 			Feature::AVX512_VPCLMULQDQ |
 			Feature::AVX512_GFNI |
 			Feature::AVX512_VAES |
-			Feature::AVX512_BF16 |*/
+			Feature::AVX512_BF16 |
 			0
 		};
 
@@ -272,7 +272,7 @@ namespace AVXXY_NAMESPACE
 		#endif
 				0
 		};
-		static constexpr FeatureSet FS_current = FS_zen4;
+		static constexpr FeatureSet FS_current = FS_compile_target;
 		static constexpr FeatureSet FS = FS_current;
 	}
 }
