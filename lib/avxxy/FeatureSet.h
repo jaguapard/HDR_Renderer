@@ -127,8 +127,11 @@ namespace AVXXY_NAMESPACE
 			FS_SSE2._bits | Feature::SSE3 | Feature::SSSE3 |
 			Feature::SSE4A | Feature::SSE41
 		};
+		static constexpr FeatureSet FS_SSE42 = {
+			FS_SSE41._bits | Feature::SSE42
+		};
 		static constexpr FeatureSet FS_AVX = {
-			FS_SSE41._bits | Feature::AES |
+			FS_SSE42._bits | Feature::AES |
 			Feature::AVX |
 			Feature::F16C
 		};

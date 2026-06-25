@@ -31,7 +31,7 @@ LUTMan::__LutMan_tables_t::__LutMan_tables_t()
 	{
 		float f32 = pow(i / 255.0, 2.2);
 		this->rgbToLinear_fp32[i] = f32;
-		this->rgbToLinear_fp16[i] = _mm_extract_epi16(_mm_cvtps_ph(_mm_set1_ps(f32), _MM_FROUND_TO_NEAREST_INT), 0);
+		this->rgbToLinear_fp16[i] = f32;
 	}
 	for (double i = 0; i < this->cos_fp32.size(); ++i) this->cos_fp32[i] = std::cos(2 * M_PI * i / this->cos_fp32.size());
 	for (double i = 0; i < this->sin_fp32.size(); ++i) this->sin_fp32[i] = std::sin(2 * M_PI * i / this->sin_fp32.size());

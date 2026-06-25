@@ -295,7 +295,7 @@ int main(int argc, char* argv[])
                         if (osdPixel.x > 0 || osdPixel.y > 0 || osdPixel.z > 0) //alpha is always 1 in returned surface for some reason, so work around by testing manually
                         {
                             int outInd = (gs.outputTextureH - y - 1) * gs.outputTextureW + x; //currently, y is backwards (0 = bottom of the screen, h-1 = top). Renderers don't care, so just flip OSD instead.
-                            output[outInd] = _mm_extract_epi64(_mm_cvtps_ph(osdPixel, _MM_FROUND_TO_NEAREST_INT), 0);
+                            output[outInd] = vreinterpret<uint64_t>(fp16x4(f32x4(osdPixel)));
                         }
                     }
                 }

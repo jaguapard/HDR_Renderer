@@ -1538,6 +1538,17 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && ymm_sized<T> && is_i64<S>) return _mm256_abs_epi64(a);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && is_i64<S>) return _mm_abs_epi64(a);
 
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i8<S>) return _mm256_abs_epi8(a);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i16<S>) return _mm256_abs_epi16(a);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i32<S>) return _mm256_abs_epi32(a);
+
+		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && is_i8<S>) return _mm_abs_epi8(a);
+		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && is_i16<S>) return _mm_abs_epi16(a);
+		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && is_i32<S>) return _mm_abs_epi32(a);
+
+		else if constexpr (is_i64<S>) return mask_mov(a, a < 0, -a);
+		else if constexpr (is_f32<S>) return a & std::bit_cast<S>(~(1u << 31)); //remove sign bits
+		else if constexpr (is_f64<S>) return a & std::bit_cast<S>(~(1ull << 63));
 
 		else if constexpr (sizeof(T) > 16) return T{ abs(a.lo()), abs(a.hi()) };
 		else
@@ -1560,6 +1571,12 @@ namespace AVXXY_NAMESPACE
 
 		if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_floor_pd(a);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_floor_ps(a);
+
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_floor_pd(a);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_floor_ps(a);
+		
+		else if constexpr (FS.has(SSE41) && xmm_sized<T> && is_f64<S>) return _mm_floor_pd(a);
+		else if constexpr (FS.has(SSE41) && xmm_sized<T> && is_f32<S>) return _mm_floor_ps(a);
 		else if constexpr (sizeof(T) > 16) return T{ floor(a.lo()), floor(a.hi()) };
 		else
 		{
@@ -1580,6 +1597,13 @@ namespace AVXXY_NAMESPACE
 
 		if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_ceil_pd(a);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_ceil_ps(a);
+
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_ceil_pd(a);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_ceil_ps(a);
+
+		else if constexpr (FS.has(SSE41) && xmm_sized<T> && is_f64<S>) return _mm_ceil_pd(a);
+		else if constexpr (FS.has(SSE41) && xmm_sized<T> && is_f32<S>) return _mm_ceil_ps(a);
+
 		else if constexpr (sizeof(T) > 16) return T{ ceil(a.lo()), ceil(a.hi()) };
 		else
 		{
