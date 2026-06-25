@@ -513,7 +513,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && is_f32<S>) return _mm_permutex2var_ps(a, ind, b);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i64<S>) return _mm_permutex2var_epi64(a, ind, b);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i32<S>) return _mm_permutex2var_epi32(a, ind, b);
-		else if constexpr (sizeof(T) > 16)
+		else if constexpr (true || sizeof(T) > 16) //TODO: seems to work, but very sus. Although, what else to do?
 		{
 			T pa = permx(a, ind);
 			T pb = permx(b, ind);
@@ -826,6 +826,115 @@ namespace AVXXY_NAMESPACE
 		return mask_mov(ifBitClear, mask, ifBitSet);
 	}
 	template<typename S, size_t N>
+	__forceinline SIMD_Vector<S, N> load(const void* p)
+	{
+		using namespace meta;
+		using namespace internals;
+		using T = SIMD_Vector<S, N>;
+
+		auto ld = [&]() {
+			if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_loadu_pd(p);
+			else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_loadu_ps(p);
+			else if constexpr (FS.has(AVX512_F) && zmm_sized<T>) return _mm512_loadu_si512(p);
+			else if constexpr (FS.has(AVX) && ymm_sized<T> && any_int<S>) return _mm256_loadu_si256(reinterpret_cast<const __m256i_u*>(p));
+			else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_loadu_pd(reinterpret_cast<const double*>(p));
+			else if constexpr (FS.has(AVX) && ymm_sized<T>) return _mm256_loadu_ps(reinterpret_cast<const float*>(p));
+			else if constexpr (FS.has(SSE2) && xmm_sized<T> && any_int<S>) return _mm_loadu_si128(reinterpret_cast<const __m128i_u*>(p));
+			else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_f64<S>) return _mm_loadu_pd(reinterpret_cast<const double*>(p));
+			else if constexpr (FS.has(SSE) && xmm_sized<T> && is_f32<S>) return _mm_loadu_ps(reinterpret_cast<const float*>(p));
+			else if constexpr (sizeof(T) > 16) return T{ load<S,N / 2>(p), load<S,N / 2>(reinterpret_cast<const S*>(p) + N / 2) };
+			else
+			{
+				T ret;
+				memcpy(&ret, p, sizeof(ret));
+				return ret;
+			}
+		};
+		//TODO: investigate differences between loadu and lddqu: https://stackoverflow.com/questions/47425851/whats-the-difference-between-mm256-lddqu-si256-and-mm256-loadu-si256
+		return T::from_bits_us(ld());		
+	}
+
+	template<typename S, size_t N>
+	SIMD_Vector<S, N> load_a(const void* p)
+	{
+		using namespace meta;
+		using namespace internals;
+		using T = SIMD_Vector<S, N>;
+
+		auto ld = [&]() {
+			if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_load_pd(p);
+			else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_load_ps(p);
+			else if constexpr (FS.has(AVX512_F) && zmm_sized<T>) return _mm512_load_si512(p);
+			else if constexpr (FS.has(AVX) && ymm_sized<T> && any_int<S>) return _mm256_load_si256(reinterpret_cast<const __m256i*>(p));
+			else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_load_pd(reinterpret_cast<const double*>(p));
+			else if constexpr (FS.has(AVX) && ymm_sized<T>) return _mm256_load_ps(reinterpret_cast<const float*>(p));
+			else if constexpr (FS.has(SSE2) && xmm_sized<T> && any_int<S>) return _mm_load_si128(reinterpret_cast<const __m128i*>(p));
+			else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_f64<S>) return _mm_load_pd(reinterpret_cast<const double*>(p));
+			else if constexpr (FS.has(SSE) && xmm_sized<T>) return _mm_load_ps(reinterpret_cast<const float*>(p));
+			else if constexpr (sizeof(T) > 16) return T{ load_a<S,N / 2>(p), load_a<S,N / 2>(reinterpret_cast<const S*>(p) + N / 2) };
+			else
+			{
+				T ret;
+				memcpy(&ret, p, sizeof(ret));
+				return ret;
+			}
+		};
+		return T::from_bits_us(ld());
+	}
+
+	template<typename S, size_t N>
+	__forceinline SIMD_Vector<S, N> load(const void* p, const mask_t<S, N>& mask)
+	{
+		using namespace meta;
+		using namespace internals;
+		using U = typename ScalarTraits<S>::UintT;
+		using T = SIMD_Vector<S, N>;
+		const S* sp = reinterpret_cast<const S*>(p);
+
+		auto zload = [&]() {
+			if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && any_i16<S>) return _mm512_maskz_loadu_epi16(mask, p);
+			else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && any_i8<S>) return _mm512_maskz_loadu_epi8(mask, p);
+			else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && ymm_sized<T> && any_i16<S>) return _mm256_maskz_loadu_epi16(mask, p);
+			else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && ymm_sized<T> && any_i8<S>) return _mm256_maskz_loadu_epi8(mask, p);
+			else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && xmm_sized<T> && any_i16<S>) return _mm_maskz_loadu_epi16(mask, p);
+			else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && xmm_sized<T> && any_i8<S>) return _mm_maskz_loadu_epi8(mask, p);
+
+			else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_maskz_loadu_pd(mask, p);
+			else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_maskz_loadu_ps(mask, p);
+			else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && any_i64<S>) return _mm512_maskz_loadu_epi64(mask, p);
+			else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && any_i32<S>) return _mm512_maskz_loadu_epi32(mask, p);
+			else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && ymm_sized<T> && is_f64<S>) return _mm256_maskz_loadu_pd(mask, p);
+			else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && ymm_sized<T> && is_f32<S>) return _mm256_maskz_loadu_ps(mask, p);
+			else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && ymm_sized<T> && any_i64<S>) return _mm256_maskz_loadu_epi64(mask, p);
+			else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && ymm_sized<T> && any_i32<S>) return _mm256_maskz_loadu_epi32(mask, p);
+			else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && is_f64<S>) return _mm_maskz_loadu_pd(mask, p);
+			else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && is_f32<S>) return _mm_maskz_loadu_ps(mask, p);
+			else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i64<S>) return _mm_maskz_loadu_epi64(mask, p);
+			else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i32<S>) return _mm_maskz_loadu_epi32(mask, p);
+
+			else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i64<S>) return _mm256_maskload_epi64(reinterpret_cast<const int64_t*>(p), mask);
+			else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i32<S>) return _mm256_maskload_epi32(reinterpret_cast<const int32_t*>(p), mask);
+			else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_maskload_pd(reinterpret_cast<const double*>(p), mask);
+			else if constexpr (FS.has(AVX) && ymm_sized<T> && sizeof(S) == 4) return _mm256_maskload_ps(reinterpret_cast<const float*>(p), mask);
+
+			else if constexpr (FS.has(AVX2) && xmm_sized<T> && any_i64<S>) return _mm_maskload_epi64(reinterpret_cast<const int64_t*>(p), mask);
+			else if constexpr (FS.has(AVX2) && xmm_sized<T> && any_i32<S>) return _mm_maskload_epi64(reinterpret_cast<const int32_t*>(p), mask);
+			else if constexpr (FS.has(AVX) && xmm_sized<T> && is_f64<S>) return _mm_maskload_pd(reinterpret_cast<const double*>(p), mask);
+			else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 4) return _mm_maskload_ps(reinterpret_cast<const float*>(p), mask);
+
+			else if constexpr (sizeof(T) > 16) return T{ load<S,N / 2>(p,mask.lo()), load<S,N / 2>(sp + N / 2,mask.hi()) };
+			else
+			{
+				T ret;
+				for (size_t i = 0; i < N; ++i) ret[i] = mask[i] ? sp[i] : std::bit_cast<S>(U(0));
+				return ret;
+			}
+		};
+
+		if constexpr (!is_f32<S> && !is_f64<S> && !any_int<S>) return vcast<S>(load<S, N>(p, mask));
+		else return T::from_bits_us(zload());
+	}
+	template<typename S, size_t N>
 	__forceinline SIMD_Vector<S, N> load(const void* p, const mask_t<S, N>& mask, const SIMD_Vector<S, N>& src)
 	{
 		using namespace meta;
@@ -854,14 +963,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && is_f32<S>) return _mm_mask_loadu_ps(src, mask, p);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i64<S>) return _mm_mask_loadu_epi64(src, mask, p);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i32<S>) return _mm_mask_loadu_epi32(src, mask, p);
-
-		else if constexpr (sizeof(T) > 16) return T{ load<S,N / 2>(sp,mask.lo(), src.lo()), load<S,N / 2>(sp + N / 2, mask.hi(), src.hi()) };
-		else
-		{
-			SIMD_Vector<S, N> ret;
-			for (size_t i = 0; i < N; ++i) ret[i] = mask[i] ? sp[i] : src[i];
-			return ret;
-		}
+		else return mask_mov(src, mask, load<S, N>(p, mask)); //TODO: this is pessimization for large vectors (AVX512 may have caught it)
 	}
 	template<typename S, size_t N>
 	__forceinline void store(const SIMD_Vector<S, N>& v, void* p, const mask_t<S, N>& mask)
