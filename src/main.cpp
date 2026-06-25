@@ -73,6 +73,11 @@ int main(int argc, char* argv[])
 
         int w = 2560;
         int h = 1440;
+        for (int i = 1; i < argc; ++i)
+        {
+            if (std::string(argv[i]) == "w" && i < argc - 1) w = atol(argv[i + 1]);
+            if (std::string(argv[i]) == "h" && i < argc - 1) h = atol(argv[i + 1]);
+        }
         Graphics graphics(w, h);
         window = graphics.window;
 
@@ -96,7 +101,8 @@ int main(int argc, char* argv[])
         SceneEnum currSceneEnum = SceneEnum::OLD_SPONZA;
         std::shared_ptr<RendererBase> currentRenderer;
         RendererLoadSceneData oldSponza, newSponza;
-        oldSponza.files = { { "H:/Sponza goodies/old_sponza/old_sponza.obj", "obj" } };
+        //oldSponza.files = { { "H:/Sponza goodies/old_sponza/old_sponza.obj", "obj" } };
+        oldSponza.files = { { "scenes/old_sponza/old_sponza.obj","obj" } };
         /*newSponza.files = {{"H:/Sponza goodies/main1_sponza/NewSponza_Main_Yup_003.fbx", ""},
             { "H:/Sponza goodies/pkg_a_curtains/NewSponza_Curtains_FBX_YUp.fbx", "" },
             { "H:/Sponza goodies/pkg_c1_trees/NewSponza_CypressTree_FBX_YUp.fbx", "" },
@@ -211,7 +217,7 @@ int main(int argc, char* argv[])
 
             if (inp.wasButtonPressedOnThisFrame(SDL_SCANCODE_KP_3)) //swap renderers
             {
-                if (dynamic_pointer_cast<RasterizingRenderer>(currentRenderer)) scheduledRendererChange = std::make_shared<HardwareRasterizingRenderer>();
+                if (dynamic_pointer_cast<RasterizingRenderer>(currentRenderer)) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
                 else if (dynamic_pointer_cast<HardwareRasterizingRenderer>(currentRenderer)) scheduledRendererChange = std::make_shared<RayCastingRenderer>();
                 else scheduledRendererChange = std::make_shared<RasterizingRenderer>();
                 continue;
