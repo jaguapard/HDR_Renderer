@@ -162,5 +162,8 @@ namespace AVXXY_NAMESPACE
 		template <typename T> concept IsGatherOp = requires {T::_avxxy_is_gather_tag; };
 		template <typename T> concept IsScatterOp = requires {T::_avxxy_is_scatter_tag; };
 		template <typename T> concept IsMovmOp = requires { T::_avxxy_is_movm_tag; };
+
+		template<size_t N1, size_t N2>
+		concept SameSizeClasses = ((is_xmm_size(N1) && is_xmm_size(N2)) || (is_ymm_size(N1) && is_ymm_size(N2)) || (is_zmm_size(N1) && is_zmm_size(N2)));
 	}
 }

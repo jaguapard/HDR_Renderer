@@ -115,6 +115,35 @@ namespace AVXXY_NAMESPACE
 			os << fs.toString();
 			return os;
 		}
+		static constexpr FeatureSet FS_nothing = { 0 };
+		static constexpr FeatureSet FS_SSE = {
+			Feature::MMX |
+			Feature::SSE,
+		};
+		static constexpr FeatureSet FS_SSE2 = {
+			FS_SSE._bits | Feature::SSE2
+		};
+		static constexpr FeatureSet FS_SSE41 = {
+			FS_SSE2._bits | Feature::SSE3 | Feature::SSSE3 |
+			Feature::SSE4A | Feature::SSE41
+		};
+		static constexpr FeatureSet FS_AVX = {
+			FS_SSE41._bits | Feature::AES |
+			Feature::AVX |
+			Feature::F16C
+		};
+		static constexpr FeatureSet FS_AVX2 = {
+			FS_AVX._bits | Feature::FMA3 | Feature::AVX2
+		};
+
+		static constexpr FeatureSet FS_SkylakeX = {
+			FS_AVX2._bits |
+			Feature::AVX512_F |
+			Feature::AVX512_CD |
+			Feature::AVX512_VL |
+			Feature::AVX512_DQ |
+			Feature::AVX512_BW
+		};
 		static constexpr FeatureSet FS_zen4 = {
 			Feature::MMX |
 			Feature::SSE |

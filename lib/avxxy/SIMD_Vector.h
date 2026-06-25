@@ -121,7 +121,7 @@ namespace AVXXY_NAMESPACE
 		static SIMD_Vector<S, N> from_bits_us(const T& inp)
 		{
 			SIMD_Vector<S, N> ret;
-			memcpy(&ret.arr.data(), &inp, std::min(sizeof(inp), sizeof(ret)));
+			memcpy(ret.arr.data(), &inp, std::min(sizeof(inp), sizeof(ret)));
 			return ret;
 		}
 

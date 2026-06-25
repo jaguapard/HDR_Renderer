@@ -9,6 +9,15 @@ namespace AVXXY_NAMESPACE
 		requires meta::IsValid_SIMD_Vector<S, N>
 	class SIMD_Vector;
 
+	namespace internals
+	{
+		template<typename S, size_t N>
+		SIMD_Vector<S, N> _movm_raw(uint64_t mask);
+
+		template<typename S, size_t N>
+		uint64_t _movemask_raw(const SIMD_Vector<S, N>& v);
+	}
+
 	template<size_t N>
 	concept IsValid_SIMD_Mask = N >= 2 && N <= 64 && meta::isPowerOf2(N);
 
@@ -43,6 +52,12 @@ namespace AVXXY_NAMESPACE
 		
 		SIMD_Mask() {};
 		SIMD_Mask(BitsUintT bits);
+
+		//Constructs this mask from intrinsic vector of same size class by extracting uppermost bits of each of it's elements
+		template<typename T>
+			requires (meta::IsIntrinsicVector<T>&& meta::SameSizeClasses<(sizeof(typename SIMD_Mask<LS, N>::VecT)), (sizeof(T))>)
+		SIMD_Mask(const T& intrinsicVec);
+
 		//Construct this mask by extracting uppermost bits of each lane and storing them the mask
 		template<typename T> SIMD_Mask(const SIMD_Vector<T, N>& vec);
 		//Constructs this mask by concatenating two masks of half it's size.
@@ -85,11 +100,5 @@ namespace AVXXY_NAMESPACE
 	private:
 		using SizeTraits = meta::ScalarSizeTraits<LS>;
 		std::conditional_t<IsBitMask, BitsUintT, VecT> underlying;
-
-		//deposits uint bits to each lane of the vector.
-		static VecT _movm(BitsUintT value);
-
-		//extracts uppermost bits out of each lane of this mask and puts them into returned bits
-		BitsUintT _movemask() const;
 	};
 }

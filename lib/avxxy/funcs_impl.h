@@ -776,7 +776,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_BW) && ymm_sized<T> && FS.has(AVX512_VL) && any_i8<S>) return _mm256_mask_mov_epi8(ifBitClear, mask, ifBitSet);
 		else if constexpr (FS.has(AVX512_BW) && xmm_sized<T> && FS.has(AVX512_VL) && any_i16<S>) return _mm_mask_mov_epi16(ifBitClear, mask, ifBitSet);
 		else if constexpr (FS.has(AVX512_BW) && xmm_sized<T> && FS.has(AVX512_VL) && any_i8<S>) return _mm_mask_mov_epi8(ifBitClear, mask, ifBitSet);
-		
+
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_mask_mov_pd(ifBitClear, mask, ifBitSet);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_mask_mov_ps(ifBitClear, mask, ifBitSet);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && any_i64<S>) return _mm512_mask_mov_epi64(ifBitClear, mask, ifBitSet);
@@ -791,6 +791,17 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && is_f32<S>) return _mm_mask_mov_ps(ifBitClear, mask, ifBitSet);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i64<S>) return _mm_mask_mov_epi64(ifBitClear, mask, ifBitSet);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i32<S>) return _mm_mask_mov_epi32(ifBitClear, mask, ifBitSet);
+
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_int<S>) return _mm256_blendv_epi8(ifBitClear, ifBitSet, mask);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && sizeof(S) == 8) return _mm256_blendv_pd(vreinterpret_us<__m256d>(ifBitClear), vreinterpret_us<__m256d>(ifBitSet), mask);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && sizeof(S) == 4) return _mm256_blendv_ps(vreinterpret_us<__m256>(ifBitClear), vreinterpret_us<__m256>(ifBitSet), mask);
+
+		else if constexpr (FS.has(SSE41) && xmm_sized<T> && is_f32<S>) return _mm_blendv_ps(ifBitClear, ifBitSet, mask);
+		else if constexpr (FS.has(SSE41) && xmm_sized<T> && is_f64<S>) return _mm_blendv_pd(ifBitClear, ifBitSet, mask);
+		else if constexpr (FS.has(SSE41) && xmm_sized<T> && any_int<S>) return _mm_blendv_epi8(ifBitClear, ifBitSet, mask);
+
+		else if constexpr (FS.has(SSE) && xmm_sized<T>) return (ifBitSet & mask) | (ifBitClear & ~mask);
+
 		else if constexpr (sizeof(T) > 16) return T{ mask_mov(ifBitClear.lo(), mask.lo(), ifBitSet.lo()), mask_mov(ifBitClear.hi(), mask.hi(), ifBitSet.hi()) };
 		else
 		{
@@ -974,8 +985,7 @@ namespace AVXXY_NAMESPACE
 		using U = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
 
-		if constexpr (sizeof(T) > 64) return { cmp_equal(a.lo(),b.lo()), cmp_equal(a.hi(),b.hi()) };
-		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmpeq_epi8_mask(a, b);
+		if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmpeq_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u8<S>) return _mm512_cmpeq_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i16<S>) return _mm512_cmpeq_epi16_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u16<S>) return _mm512_cmpeq_epu16_mask(a, b);
@@ -985,7 +995,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u64<S>) return _mm512_cmpeq_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_cmp_ps_mask(a, b, _CMP_EQ_OQ);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_cmp_pd_mask(a, b, _CMP_EQ_OQ);
-		else if constexpr (sizeof(T) > 32) return { cmp_equal(a.lo(),b.lo()), cmp_equal(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i8<S>) return _mm256_cmpeq_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_u8<S>) return _mm256_cmpeq_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i16<S>) return _mm256_cmpeq_epi16_mask(a, b);
@@ -996,9 +1006,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_u64<S>) return _mm256_cmpeq_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps_mask(a, b, _CMP_EQ_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd_mask(a, b, _CMP_EQ_OQ);
-		//TODO: add AVX2 and AVX!
-		//else if constexpr (FS.has(AVX2) && )
-		else if constexpr (sizeof(T) > 16) return { cmp_equal(a.lo(),b.lo()), cmp_equal(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i8<S>) return _mm_cmpeq_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_u8<S>) return _mm_cmpeq_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i16<S>) return _mm_cmpeq_epi16_mask(a, b);
@@ -1009,7 +1017,22 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_u64<S>) return _mm_cmpeq_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f32<S>) return _mm_cmp_ps_mask(a, b, _CMP_EQ_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f64<S>) return _mm_cmp_pd_mask(a, b, _CMP_EQ_OQ);
-		//TODO: add SSE
+
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i64<S>) return _mm256_cmpeq_epi64(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i32<S>) return _mm256_cmpeq_epi32(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i16<S>) return _mm256_cmpeq_epi16(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i8<S>) return _mm256_cmpeq_epi8(a, b);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd(a, b, _CMP_EQ_OQ);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps(a, b, _CMP_EQ_OQ);
+
+		else if constexpr (FS.has(SSE41) && xmm_sized<T> && any_i64<S>) return _mm_cmpeq_epi64(a, b);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && any_i32<S>) return _mm_cmpeq_epi32(a, b);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && any_i16<S>) return _mm_cmpeq_epi16(a, b);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && any_i8<S>) return _mm_cmpeq_epi8(a, b);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_f64<S>) return _mm_cmpeq_pd(a, b);
+		else if constexpr (FS.has(SSE) && xmm_sized<T> && is_f32<S>) return _mm_cmpeq_ps(a, b);
+
+		else if constexpr (sizeof(T) > 16) return { cmp_equal(a.lo(),b.lo()), cmp_equal(a.hi(),b.hi()) };
 		else
 		{
 			internals::scream();
@@ -1026,8 +1049,7 @@ namespace AVXXY_NAMESPACE
 		using U = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
 
-		if constexpr (sizeof(T) > 64) return { cmp_not_equal(a.lo(),b.lo()), cmp_not_equal(a.hi(),b.hi()) };
-		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmpneq_epi8_mask(a, b);
+		if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmpneq_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u8<S>) return _mm512_cmpneq_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i16<S>) return _mm512_cmpneq_epi16_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u16<S>) return _mm512_cmpneq_epu16_mask(a, b);
@@ -1048,9 +1070,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_u64<S>) return _mm256_cmpneq_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps_mask(a, b, _CMP_NEQ_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd_mask(a, b, _CMP_NEQ_OQ);
-		//TODO: add AVX2 and AVX!
-		//else if constexpr (FS.has(AVX2) && )
-		else if constexpr (sizeof(T) > 16) return { cmp_not_equal(a.lo(),b.lo()), cmp_not_equal(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i8<S>) return _mm_cmpneq_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_u8<S>) return _mm_cmpneq_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i16<S>) return _mm_cmpneq_epi16_mask(a, b);
@@ -1061,7 +1081,16 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_u64<S>) return _mm_cmpneq_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f32<S>) return _mm_cmp_ps_mask(a, b, _CMP_NEQ_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f64<S>) return _mm_cmp_pd_mask(a, b, _CMP_NEQ_OQ);
-		//TODO: add SSE
+
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd(a, b, _CMP_NEQ_OQ);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps(a, b, _CMP_NEQ_OQ);
+
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_f64<S>) return _mm_cmpneq_pd(a, b);
+		else if constexpr (FS.has(SSE) && xmm_sized<T> && is_f32<S>) return _mm_cmpneq_ps(a, b);
+
+		else if (sizeof(T) <= 64 && any_int<S>) return ~cmp_equal(a, b); //don't hijack AVX512 cmp if too large
+
+		else if constexpr (sizeof(T) > 16) return { cmp_not_equal(a.lo(),b.lo()), cmp_not_equal(a.hi(),b.hi()) };
 		else
 		{
 			internals::scream();
@@ -1079,8 +1108,7 @@ namespace AVXXY_NAMESPACE
 		using U = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
 
-		if constexpr (sizeof(T) > 64) return { cmp_less(a.lo(),b.lo()), cmp_less(a.hi(),b.hi()) };
-		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmplt_epi8_mask(a, b);
+		if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmplt_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u8<S>) return _mm512_cmplt_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i16<S>) return _mm512_cmplt_epi16_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u16<S>) return _mm512_cmplt_epu16_mask(a, b);
@@ -1090,7 +1118,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u64<S>) return _mm512_cmplt_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_cmp_ps_mask(a, b, _CMP_LT_OQ);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_cmp_pd_mask(a, b, _CMP_LT_OQ);
-		else if constexpr (sizeof(T) > 32) return { cmp_less(a.lo(),b.lo()), cmp_less(a.hi(),b.hi()) };
+		
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i8<S>) return _mm256_cmplt_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_u8<S>) return _mm256_cmplt_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i16<S>) return _mm256_cmplt_epi16_mask(a, b);
@@ -1101,9 +1129,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_u64<S>) return _mm256_cmplt_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps_mask(a, b, _CMP_LT_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd_mask(a, b, _CMP_LT_OQ);
-		//TODO: add AVX2 and AVX!
-		//else if constexpr (FS.has(AVX2) && )
-		else if constexpr (sizeof(T) > 16) return { cmp_less(a.lo(),b.lo()), cmp_less(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i8<S>) return _mm_cmplt_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_u8<S>) return _mm_cmplt_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i16<S>) return _mm_cmplt_epi16_mask(a, b);
@@ -1114,7 +1140,16 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_u64<S>) return _mm_cmplt_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f32<S>) return _mm_cmp_ps_mask(a, b, _CMP_LT_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f64<S>) return _mm_cmp_pd_mask(a, b, _CMP_LT_OQ);
-		//TODO: add SSE
+
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd(a, b, _CMP_LT_OQ);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps(a, b, _CMP_LT_OQ);
+
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_f64<S>) return _mm_cmplt_pd(a, b);
+		else if constexpr (FS.has(SSE) && xmm_sized<T> && is_f32<S>) return _mm_cmplt_ps(a, b);
+
+		else if constexpr (sizeof(T) <= 64 && any_int<S>) return cmp_greater(b, a); //swap order, but don't hijack too large vectors from AVX512 comparisons
+
+		else if constexpr (sizeof(T) > 16) return { cmp_less(a.lo(),b.lo()), cmp_less(a.hi(),b.hi()) };
 		else
 		{
 			internals::scream();
@@ -1131,8 +1166,7 @@ namespace AVXXY_NAMESPACE
 		using U = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
 
-		if constexpr (sizeof(T) > 64) return { cmp_less_or_equal(a.lo(),b.lo()), cmp_less_or_equal(a.hi(),b.hi()) };
-		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmple_epi8_mask(a, b);
+		if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmple_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u8<S>) return _mm512_cmple_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i16<S>) return _mm512_cmple_epi16_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u16<S>) return _mm512_cmple_epu16_mask(a, b);
@@ -1142,7 +1176,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u64<S>) return _mm512_cmple_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_cmp_ps_mask(a, b, _CMP_LE_OQ);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_cmp_pd_mask(a, b, _CMP_LE_OQ);
-		else if constexpr (sizeof(T) > 32) return { cmp_less_or_equal(a.lo(),b.lo()), cmp_less_or_equal(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i8<S>) return _mm256_cmple_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_u8<S>) return _mm256_cmple_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i16<S>) return _mm256_cmple_epi16_mask(a, b);
@@ -1153,9 +1187,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_u64<S>) return _mm256_cmple_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps_mask(a, b, _CMP_LE_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd_mask(a, b, _CMP_LE_OQ);
-		//TODO: add AVX2 and AVX!
-		//else if constexpr (FS.has(AVX2) && )
-		else if constexpr (sizeof(T) > 16) return { cmp_less_or_equal(a.lo(),b.lo()), cmp_less_or_equal(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i8<S>) return _mm_cmple_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_u8<S>) return _mm_cmple_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i16<S>) return _mm_cmple_epi16_mask(a, b);
@@ -1166,7 +1198,16 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_u64<S>) return _mm_cmple_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f32<S>) return _mm_cmp_ps_mask(a, b, _CMP_LE_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f64<S>) return _mm_cmp_pd_mask(a, b, _CMP_LE_OQ);
-		//TODO: add SSE
+
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd(a, b, _CMP_LE_OQ);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps(a, b, _CMP_LE_OQ);
+
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_f64<S>) return _mm_cmple_pd(a, b);
+		else if constexpr (FS.has(SSE) && xmm_sized<T> && is_f32<S>) return _mm_cmple_ps(a, b);
+
+		else if (sizeof(T) <= 64 && any_int<S>) return ~cmp_greater(a, b); //don't hijack AVX512 cmp if too large
+		
+		else if constexpr (sizeof(T) > 16) return { cmp_less_or_equal(a.lo(),b.lo()), cmp_less_or_equal(a.hi(),b.hi()) };
 		else
 		{
 			internals::scream();
@@ -1183,8 +1224,7 @@ namespace AVXXY_NAMESPACE
 		using U = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
 
-		if constexpr (sizeof(T) > 64) return { cmp_greater(a.lo(),b.lo()), cmp_greater(a.hi(),b.hi()) };
-		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmpgt_epi8_mask(a, b);
+		if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmpgt_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u8<S>) return _mm512_cmpgt_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i16<S>) return _mm512_cmpgt_epi16_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u16<S>) return _mm512_cmpgt_epu16_mask(a, b);
@@ -1194,7 +1234,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u64<S>) return _mm512_cmpgt_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_cmp_ps_mask(a, b, _CMP_GT_OQ);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_cmp_pd_mask(a, b, _CMP_GT_OQ);
-		else if constexpr (sizeof(T) > 32) return { cmp_greater(a.lo(),b.lo()), cmp_greater(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i8<S>) return _mm256_cmpgt_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_u8<S>) return _mm256_cmpgt_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i16<S>) return _mm256_cmpgt_epi16_mask(a, b);
@@ -1205,9 +1245,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_u64<S>) return _mm256_cmpgt_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps_mask(a, b, _CMP_GT_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd_mask(a, b, _CMP_GT_OQ);
-		//TODO: add AVX2 and AVX!
-		//else if constexpr (FS.has(AVX2) && )
-		else if constexpr (sizeof(T) > 16) return { cmp_greater(a.lo(),b.lo()), cmp_greater(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i8<S>) return _mm_cmpgt_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_u8<S>) return _mm_cmpgt_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i16<S>) return _mm_cmpgt_epi16_mask(a, b);
@@ -1218,7 +1256,29 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_u64<S>) return _mm_cmpgt_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f32<S>) return _mm_cmp_ps_mask(a, b, _CMP_GT_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f64<S>) return _mm_cmp_pd_mask(a, b, _CMP_GT_OQ);
-		//TODO: add SSE
+
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i64<S>) return _mm256_cmpgt_epi64(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i32<S>) return _mm256_cmpgt_epi32(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i16<S>) return _mm256_cmpgt_epi16(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i8<S>) return _mm256_cmpgt_epi8(a, b);
+
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd(a, b, _CMP_GT_OQ);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps(a, b, _CMP_GT_OQ);
+
+		else if constexpr (FS.has(SSE42) && xmm_sized<T> && is_i64<S>) return _mm_cmpgt_epi64(a, b); //TODO: emulation for old
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_i32<S>) return _mm_cmpgt_epi32(a, b);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_i16<S>) return _mm_cmpgt_epi16(a, b);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_i8<S>) return _mm_cmpgt_epi8(a, b);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_f64<S>) return _mm_cmpgt_pd(a, b);
+		else if constexpr (FS.has(SSE) && xmm_sized<T> && is_f32<S>) return _mm_cmpgt_ps(a, b);
+		else if constexpr (std::is_unsigned_v<S>)
+		{
+			using I = typename ScalarTraits<S>::IntT;
+			constexpr I xorv = I(1) << ((sizeof(I) * 8) - 1); //xor with 0x800..000 before comparison
+			return cmp_greater(vcast<I>(a) ^ xorv, vcast<I>(b) ^ xorv);
+		}
+
+		else if constexpr (sizeof(T) > 16) return { cmp_greater(a.lo(),b.lo()), cmp_greater(a.hi(),b.hi()) };
 		else
 		{
 			internals::scream();
@@ -1235,8 +1295,7 @@ namespace AVXXY_NAMESPACE
 		using U = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
 
-		if constexpr (sizeof(T) > 64) return { cmp_greater_or_equal(a.lo(),b.lo()), cmp_greater_or_equal(a.hi(),b.hi()) };
-		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmpge_epi8_mask(a, b);
+		if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i8<S>) return _mm512_cmpge_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u8<S>) return _mm512_cmpge_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i16<S>) return _mm512_cmpge_epi16_mask(a, b);
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u16<S>) return _mm512_cmpge_epu16_mask(a, b);
@@ -1246,7 +1305,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u64<S>) return _mm512_cmpge_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_cmp_ps_mask(a, b, _CMP_GE_OQ);
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_cmp_pd_mask(a, b, _CMP_GE_OQ);
-		else if constexpr (sizeof(T) > 32) return { cmp_greater_or_equal(a.lo(),b.lo()), cmp_greater_or_equal(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i8<S>) return _mm256_cmpge_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_u8<S>) return _mm256_cmpge_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && ymm_sized<T> && is_i16<S>) return _mm256_cmpge_epi16_mask(a, b);
@@ -1257,9 +1316,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_u64<S>) return _mm256_cmpge_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps_mask(a, b, _CMP_GE_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd_mask(a, b, _CMP_GE_OQ);
-		//TODO: add AVX2 and AVX!
-		//else if constexpr (FS.has(AVX2) && )
-		else if constexpr (sizeof(T) > 16) return { cmp_greater_or_equal(a.lo(),b.lo()), cmp_greater_or_equal(a.hi(),b.hi()) };
+
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i8<S>) return _mm_cmpge_epi8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_u8<S>) return _mm_cmpge_epu8_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_BW) && xmm_sized<T> && is_i16<S>) return _mm_cmpge_epi16_mask(a, b);
@@ -1270,7 +1327,15 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_u64<S>) return _mm_cmpge_epu64_mask(a, b);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f32<S>) return _mm_cmp_ps_mask(a, b, _CMP_GE_OQ);
 		else if constexpr (FS.has(AVX512_VL) && FS.has(AVX512_F) && xmm_sized<T> && is_f64<S>) return _mm_cmp_pd_mask(a, b, _CMP_GE_OQ);
-		//TODO: add SSE
+
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_cmp_pd(a, b, _CMP_GE_OQ);
+		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_cmp_ps(a, b, _CMP_GE_OQ);
+
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_f64<S>) return _mm_cmpge_pd(a, b);
+		else if constexpr (FS.has(SSE) && xmm_sized<T> && is_f32<S>) return _mm_cmpge_ps(a, b);
+
+		else if constexpr (sizeof(T) <= 64 && any_int<S>) return ~cmp_greater(b, a); //order swap, not less. don't hijack too large vectors from AVX512 comparisons
+		else if constexpr (sizeof(T) > 16) return { cmp_greater_or_equal(a.lo(),b.lo()), cmp_greater_or_equal(a.hi(),b.hi()) };
 		else
 		{
 			typename SIMD_Vector<S, N>::MaskT ret = 0;
