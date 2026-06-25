@@ -21,8 +21,9 @@ Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 //[[gnu::target("avx512vbmi")]]
 Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const u32x16& packed)
 {
-    std::array<u16x32, 8> lut;
-    for (int i = 0; i < 8; ++i) lut[i] = load<u16x32>(&LUTMan::tables.rgbToLinear_fp16[i * 32]);
+    const u16x32* lut = reinterpret_cast<const u16x32*>(LUTMan::tables.rgbToLinear_fp16.data());
+    //std::array<u16x32, 8> lut;
+    //for (int i = 0; i < 8; ++i) lut[i] = load<u16x32>(&LUTMan::tables.rgbToLinear_fp16[i * 32]);
     Vec4_f32x16 ret;
     ret.a = f32x16(packed >> 24) / 255; //alpha channel is linear already, not gamma encoded
     //zero-extend and split channels into halves, i.e. rgba,rgba,rgba,rgba is now r_r_r_r_g_g_g_g_, b and a in other
