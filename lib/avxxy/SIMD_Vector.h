@@ -15,8 +15,10 @@ namespace AVXXY_NAMESPACE
 	class alignas(std::min<uint32_t>(64, sizeof(S)* N)) SIMD_Vector
 	{
 	private:
-		std::array<S, N> arr;
-
+		union {
+			std::array<S, N> arr;
+			struct { std::array<S, N / 2> half_lo, half_hi; };
+		};
 	public:
 		template<typename FriendS, size_t FriendN> requires meta::IsValid_SIMD_Vector<FriendS, FriendN>
 		friend class SIMD_Vector;
@@ -35,6 +37,9 @@ namespace AVXXY_NAMESPACE
 		//Constructs this vector from other vector. If vector scalar types mismatch, the input is converted to this vector's scalar type before assignment
 		template<typename T>
 		SIMD_Vector(const SIMD_Vector<T, N>& other) { *this = vcvt<S>(other); }
+
+		//Constructs this vector by copying data into it's own storage
+		SIMD_Vector(const std::array<S, N>& data) { arr = data; }
 
 		//Constructs vector from it's intrinsic type. The intrinsic vector type must be of the same size class as constructed vector:
 		//Vectors less than 17 bytes can be constructed from 128 bit intrinsic types.
@@ -64,14 +69,14 @@ namespace AVXXY_NAMESPACE
 
 		//Constructs vector from halves
 		template<size_t N2>
-		requires (N2 >= 2 && N2*2 == N)
+			requires (N2 >= 2 && N2 * 2 == N)
 		SIMD_Vector(const SIMD_Vector<S, N2>& lo, const SIMD_Vector<S, N2>& hi)
 		{
 			static_assert(N % 2 == 0);
-			memcpy(arr.data(), lo.arr.data(), sizeof(arr) / 2);
-			memcpy(arr.data() + N/2, hi.arr.data(), sizeof(arr) / 2);
+			half_lo = lo.arr;
+			half_hi = hi.arr;
 		}
-		
+
 
 		//Broadcasts a scalar value to all lanes of a vector. The input value is converted to vector's scalar type before broadcasting
 		template<typename T> requires meta::IsScalarType<T>
@@ -88,17 +93,13 @@ namespace AVXXY_NAMESPACE
 		auto lo() const
 			requires (N >= 4)
 		{
-			SIMD_Vector<S, N / 2> ret;
-			memcpy(ret.arr.data(), arr.data(), sizeof(ret));
-			return ret;
+			return SIMD_Vector<S, N / 2>(half_lo);
 		}
 		//Copies and returns upper half of this vector
 		auto hi() const
 			requires (N >= 4)
 		{
-			SIMD_Vector<S, N / 2> ret;
-			memcpy(ret.arr.data(), arr.data() + N / 2, sizeof(ret));
-			return ret;
+			return SIMD_Vector<S, N / 2>(half_hi);
 		}
 		//Copies and returns lower half of this vector
 		S lo() const
@@ -121,7 +122,9 @@ namespace AVXXY_NAMESPACE
 		static SIMD_Vector<S, N> from_bits_us(const T& inp)
 		{
 			SIMD_Vector<S, N> ret;
-			memcpy(ret.arr.data(), &inp, std::min(sizeof(inp), sizeof(ret)));
+			static_assert(sizeof(ret.arr) == sizeof(ret));
+			if constexpr (sizeof(ret.arr) == sizeof(inp)) ret.arr = std::bit_cast<decltype(ret.arr)>(inp);
+			else memcpy(ret.arr.data(), &inp, std::min(sizeof(inp), sizeof(ret)));
 			return ret;
 		}
 
