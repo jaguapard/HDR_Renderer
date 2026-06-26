@@ -383,6 +383,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX2) && xmm_sized<T> && any_i64<S>) return _mm_srlv_epi64(a, b); //no shifts in SSE!
 		else if constexpr (FS.has(AVX2) && xmm_sized<T> && any_i32<S>) return _mm_srlv_epi32(a, b);
 
+		else if constexpr (sizeof(T) > 16) return { shift_right(a.lo(), b.lo()), shift_right(a.hi(), b.hi()) };
 		else
 		{
 			internals::scream();
@@ -612,6 +613,7 @@ namespace AVXXY_NAMESPACE
 
 		//Route all FP16 conversions to it's only friend - float
 		if constexpr ((is_fp16<From> && !is_f32<To>) || (!is_f32<From> && is_fp16<To>)) return vcvt<To>(vcvt<float>(a));
+		else if constexpr (sizeof(From) == sizeof(To) && any_int<From> && any_int<To>) return vcast<To>(a);
 		//Route small int to FP through their 32 bit types of same signedness
 		else if constexpr (any_small_int<From> && !any_int<To>)
 		{
