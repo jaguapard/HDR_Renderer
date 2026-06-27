@@ -1,26 +1,5 @@
 #include "RendererBase.h"
 
-void RendererBase::mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, mask16d mask)
-{
-	//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
-	//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
-	//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
-	//Second - 4-7, third - 8-11, fourth - 12-15
-	fp16x16 ph_r = pack.r;
-	fp16x16 ph_g = pack.g;
-	fp16x16 ph_b = pack.b;
-	fp16x16 ph_a = pack.a;
-	for (int i = 0; i < 16; i += 4)
-	{
-		u16x16 rg_ind = u16x16(0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19, 0, 0) + i;
-		u16x16 ba_ind = u16x16(0, 0, 0, 16, 0, 0, 1, 17, 0, 0, 2, 18, 0, 0, 3, 19) + i;
-		fp16x16 rgxx = permx2(ph_r, ph_g, rg_ind);
-		fp16x16 xxba = permx2(ph_b, ph_a, ba_ind);
-		fp16x16 rgba = mask_mov(rgxx, 0b1100110011001100, xxba);
-		store(vcast<u64x4>(rgba), (int64_t*)frameBuffer + y * w + x + i, mask >> i);
-	}
-}
-
 //TODO: verify that it works
 Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, mask16d mask)
 {

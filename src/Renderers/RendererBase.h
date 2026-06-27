@@ -24,7 +24,42 @@ public:
 	virtual void loadScene(RendererLoadSceneData scd) = 0;
 	virtual void renderFrame(const GameSettings& settings) = 0;
 	virtual ~RendererBase() {};
-	static void mask_store_vec4_f32x16_to_framebuffer(const Vec4_f32x16& pack, void* frameBuffer, int x, int y, int w, mask16d mask);
+
+	template<size_t N>
+	static void mask_store_vec4_f32x16_to_framebuffer(const VectorPack<SIMD_Vector<float, N>>& pack, void* frameBuffer, int x, int y, int w, const mask_t<float, N>& mask)
+	{
+		//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
+		//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
+		//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
+		//Second - 4-7, third - 8-11, fourth - 12-15
+		SIMD_Vector<fp16_t, N> ph_r = pack.r;
+		SIMD_Vector<fp16_t, N> ph_g = pack.g;
+		SIMD_Vector<fp16_t, N> ph_b = pack.b;
+		SIMD_Vector<fp16_t, N> ph_a = pack.a;
+
+		SIMD_Vector<uint16_t, N> rg_permind, ba_permind;
+		mask_t<fp16_t, N> mov_mask = 0;
+		for (size_t i = 0; i < N; i += 4)
+		{
+			rg_permind[i] = i / 4;
+			rg_permind[i + 1] = 16 + i / 4;
+			rg_permind[i + 2] = rg_permind[i + 3] = 0;
+
+			ba_permind[i] = ba_permind[i + 1] = 0;
+			ba_permind[i + 2] = i / 4;
+			ba_permind[i + 3] = i / 4 + 16;
+			mov_mask |= 0b1100ull << i;
+		}
+		for (int i = 0; i < 16; i += 4)
+		{
+			u16x16 rg_ind = rg_permind + i;
+			u16x16 ba_ind = ba_permind + i;
+			SIMD_Vector<fp16_t, N> rgxx = permx2(ph_r, ph_g, rg_ind);
+			SIMD_Vector<fp16_t, N> xxba = permx2(ph_b, ph_a, ba_ind);
+			SIMD_Vector<fp16_t, N> rgba = mask_mov(rgxx, mov_mask, xxba);
+			store(vcast<u64x4>(rgba), (int64_t*)frameBuffer + y * w + x + i, mask >> i);
+		}
+	}
 	static Vec4_f32x16 mask_load_vec4_f32x16_from_framebuffer(const void* frameBuffer, int x, int y, int w, mask16d mask);
 	
 	//Calculates barycentric coordinates for 2D vector P relative to vertices A, B, C and stores them to ret
