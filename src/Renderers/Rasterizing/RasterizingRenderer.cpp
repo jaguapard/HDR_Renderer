@@ -677,6 +677,35 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 			{ group_xBeg, group_yBeg, 0.f, 0.f }, 
 			v0.space, v1.space, v2.space, currTriangles.rcpSignedArea, 
 			initialBary, baryStepX, baryStepY);
+
+		//4x4 packed layout is much more friendly to small geometry compared to 1x16 (much less dead lanes)
+		f32xn gridX, gridY;
+		float xInc, yInc;
+		constexpr size_t VEC_N = f32xn::LaneCount;
+
+		if constexpr (VEC_N == 4)
+		{
+			store(f32x4(0, 0, 1, 1), &gridX);
+			store(f32x4(0, 1, 0, 1), &gridY);
+			xInc = 2;
+			yInc = 2;
+		}
+		else if constexpr (VEC_N == 8)
+		{
+			store(f32x8(0, 0, 0, 0, 1, 1, 1, 1), &gridY);
+			store(f32x8(0, 1, 2, 3, 0, 1, 2, 3), &gridX);
+			xInc = 4;
+			yInc = 2;
+		}
+		else if constexpr (VEC_N == 16)
+		{
+			store(f32x16(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3), &gridY);
+			store(f32x16(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3), &gridX);
+			xInc = 4;
+			yInc = 4;
+		}
+		//else static_assert(meta::always_false_v<f32xn>);
+
 		PixelScavenger scavenger;
 		//There's lots of "context" involved, so lambda seems like an OK compromise to moving it out to separate function
 		//Previous goto approach is faster, but confusing. May return to it in the future
@@ -752,19 +781,19 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 			if (!currActiveTriangles[i]) continue;
 
 			bool processingTail = false;
-			//4x4 packed layout is much more friendly to small geometry compared to 1x16 (much less dead lanes)
-			for (float32x16 y = float32x16(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3) + group_yBeg[i]; y <= group_yEnd[i]; y += 4)
+
+			for (f32xn y = gridY + group_yBeg[i]; y <= group_yEnd[i]; y += yInc)
 			{
-				float32x16 dy = y - group_yBeg[i];
+				f32xn dy = y - group_yBeg[i];
 				uint32_t yStart = y[0];
-				for (float32x16 x = float32x16(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3) + group_xBeg[i]; mask16d boundsMask = (y <= group_yEnd[i]) & (x <= group_xEnd[i]); x += 4)
+				for (f32xn x = gridX + group_xBeg[i]; maskn_d boundsMask = (y <= group_yEnd[i]) & (x <= group_xEnd[i]); x += xInc)
 				{
 					uint32_t xStart = x[0];
-					float32x16 dx = x - group_xBeg[i];
-					float32x16 alpha = dy * baryStepY[0][i] + dx * baryStepX[0][i] + initialBary[0][i];
-					float32x16 beta = dy * baryStepY[1][i] + dx * baryStepX[1][i] + initialBary[1][i];
-					float32x16 gamma = dy * baryStepY[2][i] + dx * baryStepX[2][i] + initialBary[2][i];
-					mask16d pointsInsideTriangleMask = (boundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
+					f32xn dx = x - group_xBeg[i];
+					f32xn alpha = dy * baryStepY[0][i] + dx * baryStepX[0][i] + initialBary[0][i];
+					f32xn beta = dy * baryStepY[1][i] + dx * baryStepX[1][i] + initialBary[1][i];
+					f32xn gamma = dy * baryStepY[2][i] + dx * baryStepX[2][i] + initialBary[2][i];
+					maskn_d pointsInsideTriangleMask = (boundsMask & alpha >= 0.0) & (beta >= 0.0 & gamma >= 0.0);
 					if (Statsman::ENABLED)
 					{
 						MyStatsman.rasterizing.barycentricsCalculated += 16;
@@ -773,9 +802,9 @@ void RasterizingRenderer::drawTriangleBatch(const PixelStageInput& inp, const in
 					//this branch may acually be slower than just letting 0 entries get written to scavenger. The scavenger does prevent execution falling through further already
 					//if (!pointsInsideTriangleMask) continue;
 
-					float32x16 cx = compress(pointsInsideTriangleMask, x);
-					float32x16 cy = compress(pointsInsideTriangleMask, y);
-					int32x16 ci = compress(pointsInsideTriangleMask, i32x16(i));
+					f32xn cx = compress(pointsInsideTriangleMask, x);
+					f32xn cy = compress(pointsInsideTriangleMask, y);
+					i32xn ci = compress(pointsInsideTriangleMask, i32xn(i));
 					store(cx, &scavenger.x[scavenger.size]);
 					store(cy, &scavenger.y[scavenger.size]);
 					store(ci, &scavenger.inBatchInd[scavenger.size]);
