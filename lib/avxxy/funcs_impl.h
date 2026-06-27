@@ -1912,6 +1912,17 @@ namespace AVXXY_NAMESPACE
 			if constexpr (is_f32<S>) return _mm256_blendv_ps(tmp, src, _mm256_castsi256_ps(permx_ind));
 			else return _mm256_blendv_epi8(vreinterpret_us<__m256i>(tmp), src, permx_ind);
 		}
+
+		
+		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 4)
+		{
+			int maskb = mask;
+			const int8_t* table_ptr = tables::compress_dwords_pshufb.data() + (maskb * 16);
+			//negative ind = pass through src
+			__m128i ind = _mm_load_si128(reinterpret_cast<const __m128i*>(table_ptr));
+			SIMD_Vector<int8_t, 16> shuf = _mm_shuffle_epi8(vreinterpret_us<__m128i>(a), ind);
+			return vcast<S>(mask_mov(shuf, ind, vcast<int8_t>(src)));
+		}
 		else if constexpr (sizeof(T) > 16)
 		{
 			T ret = src;

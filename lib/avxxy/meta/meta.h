@@ -202,9 +202,15 @@ namespace AVXXY_NAMESPACE
 
 		template<typename S> requires IsScalarType<S> inline constexpr size_t NATIVE_VEC_N = []() {
 			using namespace internals;
+			/*
+			* 
 			if constexpr (FS.has(AVX512_F) && (any_i64<S> || any_i32<S> || is_f32<S> || is_f64<S>)) return 64 / sizeof(S);
 			else if constexpr ((FS.has(AVX2) && any_int<S>) || (FS.has(AVX) && (is_f32<S> || is_f64<S>))) return 32 / sizeof(S);
-			else if constexpr ((FS.has(SSE2) && (any_int<S> || is_f64<S>)) || (FS.has(SSE) && (is_f32<S>))) return 16 / sizeof(S);
+			else if constexpr ((FS.has(SSE2) && (any_int<S> || is_f64<S>)) || (FS.has(SSE) && (is_f32<S>))) return 16 / sizeof(S);*/
+			//actually, maybe it's better to not allow mismatched vectors and masks. Thus, for now match based on which instruction set first introduced these vectors
+			if constexpr (FS.has(AVX512_F)) return 64 / sizeof(S);
+			else if constexpr (FS.has(AVX)) return 32 / sizeof(S);
+			else if constexpr (FS.has(SSE)) return 16 / sizeof(S);
 			else return 2; //TODO: safeguard for scalars, since vectors can't have size 1 for now
 			}();
 	}
