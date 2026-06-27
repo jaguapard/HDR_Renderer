@@ -147,10 +147,11 @@ namespace Rasterizing
 		size_t size() const;
 		void clear();
 		//std::vector<uint32_t> modelInd;
-		
-		__forceinline void gatherVertexAndDiffuseMapIndices(int32x16 ind, mask16d mask, int32x16& retVind0, int32x16& retVind1, int32x16& retVind2, int32x16& retDiffMapInd) const
+
+		template<size_t N>
+		__forceinline void gatherVertexAndDiffuseMapIndices(const SIMD_Vector<int32_t, N>& ind, const mask_t<int32_t, N>& mask, SIMD_Vector<int32_t, N>& retVind0, SIMD_Vector<int32_t, N>& retVind1, SIMD_Vector<int32_t, N>& retVind2, SIMD_Vector<int32_t, N>& retDiffMapInd) const
 		{
-			auto a = aos2soa_gather_and_transpose<int32x16, 4>(this->vind_diffuseInd.data(), ind, mask);
+			auto a = aos2soa_gather_and_transpose<SIMD_Vector<int32_t, N>, 4>(this->vind_diffuseInd.data(), ind, mask);
 			retVind0 = a[0];
 			retVind1 = a[1];
 			retVind2 = a[2];
