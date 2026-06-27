@@ -6,6 +6,7 @@
 #include <bit>
 #include "enums.h"
 #include <array>
+#include "../FeatureSet.h"
 
 namespace AVXXY_NAMESPACE
 {
@@ -198,5 +199,13 @@ namespace AVXXY_NAMESPACE
 
 		template<size_t N1, size_t N2>
 		concept SameSizeClasses = ((is_xmm_size(N1) && is_xmm_size(N2)) || (is_ymm_size(N1) && is_ymm_size(N2)) || (is_zmm_size(N1) && is_zmm_size(N2)));
+
+		template<typename S> requires IsScalarType<S> inline constexpr size_t NATIVE_VEC_N = []() {
+			using namespace internals;
+			if constexpr (FS.has(AVX512_F) && (any_i64<S> || any_i32<S> || is_f32<S> || is_f64<S>)) return 64 / sizeof(S);
+			else if constexpr ((FS.has(AVX2) && any_int<S>) || (FS.has(AVX) && (is_f32<S> || is_f64<S>))) return 32 / sizeof(S);
+			else if constexpr ((FS.has(SSE2) && (any_int<S> || is_f64<S>)) || (FS.has(SSE) && (is_f32<S>))) return 16 / sizeof(S);
+			else return 2; //TODO: safeguard for scalars, since vectors can't have size 1 for now
+			}();
 	}
 }

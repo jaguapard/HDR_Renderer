@@ -453,6 +453,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i32<S>) return _mm256_permutevar8x32_epi32(a, ind);
 		else if constexpr (FS.has(AVX2) && ymm_sized<T> && sizeof(S) == 8) //emulate with 4-byte perm. //TODO: maybe allowing it to SSSE3 or AVX is better?
 		{
+			//TODO: domain crossing vs 1 extra instruction byte with _mm256_shuffle_epi32?
 			using X = std::conditional_t<is_f64<S>, float, uint32_t>;
 			auto a32 = vcast<X>(a);
 			__m256i ind32 = _mm256_castps_si256(_mm256_moveldup_ps(_mm256_castsi256_ps(ind)));//duplicate each low 32-bits of 64-bit index element into 32-bit lanes. Wrap around and power of 2 vector size limitation allow this to work.
@@ -484,7 +485,7 @@ namespace AVXXY_NAMESPACE
 
 			__m256 b1 = _mm256_blendv_ps(_mm256_castsi256_ps(p1), _mm256_castsi256_ps(p1s), bmask1);
 			__m256 b2 = _mm256_blendv_ps(_mm256_castsi256_ps(p2s), _mm256_castsi256_ps(p2), bmask2);
-			return _mm256_blend_epi16(b1, b2, 0b10101010);
+			return _mm256_blend_epi16(_mm256_castps_si256(b1), _mm256_castps_si256(b2), 0b10101010);
 		}
 		else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 4) return _mm_permutevar_ps(vreinterpret_us<__m128>(a), ind);
 		else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 8) return _mm_permutevar_pd(vreinterpret_us<__m128d>(a), ind);

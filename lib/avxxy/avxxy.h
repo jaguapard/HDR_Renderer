@@ -136,9 +136,23 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<double, 8> zmm_f64;
 
 
+	typedef SIMD_Vector<int8_t, meta::NATIVE_VEC_N<int8_t>> i8xn;
+	typedef SIMD_Vector<int16_t, meta::NATIVE_VEC_N<int16_t>> i16xn;
+	typedef SIMD_Vector<int32_t, meta::NATIVE_VEC_N<int32_t>> i32xn;
+	typedef SIMD_Vector<int64_t, meta::NATIVE_VEC_N<int64_t>> i64xn;
+	typedef SIMD_Vector<uint64_t, meta::NATIVE_VEC_N<uint64_t>> u64xn;
+	typedef SIMD_Vector<uint32_t, meta::NATIVE_VEC_N<uint32_t>> u32xn;
+	typedef SIMD_Vector<uint16_t, meta::NATIVE_VEC_N<uint16_t>> u16xn;
+	typedef SIMD_Vector<uint8_t, meta::NATIVE_VEC_N<uint8_t>> u8xn;
+	typedef SIMD_Vector<float, meta::NATIVE_VEC_N<float>> f32xn;
+	typedef SIMD_Vector<double, meta::NATIVE_VEC_N<double>> f64xn;
 
 
 
+	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, meta::NATIVE_VEC_N<int8_t>> maskn_b;
+	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, meta::NATIVE_VEC_N<int16_t>> maskn_w;
+	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, meta::NATIVE_VEC_N<int32_t>> maskn_d;
+	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, meta::NATIVE_VEC_N<int64_t>> maskn_q;
 
 	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 2> mask2b;
 	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 2> mask2w;
