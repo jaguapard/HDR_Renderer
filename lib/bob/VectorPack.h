@@ -469,7 +469,7 @@ namespace bob
 	template <typename PackType>
 	__forceinline bob::_SSE_Vec4_float VectorPack<PackType>::extractHorizontalVector(size_t index) const
 	{
-		return bob::_SSE_Vec4_float(x.f[index], y.f[index], z.f[index], w.f[index]);
+		return bob::_SSE_Vec4_float(x[index], y[index], z[index], w[index]);
 	}
 
 	template <typename PackType>
@@ -519,7 +519,7 @@ namespace bob
 		return this->dot2d(*this);
 	}
 
-	//typedef VectorPack<float32x8> Vec4_f32x8;
 	typedef VectorPack<AVXXY_NAMESPACE::f32x16> Vec4_f32x16;
 	typedef VectorPack<AVXXY_NAMESPACE::f32x8> Vec4_f32x8;
+	typedef VectorPack<AVXXY_NAMESPACE::f32xn> Vec4_f32xn;
 }
