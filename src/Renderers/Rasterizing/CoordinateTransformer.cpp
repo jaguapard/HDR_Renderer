@@ -85,11 +85,3 @@ Vec4f CoordinateTransformer::inverseScreenPixelsToWorld(const Vec4f& v, float zI
 	//pre_zDivide.w = 1;
 	return inverseRotationTranslation * pre_zDivide;
 }
-
-bob::Vec4_f32x16 CoordinateTransformer::inverseScreenPixelsToWorld(const bob::Vec4_f32x16& v) const
-{
-	Vec4_f32x16 screenSpace = v * this->rcp_hVec;
-	Vec4_f32x16 post_zDivide = screenSpace - this->_shift;
-	Vec4_f32x16 pre_zDivide = post_zDivide / v.w;
-	return inverseRotationTranslation * pre_zDivide;
-}
