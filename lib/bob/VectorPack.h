@@ -3,8 +3,7 @@
 #include <array>
 
 #include "SSE_Vec4.h"
-#include "float32x8.h"
-#include "float32x16.h"
+#include "../AVXxy/AVXxy.h"
 
 //class representing 8 packed 4-dimensional vectors.
 //Only AVX2 is supported with this one!
@@ -16,9 +15,9 @@ namespace bob
 	template <typename PackType>
 	struct
 #ifdef __AVX512F__
-		alignas(64)
+		//alignas(64)
 #else
-		alignas(32)
+		//alignas(32)
 #endif
 		VectorPack
 	{
@@ -61,12 +60,13 @@ namespace bob
 		__forceinline VectorPack<PackType>& operator*=(const VectorPack<PackType>& other);
 		__forceinline VectorPack<PackType>& operator/=(const VectorPack<PackType>& other);
 
-		__forceinline std::array<Mask16, 4> operator>(const VectorPack<PackType>& other) const;
-		__forceinline std::array<Mask16, 4> operator>=(const VectorPack<PackType>& other) const;
-		__forceinline std::array<Mask16, 4> operator<(const VectorPack<PackType>& other) const;
-		__forceinline std::array<Mask16, 4> operator<=(const VectorPack<PackType>& other) const;
-		__forceinline std::array<Mask16, 4> operator==(const VectorPack<PackType>& other) const;
-		__forceinline std::array<Mask16, 4> operator!=(const VectorPack<PackType>& other) const;
+		/*
+		__forceinline std::array<mask16d, 4> operator>(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator>=(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator<(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator<=(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator==(const VectorPack<PackType>& other) const;
+		__forceinline std::array<mask16d, 4> operator!=(const VectorPack<PackType>& other) const;*/
 
 
 		__forceinline VectorPack<PackType> operator+(const PackType& other) const;
@@ -78,12 +78,13 @@ namespace bob
 		__forceinline VectorPack<PackType>& operator*=(const PackType& other);
 		__forceinline VectorPack<PackType>& operator/=(const PackType& other);
 
+		/*
 		__forceinline std::array<__mmask16, 4> operator>(const PackType& other) const;
 		__forceinline std::array<__mmask16, 4> operator>=(const PackType& other) const;
 		__forceinline std::array<__mmask16, 4> operator<(const PackType& other) const;
 		__forceinline std::array<__mmask16, 4> operator<=(const PackType& other) const;
 		__forceinline std::array<__mmask16, 4> operator==(const PackType& other) const;
-		__forceinline std::array<__mmask16, 4> operator!=(const PackType& other) const;
+		__forceinline std::array<__mmask16, 4> operator!=(const PackType& other) const;*/
 
 
 		__forceinline VectorPack<PackType> operator&(const VectorPack<PackType>& other) const;
@@ -222,54 +223,54 @@ namespace bob
 	{
 		return { x / other.x, y / other.y, z / other.z, w / other.w };
 	}
-
+	/*
 	template <typename PackType>
-	__forceinline std::array<Mask16, 4> VectorPack<PackType>::operator>(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator>(const VectorPack<PackType>& other) const
 	{
-		std::array<Mask16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] > other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<Mask16, 4> VectorPack<PackType>::operator>=(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator>=(const VectorPack<PackType>& other) const
 	{
-		std::array<Mask16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] >= other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<Mask16, 4> VectorPack<PackType>::operator<(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator<(const VectorPack<PackType>& other) const
 	{
-		std::array<Mask16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] < other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<Mask16, 4> VectorPack<PackType>::operator<=(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator<=(const VectorPack<PackType>& other) const
 	{
-		std::array<Mask16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] <= other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<Mask16, 4> VectorPack<PackType>::operator==(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator==(const VectorPack<PackType>& other) const
 	{
-		std::array<Mask16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] == other[i];
 		return ret;
 	}
 
 	template <typename PackType>
-	__forceinline std::array<Mask16, 4> VectorPack<PackType>::operator!=(const VectorPack<PackType>& other) const
+	__forceinline std::array<mask16d, 4> VectorPack<PackType>::operator!=(const VectorPack<PackType>& other) const
 	{
-		std::array<Mask16, 4> ret;
+		std::array<mask16d, 4> ret;
 		for (size_t i = 0; i < std::size(packs); ++i) ret[i] = (*this)[i] != other[i];
 		return ret;
-	}
+	}*/
 
 	template<typename PackType>
 	__forceinline VectorPack<PackType> VectorPack<PackType>::operator+(const PackType& other) const
@@ -468,7 +469,7 @@ namespace bob
 	template <typename PackType>
 	__forceinline bob::_SSE_Vec4_float VectorPack<PackType>::extractHorizontalVector(size_t index) const
 	{
-		return bob::_SSE_Vec4_float(x.f[index], y.f[index], z.f[index], w.f[index]);
+		return bob::_SSE_Vec4_float(x[index], y[index], z[index], w[index]);
 	}
 
 	template <typename PackType>
@@ -491,13 +492,13 @@ namespace bob
 	template<typename PackType>
 	__forceinline PackType VectorPack<PackType>::len3d() const
 	{
-		return this->lenSq3d().sqrt();
+		return AVXXY_NAMESPACE::sqrtf(this->lenSq3d());
 	}
 
 	template<typename PackType>
 	__forceinline PackType VectorPack<PackType>::len2d() const
 	{
-		return this->lenSq2d().sqrt();
+		return AVXXY_NAMESPACE::sqrtf(this->lenSq2d());
 	}
 
 	template <typename PackType>
@@ -518,7 +519,7 @@ namespace bob
 		return this->dot2d(*this);
 	}
 
-	//typedef VectorPack<float32x8> Vec4_f32x8;
-	typedef VectorPack<float32x16> Vec4_f32x16;
-	typedef VectorPack<float32x8> Vec4_f32x8;
+	typedef VectorPack<AVXXY_NAMESPACE::f32x16> Vec4_f32x16;
+	typedef VectorPack<AVXXY_NAMESPACE::f32x8> Vec4_f32x8;
+	typedef VectorPack<AVXXY_NAMESPACE::f32xn> Vec4_f32xn;
 }

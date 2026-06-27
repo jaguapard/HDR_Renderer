@@ -20,7 +20,15 @@ public:
 	Matrix4 getCurrentInverseTransformationMatrix() const;
 
 	Vec4f inverseScreenPixelsToWorld(const Vec4f& v, float zInverse) const;
-	bob::Vec4_f32x16 inverseScreenPixelsToWorld(const bob::Vec4_f32x16& v) const;
+
+	template<size_t N>
+	bob::VectorPack<SIMD_Vector<float,N>> inverseScreenPixelsToWorld(const bob::VectorPack<SIMD_Vector<float, N>>& v) const
+	{
+		bob::VectorPack<SIMD_Vector<float, N>> screenSpace = v * this->rcp_hVec;
+		bob::VectorPack<SIMD_Vector<float, N>> post_zDivide = screenSpace - this->_shift;
+		bob::VectorPack<SIMD_Vector<float, N>> pre_zDivide = post_zDivide / v.w;
+		return inverseRotationTranslation * pre_zDivide;
+	}
 private:
 	Matrix4 rotationTranslation;
 	Matrix4 inverseRotationTranslation;

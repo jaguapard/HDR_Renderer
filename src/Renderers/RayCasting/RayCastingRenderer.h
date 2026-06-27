@@ -28,7 +28,7 @@ namespace RayCasting
 		float32x16 t = FLT_MAX, worldBarycentrics[3], textureCoords[2];
 		int32x16 modelIndices, triangleIndices;
 		Vec4_f32x16 normals;
-		Mask16 raysHit = 0;
+		mask16d raysHit = 0;
 	};
 }
 
@@ -45,5 +45,5 @@ protected:
 	RayCasting::Octree octree;
 	static inline constexpr bool discardUntexturedTriangles = true;
 
-	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Mask16 activeRays, bool shadowRays, uint32_t threadIndex);
+	RayCasting::TraceResults traceRays(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, mask16d activeRays, bool shadowRays, uint32_t threadIndex);
 };

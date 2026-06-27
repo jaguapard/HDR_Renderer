@@ -35,13 +35,13 @@ uint32_t MipLevel::getPixelRGBA32(uint32_t x, uint32_t y) const
 }
 
 [[gnu::target("avx512vbmi")]]
-Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32x16& v, Mask16 mask) const
+Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32x16& v, mask16d mask) const
 {
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
-    float32x16 lerpT_x = pixelsX - float32x16(_mm512_floor_ps(pixelsX));
-    float32x16 lerpT_y = pixelsY - float32x16(_mm512_floor_ps(pixelsY));
-    int32x16 startX = pixelsX.trunc();
-    int32x16 startY = pixelsY.trunc();
+    float32x16 lerpT_x = pixelsX - floor(pixelsX);
+    float32x16 lerpT_y = pixelsY - floor(pixelsY);
+    int32x16 startX = pixelsX;
+    int32x16 startY = pixelsY;
     const auto& p = this->mapper.getParams();
 
     std::array<Vec4_f32x16, 4> linear;
@@ -52,7 +52,7 @@ Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32
         int32x16 sampleX = startX + sx, sampleY = startY + sy;
         this->mapper.wrapInts(sampleX, sampleY);
 
-        int32x16 samples = int32x16::gather(this->colors.data(), sampleY * p.w + sampleX, mask);
+        u32x16 samples = gather<u32x16>(this->colors.data(), sampleY * p.w + sampleX, mask);
         linear[i] = Decoder::RGBA8888_to_linear_using_FP16_LUT(samples);
     }
 
@@ -61,20 +61,20 @@ Vec4_f32x16 MipLevel::gatherLinearIntensities(const float32x16& u, const float32
     return lerp(lerp1, lerp2, lerpT_y);
 }
 
-float32x16 MipLevel::gatherA(const float32x16& u, const float32x16& v, Mask16 mask) const
+float32x16 MipLevel::gatherA(const float32x16& u, const float32x16& v, mask16d mask) const
 {
     auto [pixelsX, pixelsY] = this->mapper.UV_to_XY(u, v);
     //TODO: same filtering for opacity maps as textures, else it creates disagreement between stages
-    int32x16 sx = pixelsX.trunc();
-    int32x16 sy = pixelsY.trunc();
+    int32x16 sx = pixelsX;
+    int32x16 sy = pixelsY;
     this->mapper.wrapInts(sx, sy);
 
     int32x16 ind = sy * this->mapper.getParams().w + sx;
     int32x16 gatherInd = ind >> 5;
     int32x16 shifts = ind & 31;
-    int32x16 gathered = int32x16::gather(this->opacityMap.data(), gatherInd, mask);
+    int32x16 gathered = gather<i32x16>(this->opacityMap.data(), gatherInd, mask);
     gathered &= int32x16(1) << shifts;
-    return _mm512_mask_mov_ps(float32x16(0.f), gathered != 0, float32x16(1.f));
+    return mask_mov(float32x16(0.f), gathered != 0, float32x16(1.f));
 }
 
 
@@ -102,15 +102,15 @@ Texture::Texture(const SDL_Surface* s)
                     for (int x = 0; x < w; x += 16)
                     {
                         //alpha is binary, all values above 0 considered fully opaque. TODO: when implementing transparency, change this
-                        Mask16 boundsMask = (int32x16::sequence() + x) < w;
-                        int32x16 srcUint32 = _mm512_maskz_loadu_epi32(boundsMask, srcRow + x);
+                        mask16d boundsMask = (int32x16::iota() + x) < w;
+                        int32x16 srcUint32 = load<i32x16>(srcRow + x, boundsMask);
 
                         int32x16 dstR = srcUint32 & 0xFF;
                         int32x16 dstG = (srcUint32 >> 8) & 0xFF;
                         int32x16 dstB = (srcUint32 >> 16) & 0xFF;
                         int32x16 dstA = (srcUint32 >> 24) & 0xFF;
                         int32x16 dstFull = dstR | (dstG << 8) | (dstB << 16) | (dstA << 24);
-                        _mm512_mask_storeu_epi32(&this->mipLevels[0].colors[y * w + x], boundsMask, dstFull.zmm);
+                        store(dstFull, &this->mipLevels[0].colors[y * w + x], boundsMask);
                     }
                 }
             }
@@ -120,15 +120,15 @@ Texture::Texture(const SDL_Surface* s)
         int totalPixels = w * h;
         for (int i = 0; i < totalPixels; i += 32)
         {
-            Mask16 boundsMask1 = (int32x16::sequence() + i) < totalPixels;
-            Mask16 boundsMask2 = (int32x16::sequence() + i + 16) < totalPixels;
-            int32x16 packed1 = _mm512_maskz_loadu_epi32(boundsMask1, &this->mipLevels[0].colors[i]);
-            int32x16 packed2 = _mm512_maskz_loadu_epi32(boundsMask2, &this->mipLevels[0].colors[i + 16]);
+            mask16d boundsMask1 = (int32x16::iota() + i) < totalPixels;
+            mask16d boundsMask2 = (int32x16::iota() + i + 16) < totalPixels;
+            i32x16 packed1 = load<i32x16>(&this->mipLevels[0].colors[i], boundsMask1);
+            i32x16 packed2 = load<i32x16>(&this->mipLevels[0].colors[i+16], boundsMask2);
             Vec4_f32x16 p1, p2;
             p1 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed1);
             p2 = Decoder::RGBA8888_to_linear_using_FP16_LUT(packed2);
-            Mask16 m1 = p1.a > 0.f;
-            Mask16 m2 = p2.a > 0.f;
+            mask16d m1 = p1.a > 0.f;
+            mask16d m2 = p2.a > 0.f;
             uint32_t mt = (uint32_t(m2) << 16) | m1;
             this->mipLevels[0].opacityMap[i / 32] = mt;
             //if (~mt) this->mipLevels[0]isFullyOpaque = false;
@@ -140,12 +140,12 @@ Texture::Texture(const SDL_Surface* s)
     }
 }
 
-Vec4_f32x16 Texture::gatherLinearIntensities(const float32x16& u, const float32x16& v, const Mask16& mask) const
+Vec4_f32x16 Texture::gatherLinearIntensities(const float32x16& u, const float32x16& v, const mask16d& mask) const
 {
     return this->mipLevels[0].gatherLinearIntensities(u, v, mask);
 }
 
-float32x16 Texture::gatherA(const float32x16& u, const float32x16& v, const Mask16& mask) const
+float32x16 Texture::gatherA(const float32x16& u, const float32x16& v, const mask16d& mask) const
 {
     return this->mipLevels[0].gatherA(u, v, mask);
 }

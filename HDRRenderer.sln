@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36408.4
+VisualStudioVersion = 17.14.37314.3 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HDR_Renderer", "HDR Renderer.vcxproj", "{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}"
 EndProject
@@ -11,12 +11,16 @@ Global
 		DebClang|x86 = DebClang|x86
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		RelClang_AVX2|x64 = RelClang_AVX2|x64
+		RelClang_AVX2|x86 = RelClang_AVX2|x86
 		RelClang|x64 = RelClang|x64
 		RelClang|x86 = RelClang|x86
 		RelDbgClang|x64 = RelDbgClang|x64
 		RelDbgClang|x86 = RelDbgClang|x86
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
+		SSE4.2_RelClang|x64 = SSE4.2_RelClang|x64
+		SSE4.2_RelClang|x86 = SSE4.2_RelClang|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.DebClang|x64.ActiveCfg = DebClang|x64
@@ -27,6 +31,10 @@ Global
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Debug|x64.Build.0 = Debug|x64
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Debug|x86.ActiveCfg = Debug|Win32
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Debug|x86.Build.0 = Debug|Win32
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang_AVX2|x64.ActiveCfg = RelClang_AVX2|x64
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang_AVX2|x64.Build.0 = RelClang_AVX2|x64
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang_AVX2|x86.ActiveCfg = RelClang_AVX2|Win32
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang_AVX2|x86.Build.0 = RelClang_AVX2|Win32
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang|x64.ActiveCfg = RelClang|x64
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang|x64.Build.0 = RelClang|x64
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.RelClang|x86.ActiveCfg = RelClang|Win32
@@ -39,6 +47,10 @@ Global
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Release|x64.Build.0 = Release|x64
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Release|x86.ActiveCfg = Release|Win32
 		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.Release|x86.Build.0 = Release|Win32
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.SSE4.2_RelClang|x64.ActiveCfg = SSE4.2_RelClang|x64
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.SSE4.2_RelClang|x64.Build.0 = SSE4.2_RelClang|x64
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.SSE4.2_RelClang|x86.ActiveCfg = SSE4.2_RelClang|Win32
+		{E922C04E-6736-4D0D-815A-C6C8FD08D7BC}.SSE4.2_RelClang|x86.Build.0 = SSE4.2_RelClang|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

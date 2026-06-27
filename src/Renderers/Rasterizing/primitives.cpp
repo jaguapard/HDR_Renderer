@@ -12,13 +12,14 @@ uint32_t Rasterizing::VertexStore::insert(float x, float y, float z, float u, fl
 		this->xyzp.push_back(x);
 		this->xyzp.push_back(y);
 		this->xyzp.push_back(z);
-		__m128 f32 = _mm_setr_ps(u, v, nx, ny);
-		__m128i f16 = _mm_cvtps_ph(f32, _MM_FROUND_TO_NEAREST_INT);
-		int32_t nx_fp16 = _mm_extract_epi16(f16, 2);
-		int32_t ny_fp16 = _mm_extract_epi16(f16, 3);
+		fp16x4 f16 = f32x4(u, v, nx, ny);
+		int32_t nx_fp16 = std::bit_cast<uint16_t>(f16[2]);
+		int32_t ny_fp16 = std::bit_cast<uint16_t>(f16[3]);
 		nx_fp16 &= 0xFFFE; //steal lowest mantissa bit for z sign
 		if (nz < 0) nx_fp16 |= 1;
-		this->xyzp.push_back(std::bit_cast<float>(_mm_extract_epi32(f16, 0)));
+		uint32_t uv = std::bit_cast<uint16_t>(f16[0]);
+		uv |= uint32_t(std::bit_cast<uint16_t>(f16[1])) << 16;
+		this->xyzp.push_back(std::bit_cast<float>(uv));
 		this->normals.push_back(std::bit_cast<float>(nx_fp16 | (ny_fp16 << 16)));
 		size_t sz = this->xyzp.capacity() / 4;
 		if (sz % 16 != 0) this->reserve(sz + 16 - sz % 16);

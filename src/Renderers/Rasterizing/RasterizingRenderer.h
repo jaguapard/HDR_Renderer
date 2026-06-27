@@ -63,7 +63,7 @@ private:
 	{
 		int32x16 triangleIndices;
 		std::array<int32x16, 3> vertexIndices;
-		Mask16 validInputs;
+		mask16d validInputs;
 		float nearPlaneZ;
 		//double threadCount;
 		//int threadIndex, stage;
@@ -75,13 +75,13 @@ private:
 	{
 		std::array<Rasterizing::VertexPack16, 3> vertices;
 		float32x16 minX, minY, maxX, maxY, rcpSignedArea;
-		Mask16 activeTrianges = 0;
+		mask16d activeTrianges = 0;
 	};
 	struct VertexStageOutput
 	{
 		std::array<VertexStageOutputTriangle, 2> outputTriangles;
 		int32x16 behindNearPlaneCount; //counts of vertices behind near plane for each triangle composed by input vertices
-		std::array<Mask16, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
+		std::array<mask16d, 3> behindNearPlaneMasks; //which vertices of the input ones are behind the near plane
 	};
 
 	struct PixelStageInput
@@ -96,7 +96,7 @@ private:
 	struct PixelStageOutput
 	{
 	};
-	void performNearPlaneClipping(float clippingZ, std::array<VertexStageOutputTriangle, 2>& input, int32x16 behindPlaneCount, std::array<Mask16, 3> behindPlaneMasks) const;
+	void performNearPlaneClipping(float clippingZ, std::array<VertexStageOutputTriangle, 2>& input, int32x16 behindPlaneCount, std::array<mask16d, 3> behindPlaneMasks) const;
 	//output must point to memory block large enough to contain at least (count of draw commands) VertexStageOutput structs.
 	//For draw command i the output will be written to output[i]
 	//Stage 1 assumes sequential input triangle indices, gathers only vertices' world coords and processes all draw commands.

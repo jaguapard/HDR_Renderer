@@ -12,7 +12,7 @@ public:
 	struct __LutMan_tables_t
 	{
 		__LutMan_tables_t();
-		alignas(64) std::array<int16_t, 256> rgbToLinear_fp16; //unlike other LUTs here, this one is exact aside rounding differences
+		alignas(64) std::array<fp16_t, 256> rgbToLinear_fp16; //unlike other LUTs here, this one is exact aside rounding differences
 		alignas(64) std::array<float, 256> rgbToLinear_fp32;  //unlike other LUTs here, this one is exact aside rounding differences
 		alignas(64) std::array<float, 32> sin_fp32, cos_fp32;
 	};
