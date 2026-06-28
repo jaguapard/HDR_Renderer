@@ -19,33 +19,45 @@ namespace AVXXY_NAMESPACE
 	//64-bit integer division is scalar
 	template<typename S, size_t N> SIMD_Vector<S, N> div(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
 
+
+
 	//Returns bitwise logical and of the two vectors. Floating point vectors are also legibile for this operation.
 	template<typename S, size_t N> SIMD_Vector<S, N> logic_and(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
+
 	//Returns bitwise logical or of the two vectors. Floating point vectors are also legibile for this operation.
 	template<typename S, size_t N> SIMD_Vector<S, N> logic_or(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
+
 	//Returns bitwise logical exclusive or of the two vectors. Floating point vectors are also legibile for this operation.
 	template<typename S, size_t N> SIMD_Vector<S, N> logic_xor(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
+
 	//Returns bitwise logical negation of the input vector. Floating point vectors are also legibile for this operation.
 	template<typename S, size_t N> SIMD_Vector<S, N> logic_not(const SIMD_Vector<S, N>& a);
+
+
+
 	//Shift packed integers in `a` left by the amount specified by the corresponding element of `amount` while shifting in zeros, and returns the result
-	template<typename S, size_t N, typename I> 
-		requires (meta::any_int<S>&& meta::any_int<I>)
+	template<meta::any_int S, size_t N, meta::any_int I>
 	SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount);
+
 	//Shift packed integers in `a` right by the amount specified by the corresponding element of `amount` while shifting in zeros, and returns the result
-	template<typename S, size_t N, typename I> 
-		requires (meta::any_int<S>&& meta::any_int<I>)
+	template<meta::any_int S, size_t N, meta::any_int I>
 	SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount);
+
+
 
 	//Performs permutation on the elements from vector `a`. Elements of the returned vector are gathered from vector `a` by indices passed in `ind`.
 	//Indices outside the range [0, N-1] wrap around N (-1 maps to N-1, N maps to 0).
 	//ret[i] = a[ind[i] & (N-1)]
-	template<typename S, size_t N, typename I> requires (meta::any_int<I>) SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind);
+	template<typename S, size_t N, meta::any_int I> SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind);
+
 	//Appends vector `b` to vector `a`, then performs permutation on the elements from this temporary value. 
 	//Elements of the returned vector are gathered from temporary vector by indices passed in `ind` 
 	//Indices outside the range [0, 2*N-1] wrap around 2*N (-1 maps to 2*N-1, 2*N maps to 0).
 	//t = ind[i] & (2*N - 1)
 	//ret[i] = t < N ? a[t] : b[t-N]
-	template<typename S, size_t N, typename I> requires (meta::any_int<I>) SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind);
+	template<typename S, size_t N, meta::any_int I> SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind);
+
+
 
 	//Converts the input to single-precision floating point numbers, then returns the square root of this value
 	template<typename S, size_t N> SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a);
@@ -85,8 +97,8 @@ namespace AVXXY_NAMESPACE
 	//@tparam S2 scalar type of output vector
 	//@tparam S scalar size of input vector
 	//@tparam N lane count of input vector
-	template<typename S2, typename S, size_t N>
-	requires (meta::IsScalarType<S2> && (sizeof(SIMD_Vector<S,N>) % sizeof(S2) == 0))
+	template<meta::IsScalarType S2, typename S, size_t N>
+	requires (sizeof(SIMD_Vector<S,N>) % sizeof(S2) == 0)
 	SIMD_Vector<S2, sizeof(SIMD_Vector<S, N>) / sizeof(S2)> vcast(const SIMD_Vector<S, N>& a);
 
 	//Reinterprets input vector as vector of different scalar type
@@ -94,8 +106,8 @@ namespace AVXXY_NAMESPACE
 	//@tparam T vector type to be casted to (return type)
 	//@tparam S scalar type of input vector
 	//@tparam N input's lane count
-	template<typename T, typename S, size_t N> 
-		requires (meta::IsSimdVector<T> && (sizeof(SIMD_Vector<S, N>) % sizeof(typename T::ScalarT) == 0) && sizeof(SIMD_Vector<S,N>) == sizeof(T))
+	template<meta::IsSimdVector T, typename S, size_t N>
+		requires ((sizeof(SIMD_Vector<S, N>) % sizeof(typename T::ScalarT) == 0) && sizeof(SIMD_Vector<S,N>) == sizeof(T))
 	T vcast(const SIMD_Vector<S, N>& value);
 
 	//Reinterprets value of any other same sized type and returns the result
@@ -136,7 +148,7 @@ namespace AVXXY_NAMESPACE
 	template<typename S, size_t N> SIMD_Vector<S, N> load(const void* p);
 
 	//Loads vector from memory p and returns the result. The memory does not have to be aligned
-	template<typename T> requires meta::IsSimdVector<T> T __forceinline load(const void* p)
+	template<meta::IsSimdVector T> T __forceinline load(const void* p)
 	{
 		return load<typename T::ScalarT, T::LaneCount>(p);
 	}
@@ -151,7 +163,7 @@ namespace AVXXY_NAMESPACE
 	//16 bytes for vectors less than or equal to 16 bytes
 	//32 bytes for vectors sized between 17 and 32 bytes inclusive
 	//64 bytes for vectors larger than 32 bytes
-	template<typename T> requires meta::IsSimdVector<T> T __forceinline load_a(const void* p)
+	template<meta::IsSimdVector T> T __forceinline load_a(const void* p)
 	{
 		return load_a<typename T::ScalarT, T::LaneCount>(p);
 	}
@@ -162,7 +174,7 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//ret[i] = mask[i] ? reinterpret_cast<const S*>(p)[i] : std::bit_cast<S>(0);
 	template<typename S, size_t N> SIMD_Vector<S, N> load(const void* p, const mask_t<S, N>& mask);
-	template<typename T> requires (meta::IsSimdVector<T>) T __forceinline load(const void* p, const typename T::MaskT& mask)
+	template<meta::IsSimdVector T> T __forceinline load(const void* p, const typename T::MaskT& mask)
 	{
 		return load<typename T::ScalarT, T::LaneCount>(p, mask);
 	}
@@ -178,7 +190,7 @@ namespace AVXXY_NAMESPACE
 	//If the corresponding mask bit is cleared, the corresponding element in memory is not read and the corresponding element from src is stored into the retuned vector
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//ret[i] = mask[i] ? reinterpret_cast<const S*>(p)[i] : src[i]
-	template<typename T> requires meta::IsSimdVector<T>
+	template<meta::IsSimdVector T>
 	__forceinline T load(const void* p, const typename T::MaskT& mask, const T& src)
 	{
 		return load<typename T::ScalarT, T::LaneCount>(p, mask, src);
@@ -197,7 +209,7 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//By default, scale is set to the size of vector's scalar type
 	//ret[i] = mask[i] ? *reinterpret_cast<const S*>(size_t(base) + Scale*ind[i]) : src[i]
-	template<typename S, size_t N, size_t Scale = sizeof(S), typename I> requires (meta::any_int<I> && sizeof(I) <= 8 && meta::IsScalarType<S>)
+	template<typename S, size_t N, size_t Scale = sizeof(S), meta::any_int I>
 		__forceinline SIMD_Vector<S, N> gather(const void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask = mask_t<S, N>::AllOnesUint, const SIMD_Vector<S, N>& src = 0)
 	{
 		return __gather_impl<S, N, Scale>(base, ind, mask, src);
@@ -209,8 +221,7 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//By default, scale is set to the size of vector's scalar type
 	//ret[i] = mask[i] ? *reinterpret_cast<const S*>(size_t(base) + Scale*ind[i]) : src[i]
-	template <typename T, size_t Scale = sizeof(typename T::ScalarT), typename I>
-		requires meta::IsSimdVector<T>
+	template <meta::IsSimdVector T, size_t Scale = sizeof(typename T::ScalarT), meta::any_int I>
 	__forceinline T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const typename T::MaskT& mask = T::MaskT::AllOnesUint, const T& src = 0)
 	{
 		return __gather_impl<typename T::ScalarT, T::LaneCount, Scale>(base, ind, mask, src);
@@ -222,8 +233,7 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//By default, scale is set to the size of vector's scalar type
 	//if (mask[i]) *reinterpret_cast<S*>(size_t(base) + Scale*ind[i]) = v[i]
-	template<typename S, size_t N, size_t Scale = sizeof(S), typename I>
-	requires (meta::any_int<I>) 
+	template<typename S, size_t N, size_t Scale = sizeof(S), meta::any_int I>
 	void scatter(const SIMD_Vector<S, N>& vec, void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask = mask_t<S, N>::AllOnesUint);
 
 	//Performs the element-wise comparsion and returns the resultant mask.
@@ -261,9 +271,9 @@ namespace AVXXY_NAMESPACE
 	//The returned values are undefined for signed elements equal to their minimum value
 	template<typename S, size_t N> SIMD_Vector<S, N> abs(const SIMD_Vector<S, N>& a);
 	//Rounds each element of input vector towards negative infinity (floor) and returns the result.
-	template<typename S, size_t N> requires (meta::any_float<S>) SIMD_Vector<S, N> floor(const SIMD_Vector<S, N>& a);
+	template<meta::any_float S, size_t N> SIMD_Vector<S, N> floor(const SIMD_Vector<S, N>& a);
 	//Rounds each element of input vector towards positive infinity (ceil) and returns the result.
-	template<typename S, size_t N> requires (meta::any_float<S>) SIMD_Vector<S, N> ceil(const SIMD_Vector<S, N>& a);
+	template<meta::any_float S, size_t N> SIMD_Vector<S, N> ceil(const SIMD_Vector<S, N>& a);
 	//Compares two vectors together element-wise and returns the lower ones.
 	//ret[i] = a[i] < b[i] ? a[i] : b[i]
 	template<typename S, size_t N> SIMD_Vector<S, N> min(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
@@ -310,11 +320,11 @@ namespace AVXXY_NAMESPACE
 	//    for (size_t j = 0; j < i; ++j)
 	//        if (a[i] == a[j]) ret[i] |= 1 << j; 
 	template <typename S, size_t N> requires (sizeof(S) * 8 >= N)
-		SIMD_Vector<typename meta::ScalarTraits<S>::UintT, N> conflict(const SIMD_Vector<S, N>& a);
+	SIMD_Vector<typename meta::ScalarTraits<S>::UintT, N> conflict(const SIMD_Vector<S, N>& a);
 
 	//For each element in `a`, computes the number of set bits and stores the computed value into corresponding element of returned vector
 	//for (size_t i = 0; i < N; ++i) ret[i] = popcnt(a[i])
-	template<typename S, size_t N> SIMD_Vector<typename meta::ScalarTraits<S>::UintT, N> vpopcnt(const SIMD_Vector<S, N>& a);
+	template<meta::vpopcnt_allowed S, size_t N> SIMD_Vector<typename meta::ScalarTraits<S>::UintT, N> vpopcnt(const SIMD_Vector<S, N>& a);
 
 	//Extracts uppermost bit of each element and returns them as mask.
 	template <typename S, size_t N> mask_t<S,N> movemask(const SIMD_Vector<S, N>& v);
@@ -324,13 +334,14 @@ namespace AVXXY_NAMESPACE
 	//@tparam C size class of the input mask
 	template <typename S, meta::ScalarSizeClassEnum C, size_t N> SIMD_Vector<S, N> movm(const SIMD_Mask<C, N>& mask);
 
-	//Shuffles bytes within 128-bit lanes of the input `a` by indices `b`
-	//Only uppermost bit and 4 lowest bits of each index byte are used for the shuffle
-	//If uppermost bit of the index in `b` is set, then corresponding output lane is zeroed out
-	//Otherwise, the byte is taken from the same 128-bit lane `a` by index b[i] & 15
+	//Reinterprets `a` as vector of bytes, then shuffles these bytes within 128-bit lanes by indices `b`.
+	//After the shuffle is done, reinterprets the shuffled vector back to input type and returns it.
+	//Only uppermost bit and 4 lowest bits of each index byte are used for the shuffle.
+	//If uppermost bit of the index in `b` is set, then corresponding output lane is zeroed out.
+	//Otherwise, the byte is taken from the same 128-bit lane `a` by index b[i] & 15.
 	//for (size_t start = 0; start < sizeof(a); start += 16)
 	//    for (size_t i = 0; i < 16; ++i)
 	//        ret[start + i] = b[start + i] > 127 ? 0 : a[start + (b[i] & 15)]
-	template<size_t N>
-	SIMD_Vector<uint8_t, N> byte_shuffle(const SIMD_Vector<uint8_t, N>& a, const SIMD_Vector<uint8_t, N>& b);
+	template<typename S, size_t N>
+	SIMD_Vector<S, N> byte_shuffle(const SIMD_Vector<S, N>& a, const SIMD_Vector<uint8_t, N * sizeof(S)>& b);
 }

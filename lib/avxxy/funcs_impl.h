@@ -340,8 +340,8 @@ namespace AVXXY_NAMESPACE
 		for (size_t i = 0; i < N; ++i) ret[i] = std::bit_cast<S>(T(~std::bit_cast<T>(a[i])));
 		return ret;*/
 	}
-	template<typename S, size_t N, typename I> requires (meta::any_int<S>&& meta::any_int<I>)
-		__forceinline SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& b)
+	template<meta::any_int S, size_t N, meta::any_int I>
+	__forceinline SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& b)
 	{
 		using namespace internals;
 		using namespace meta;
@@ -378,8 +378,8 @@ namespace AVXXY_NAMESPACE
 			return ret;
 		}
 	}
-	template<typename S, size_t N, typename I> requires (meta::any_int<S>&& meta::any_int<I>)
-		__forceinline SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& b)
+	template<meta::any_int S, size_t N, meta::any_int I>
+	__forceinline SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& b)
 	{
 		using namespace internals;
 		using namespace meta;
@@ -417,8 +417,8 @@ namespace AVXXY_NAMESPACE
 		}
 
 	}
-	template<typename S, size_t N, typename I> requires (meta::any_int<I>)
-		__forceinline SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
+	template<typename S, size_t N, meta::any_int I>
+	__forceinline SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
 	{
 		using namespace meta;
 		using namespace internals;
@@ -531,8 +531,9 @@ namespace AVXXY_NAMESPACE
 		}
 
 	}
-	template<typename S, size_t N, typename I> requires (meta::any_int<I>)
-		__forceinline SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind)
+
+	template<typename S, size_t N, meta::any_int I>
+	__forceinline SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind)
 	{
 		using namespace meta;
 		using namespace internals;
@@ -844,15 +845,15 @@ namespace AVXXY_NAMESPACE
 		}
 	}
 
-	template<typename S2, typename S, size_t N> requires (meta::IsScalarType<S2> && (sizeof(SIMD_Vector<S, N>) % sizeof(S2) == 0))
-		__forceinline SIMD_Vector<S2, sizeof(SIMD_Vector<S, N>) / sizeof(S2)> vcast(const SIMD_Vector<S, N>& a)
+	template<meta::IsScalarType S2, typename S, size_t N> requires (sizeof(SIMD_Vector<S, N>) % sizeof(S2) == 0)
+	__forceinline SIMD_Vector<S2, sizeof(SIMD_Vector<S, N>) / sizeof(S2)> vcast(const SIMD_Vector<S, N>& a)
 	{
 		using namespace meta;
 		using U = typename ScalarTraits<S>::UintT;
 		return vreinterpret_us<SIMD_Vector<S2, sizeof(SIMD_Vector<S, N>) / sizeof(S2)>>(a);
 	}
-	template<typename T, typename S, size_t N>
-		requires (meta::IsSimdVector<T> && (sizeof(SIMD_Vector<S, N>) % sizeof(typename T::ScalarT) == 0) && sizeof(SIMD_Vector<S, N>) == sizeof(T))
+	template<meta::IsSimdVector T, typename S, size_t N>
+		requires ((sizeof(SIMD_Vector<S, N>) % sizeof(typename T::ScalarT) == 0) && sizeof(SIMD_Vector<S, N>) == sizeof(T))
 	__forceinline T vcast(const SIMD_Vector<S, N>& a)
 	{
 		using namespace meta;
@@ -1147,7 +1148,7 @@ namespace AVXXY_NAMESPACE
 
 	}
 
-	template<typename S, size_t N, size_t Scale, typename I> requires (meta::any_int<I>)
+	template<typename S, size_t N, size_t Scale, meta::any_int I>
 		__forceinline void scatter(const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask)
 	{
 		using namespace meta;
@@ -1631,8 +1632,7 @@ namespace AVXXY_NAMESPACE
 #undef AVXXY_SPLIT_ABS
 	}
 
-	template<typename S, size_t N>
-		requires (meta::any_float<S>)
+	template<meta::any_float S, size_t N>
 	__forceinline SIMD_Vector<S, N> floor(const SIMD_Vector<S, N>& a)
 	{
 		using namespace meta;
@@ -1657,8 +1657,7 @@ namespace AVXXY_NAMESPACE
 			return ret;
 		}
 	}
-	template<typename S, size_t N>
-		requires (meta::any_float<S>)
+	template<meta::any_float S, size_t N>
 	__forceinline SIMD_Vector<S, N> ceil(const SIMD_Vector<S, N>& a)
 	{
 		using namespace meta;
@@ -1988,7 +1987,7 @@ namespace AVXXY_NAMESPACE
 
 	}
 
-	template<typename S, size_t N>
+	template<meta::vpopcnt_allowed S, size_t N>
 	SIMD_Vector<typename meta::ScalarTraits<S>::UintT, N> vpopcnt(const SIMD_Vector<S, N>& a)
 	{
 		using namespace meta;
@@ -2115,14 +2114,15 @@ namespace AVXXY_NAMESPACE
 
 	}
 
-	template<size_t N>
-	SIMD_Vector<uint8_t, N> byte_shuffle(const SIMD_Vector<uint8_t, N>& a, const SIMD_Vector<uint8_t, N>& b)
+	template<typename S, size_t N>
+	SIMD_Vector<S, N> byte_shuffle(const SIMD_Vector<S, N>& a, const SIMD_Vector<uint8_t, N * sizeof(S)>& b)
 	{
 		using namespace meta;
 		using namespace internals;
 		using T = SIMD_Vector<uint8_t, N>;
 
-		if constexpr (FS.has(AVX512_BW) && zmm_sized<T>) return _mm512_shuffle_epi8(a, b);
+		if constexpr (!is_u8<S>) return vcast<S>(byte_shuffle(vcast<uint8_t>(a), b));
+		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T>) return _mm512_shuffle_epi8(a, b);
 		else if constexpr (FS.has(AVX2) && ymm_sized<T>) return _mm256_shuffle_epi8(a, b);
 		else if constexpr (FS.has(SSSE3) && xmm_sized<T>) return _mm_shuffle_epi8(a, b);
 		else if constexpr (sizeof(T) > 16) return { byte_shuffle(a.lo(),b.lo()), byte_shuffle(a.hi(),b.hi()) };
@@ -2134,10 +2134,9 @@ namespace AVXXY_NAMESPACE
 					ret[start + i] = b[start + i] > 127 ? 0 : a[start + (b[i] & 15)];
 			return ret;
 		}
-		
 	}
 
-	template<typename S, size_t N, size_t Scale, typename I>
+	template<typename S, size_t N, size_t Scale, meta::any_int I>
 	__forceinline SIMD_Vector<S, N> __gather_impl(const void* p, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskT& mask, const SIMD_Vector<S, N>& src)
 	{
 		using namespace meta;

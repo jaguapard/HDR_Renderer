@@ -29,6 +29,31 @@ namespace AVXXY_NAMESPACE
 		//Operations relying on it will use zero-filling if they have size mismatch
 		static constexpr bool ALLOW_UNSAFE_OPERATIONS = true;
 
+		//If this value is true, vpopcnt function will allow passing floating point types to it.
+		//The returned vectors will still be integral.
+		//Default value: true
+		static constexpr bool ALLOW_VPOPCNT_FOR_NON_INTS = true;
+
+		//The conflict detection operation requires output elements to be large enough to hold at least N bits,
+		//where N is the number of lanes in input vector.
+		//If this setting is true, conflict detection is allowed to return vectors larger than inputs
+		//static constexpr bool ALLOW_LARGER_CONFLICTD_RETURN = false;
+
+		//The floating point comparisons do not adhere to bitwise equal == compare returns equal
+		//Conflict detection operation compares bitwise representations of input elements
+		//Thus, a conflict detection operation may return unexpected results for floating point results
+		//However, this can only happen for values of NaN, infinities and denormals.
+		//Enabling this setting will allow conflict detection operation to be used on floating point types with bitwise comparisons
+		//Default value: false
+		//static constexpr bool ALLOW_FLOATING_POINT_CONFLICTD = false;
+
+		//If set to true, allows SIMD_Vector<type, 1> to exist. 
+		//Default value: true
+		//static constexpr bool ALLOW_SINGLE_ELEMENT_VECTORS = true;
+
+		//If set to true, forces all SIMD_Vector to have sizes of 16, 32, 64 or integer multiples of 64 bytes
+		//Default value: false
+		//static constexpr bool FORCE_INTRINSIC_SIZE_MATCH_FOR_VECTORS = false;
 
 		//FP16 operations without native support (AVX512-FP16) are emulated via convert to FP32 + do operation + convert back to FP16
 		//Repeated conversions introduce performance penalty and less precision in calculations

@@ -7,6 +7,7 @@
 #include "enums.h"
 #include <array>
 #include "../FeatureSet.h"
+#include "../settings.h"
 
 namespace AVXXY_NAMESPACE
 {
@@ -177,7 +178,7 @@ namespace AVXXY_NAMESPACE
 
 		//indicates wheteher this type is a floating point type (double, single, half precision or BF16)
 		//Note that std::is_floating_point_v is not exactly equal to this, since FP16 and BF16 have limited support and are using custom types
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool any_float = is_any_of_v<T, float, double, fp16_t, bf16_t>;
+		template <typename T> concept any_float = is_any_of_v<T, float, double, fp16_t, bf16_t>;
 		//indicates whether this type is 8 bit integer, signed or unsigned
 		template <typename T> inline constexpr bool any_i8 = (is_u8<T> || is_i8<T>);
 		//indicates whether this type is 16 bit integer, signed or unsigned
@@ -186,9 +187,9 @@ namespace AVXXY_NAMESPACE
 		template <typename T> inline constexpr bool any_i32 = (is_u32<T> || is_i32<T>);
 		//indicates whether this type is 64 bit integer, signed or unsigned
 		template <typename T> inline constexpr bool any_i64 = (is_u64<T> || is_i64<T>);
-		//indicates whether this type is integral
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool any_int = std::is_integral_v<T>;
-		//indicates whether this type is not integralmore
+		//indicates whether this type is integral scalar type
+		template <typename T> concept any_int = std::is_integral_v<T> && IsScalarType<T>;
+		//indicates whether this type is not integral
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool not_int = !std::is_integral_v<T>;
 
 		template <typename T> concept IsCvtOp = requires {typename T::cvt_to_t; };
@@ -220,5 +221,9 @@ namespace AVXXY_NAMESPACE
 			else if constexpr (FS.has(SSE)) return 16 / sizeof(S);
 			else return 2; //TODO: safeguard for scalars, since vectors can't have size 1 for now
 			}();
+
+
+		template<typename S>
+		concept vpopcnt_allowed = (meta::any_int<S> || settings::ALLOW_VPOPCNT_FOR_NON_INTS);
 	}
 }
