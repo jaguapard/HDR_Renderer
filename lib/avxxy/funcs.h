@@ -323,4 +323,14 @@ namespace AVXXY_NAMESPACE
 	//@tparam N number of lanes in returned vector, same as bit count of input mask
 	//@tparam C size class of the input mask
 	template <typename S, meta::ScalarSizeClassEnum C, size_t N> SIMD_Vector<S, N> movm(const SIMD_Mask<C, N>& mask);
+
+	//Shuffles bytes within 128-bit lanes of the input `a` by indices `b`
+	//Only uppermost bit and 4 lowest bits of each index byte are used for the shuffle
+	//If uppermost bit of the index in `b` is set, then corresponding output lane is zeroed out
+	//Otherwise, the byte is taken from the same 128-bit lane `a` by index b[i] & 15
+	//for (size_t start = 0; start < sizeof(a); start += 16)
+	//    for (size_t i = 0; i < 16; ++i)
+	//        ret[start + i] = b[start + i] > 127 ? 0 : a[start + (b[i] & 15)]
+	template<size_t N>
+	SIMD_Vector<uint8_t, N> byte_shuffle(const SIMD_Vector<uint8_t, N>& a, const SIMD_Vector<uint8_t, N>& b);
 }

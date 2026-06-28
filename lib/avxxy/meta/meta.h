@@ -200,7 +200,14 @@ namespace AVXXY_NAMESPACE
 		template<size_t N1, size_t N2>
 		concept SameSizeClasses = ((is_xmm_size(N1) && is_xmm_size(N2)) || (is_ymm_size(N1) && is_ymm_size(N2)) || (is_zmm_size(N1) && is_zmm_size(N2)));
 
-		template<typename S> requires IsScalarType<S> inline constexpr size_t NATIVE_VEC_N = []() {
+		//Returns the number of elements of type S that the largest architectual registers of current feature set can hold.
+		//Note that this in no way related to whether or not the operations on these vectors will be native or not.
+		//It is purely a numerical size quantity, equal to largest native vector width divided by the sizeof(S).
+		//Largest native vector widths are:
+		//128 bits for SSE and above
+		//256 bits for AVX and above
+		//512 bits for AVX512-F and above
+		template<typename S> requires IsScalarType<S> inline constexpr size_t REG_LANE_COUNT_FOR = []() {
 			using namespace internals;
 			/*
 			* 

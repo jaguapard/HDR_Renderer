@@ -26,15 +26,7 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 	// so instead of forcing users to sanitize the mask, we do it ourselves. Function contract already says that values are undefined, so it's OK
 	std::array<ReturnType, FieldCount> ret;
 	if (!mask) [[unlikely]] return ret;
-	
-	const float* p = (const float*)base;
-	for (size_t i = 0; i < FieldCount; ++i)
-	{
-		auto v = gather<float, 16, FieldCount * 4>(p+i, i32x16(ind), mask);
-		store(v, &ret[i]);
-	}
-	return ret;
-#if 0
+
 	i32x16 compressedInd = compress(mask, ind);
 	ind = mask_mov(i32x16(compressedInd[0]), mask, ind);
 
@@ -48,46 +40,24 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 
 	if constexpr (FieldCount > 2 && FieldCount <= 4)
 	{
-		//r0 = abcd0,abcd4,abcd8,abcd12
-		f32x16 r0(
-			f32x8(load<f32x4>((const void*)(rawBase + offsets[0]), packLoadMask), load<f32x4>((const void*)(rawBase + offsets[4]), packLoadMask)),
-			f32x8(load<f32x4>((const void*)(rawBase + offsets[8]), packLoadMask), load<f32x4>((const void*)(rawBase + offsets[12]), packLoadMask))
-		);
+		f32x16 r[4];
+		for (int i = 0; i < 4; ++i) r[i] = {
+			f32x8(load<f32x4>((const void*)(rawBase + offsets[i]), packLoadMask), load<f32x4>((const void*)(rawBase + offsets[i + 4]), packLoadMask)),
+			f32x8(load<f32x4>((const void*)(rawBase + offsets[i + 8]), packLoadMask), load<f32x4>((const void*)(rawBase + offsets[i + 12]), packLoadMask))
+		};
 		
-
-		//r1 = abcd1,abcd5,abcd9,abcd13
-		__m512 r1 = xmm_x4_to_zmm(
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[1])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[5])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[9])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[13]))
-		);
-		//r2 = abcd2,abcd6,abcd10,abcd14
-		__m512 r2 = xmm_x4_to_zmm(
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[2])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[6])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[10])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[14]))
-		);
-		//r3 = abcd3,abcd7,abcd11,abcd15
-		__m512 r3 = xmm_x4_to_zmm(
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[3])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[7])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[11])),
-			_mm_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[15]))
-		);
-
-		__m512 aabb01 = _mm512_unpacklo_ps(r0, r1);
-		__m512 aabb23 = _mm512_unpacklo_ps(r2, r3);
-		__m512 ccdd01 = _mm512_unpackhi_ps(r0, r1);
-		__m512 ccdd23 = _mm512_unpackhi_ps(r2, r3);
-		if constexpr (FieldCount > 0) _mm512_storeu_pd(&ret[0], _mm512_unpacklo_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
-		if constexpr (FieldCount > 1) _mm512_storeu_pd(&ret[1], _mm512_unpackhi_pd(_mm512_castps_pd(aabb01), _mm512_castps_pd(aabb23)));
-		if constexpr (FieldCount > 2) _mm512_storeu_pd(&ret[2], _mm512_unpacklo_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
-		if constexpr (FieldCount > 3) _mm512_storeu_pd(&ret[3], _mm512_unpackhi_pd(_mm512_castps_pd(ccdd01), _mm512_castps_pd(ccdd23)));
+		auto aabb01 = vcast<double>(unpacklo(r[0], r[1]));
+		auto aabb23 = vcast<double>(unpacklo(r[2], r[3]));
+		auto ccdd01 = vcast<double>(unpackhi(r[0], r[1]));
+		auto ccdd23 = vcast<double>(unpackhi(r[2], r[3]));
+		
+		if constexpr (FieldCount > 0) store(unpacklo(aabb01, aabb23), &ret[0]);
+		if constexpr (FieldCount > 1) store(unpackhi(aabb01, aabb23), &ret[1]);
+		if constexpr (FieldCount > 2) store(unpacklo(ccdd01, ccdd23), &ret[2]);
+		if constexpr (FieldCount > 3) store(unpackhi(ccdd01, ccdd23), &ret[3]);
 		return ret;
 	}
-
+#if 0
 	else if constexpr (FieldCount > 4 && FieldCount <= 8)
 	{
 		__m256 struct0 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0]));
@@ -269,19 +239,15 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		if (FieldCount > 15) _mm512_storeu_pd(&ret[15], _mm512_shuffle_f64x2(ymm0, ymm1, _MM_SHUFFLE(3, 1, 3, 1))); //final P
 		return ret;
 	}
-
-	//if no specialized version available, then just gather as normal.
-	/*
-	const float* fp = (const float*)base;
-	for (int i = 0; i < FieldCount; ++i)
-	{
-		__m256 tmp1 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask, offsetLo, fp + i, 1); //1 scale, since offsets are already calculated in bytes, not floats
-		__m256 tmp2 = _mm512_mask_i64gather_ps(_mm256_setzero_ps(), mask >> 8, offsetHi, fp + i, 1);
-		__m512 tmp = _mm512_insertf32x8(_mm512_castps256_ps512(tmp1), tmp2, 1);
-		_mm512_storeu_ps(&ret[i], tmp);
-	}
-	return ret;*/
 #endif
+	//if no specialized version available, then just gather as normal.
+	const float* p = (const float*)base;
+	for (size_t i = 0; i < FieldCount; ++i)
+	{
+		auto v = gather<float, 16, FieldCount * 4>(p + i, i32x16(ind), mask);
+		store(v, &ret[i]);
+	}
+	return ret;
 }
 
 /**
