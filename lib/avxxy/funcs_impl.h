@@ -2322,7 +2322,7 @@ namespace AVXXY_NAMESPACE
 		T ret;
 		constexpr size_t indices[] = { Idx... };
 
-		constexpr bool indices_valid = []() {
+		constexpr bool indices_valid = [&]() {
 			for (size_t i = 0; i < atomCount; ++i) if (indices[i] >= atomCount * 2) return false;
 			return true;
 			}();

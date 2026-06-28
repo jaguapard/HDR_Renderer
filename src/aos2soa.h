@@ -76,44 +76,6 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 			xmm[i] = unpacklo(tmp[i], tmp[i + 1]);
 			xmm[i+1] = unpackhi(tmp[i], tmp[i + 1]);
 		}
-	
-		/*
-		//64-bit packs are brought into proper order by these unpacks
-		__m256d tmp0 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[0, struct1)); //|a0,a1,b0,b1|e0,e1,f0,f1|
-		__m256d tmp1 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[2, struct3)); //|a2,a3,b2,b3|e2,e3,f2,f3|
-		__m256d tmp2 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[4, struct5)); //|a4,a5,b4,b5|e4,e5,f4,f5|
-		__m256d tmp3 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[6, struct7)); //|a6,a7,b6,b7|e6,e7,f6,f7|
-		__m256d tmp4 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[8, struct9)); //|a8,a9,b8,b9|e8,e9,f8,f9|
-		__m256d tmp5 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[10, struct11)); //|a10,a11,b10,b11|e10,e11,f10,f11|
-		__m256d tmp6 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[12, struct13)); //|a12,a13,b12,b13|e12,e13,f12,f13|
-		__m256d tmp7 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[14, struct15)); //|a14,a15,b14,b15|e14,e15,f14,f15|
-		__m256d tmp8 = _mm256_castps_pd(_mm256_unpackhi_ps(structs[0, struct1)); //|c0,c1,d0,d1|g0,g1,h0,h1|
-		__m256d tmp9 = _mm256_castps_pd(_mm256_unpackhi_ps(struct2, struct3)); //|c2,c3,d2,d3|g2,g3,h2,h3|
-		__m256d tmp10 = _mm256_castps_pd(_mm256_unpackhi_ps(struct4, struct5)); //|c4,c5,d4,d5|g4,g5,h4,h5|
-		__m256d tmp11 = _mm256_castps_pd(_mm256_unpackhi_ps(struct6, struct7)); //|c6,c7,d6,d7|g6,g7,h6,h7|
-		__m256d tmp12 = _mm256_castps_pd(_mm256_unpackhi_ps(struct8, struct9)); //|c8,c9,d8,d9|g8,g9,h8,h9|
-		__m256d tmp13 = _mm256_castps_pd(_mm256_unpackhi_ps(struct10, struct11)); //|c10,c11,d10,d11|g10,g11,h10,h11|
-		__m256d tmp14 = _mm256_castps_pd(_mm256_unpackhi_ps(struct12, struct13)); //|c12,c13,d12,d13|g12,g13,h12,h13|
-		__m256d tmp15 = _mm256_castps_pd(_mm256_unpackhi_ps(struct14, struct15)); //|c14,c15,d14,d15|g14,g15,h14,h15|
-
-		//128-bit packs are brought into proper order by these unpacks
-		__m256d xmm0 = _mm256_unpacklo_pd(tmp0, tmp1); //|a0,a1,a2,a3|e0,e1,e2,e3|
-		__m256d xmm1 = _mm256_unpackhi_pd(tmp0, tmp1); //|b0,b1,b2,b3|f0,f1,f2,f3|
-		__m256d xmm2 = _mm256_unpacklo_pd(tmp2, tmp3); //|a4,a5,a6,a7|e4,e5,e6,e7|
-		__m256d xmm3 = _mm256_unpackhi_pd(tmp2, tmp3); //|b4,b5,b6,b7|f4,f5,f6,f7|
-		__m256d xmm4 = _mm256_unpacklo_pd(tmp4, tmp5); //|a8,a9,a10,a11|e8,e9,e10,e11|
-		__m256d xmm5 = _mm256_unpackhi_pd(tmp4, tmp5); //|b8,b9,b10,b11|f8,f9,f10,f11|
-		__m256d xmm6 = _mm256_unpacklo_pd(tmp6, tmp7); //|a12,a13,a14,a15|e12,e13,e14,e15|
-		__m256d xmm7 = _mm256_unpackhi_pd(tmp6, tmp7); //|b12,b13,b14,b15|f12,f13,f14,f15|
-		__m256d xmm8 = _mm256_unpacklo_pd(tmp8, tmp9); //|c0,c1,c2,c3|g0,g1,g2,g3|
-		__m256d xmm9 = _mm256_unpackhi_pd(tmp8, tmp9); //|d0,d1,d2,d3|h0,h1,h2,h3|
-		__m256d xmm10 = _mm256_unpacklo_pd(tmp10, tmp11); //|c4,c5,c6,c7|g4,g5,g6,g7|
-		__m256d xmm11 = _mm256_unpackhi_pd(tmp10, tmp11); //|d4,d5,d6,d7|h4,h5,h6,h7|
-		__m256d xmm12 = _mm256_unpacklo_pd(tmp12, tmp13); //|c8,c9,c10,c11|g8,g9,g10,g11|
-		__m256d xmm13 = _mm256_unpackhi_pd(tmp12, tmp13); //|d8,d9,d10,d11|h8,h9,h10,h11|
-		__m256d xmm14 = _mm256_unpacklo_pd(tmp14, tmp15); //|c12,c13,c14,c15|g12,g13,g14,g15|
-		__m256d xmm15 = _mm256_unpackhi_pd(tmp14, tmp15); //|d12,d13,d14,d15|h12,h13,h14,h15|
-		*/
 
 		f64x4 ymm[16];
 		for (int i = 0; i < 16; i += 8)
@@ -133,35 +95,6 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		{
 			if (FieldCount > i) store(f64x8{ ymm[i], ymm[i + 8] }, &ret[i]);
 		}
-		return ret;
-		/*
-		//256-bit packs are brought into proper order by these unpacks
-		__m256d a0_7 = _mm256_insertf128_pd(xmm0, _mm256_castpd256_pd128(xmm2), 1);
-		__m256d b0_7 = _mm256_insertf128_pd(xmm1, _mm256_castpd256_pd128(xmm3), 1);
-		__m256d c0_7 = _mm256_insertf128_pd(xmm8, _mm256_castpd256_pd128(xmm10), 1);
-		__m256d d0_7 = _mm256_insertf128_pd(xmm9, _mm256_castpd256_pd128(xmm11), 1);
-		__m256d e0_7 = _mm256_permute2f128_pd(xmm0, xmm2, 1 | (3 << 4));
-		__m256d f0_7 = _mm256_permute2f128_pd(xmm1, xmm3, 1 | (3 << 4));
-		__m256d g0_7 = _mm256_permute2f128_pd(xmm8, xmm10, 1 | (3 << 4));
-		__m256d h0_7 = _mm256_permute2f128_pd(xmm9, xmm11, 1 | (3 << 4));
-		__m256d a8_15 = _mm256_insertf128_pd(xmm4, _mm256_castpd256_pd128(xmm6), 1);
-		__m256d b8_15 = _mm256_insertf128_pd(xmm5, _mm256_castpd256_pd128(xmm7), 1);
-		__m256d c8_15 = _mm256_insertf128_pd(xmm12, _mm256_castpd256_pd128(xmm14), 1);
-		__m256d d8_15 = _mm256_insertf128_pd(xmm13, _mm256_castpd256_pd128(xmm15), 1);
-		__m256d e8_15 = _mm256_permute2f128_pd(xmm4, xmm6, 1 | (3 << 4));
-		__m256d f8_15 = _mm256_permute2f128_pd(xmm5, xmm7, 1 | (3 << 4));
-		__m256d g8_15 = _mm256_permute2f128_pd(xmm12, xmm14, 1 | (3 << 4));
-		__m256d h8_15 = _mm256_permute2f128_pd(xmm13, xmm15, 1 | (3 << 4));*/
-
-		/*
-		if constexpr (FieldCount > 0) _mm512_storeu_ps(&ret[0], ymm_x2_to_zmm(_mm256_castpd_ps(a0_7), _mm256_castpd_ps(a8_15)));
-		if constexpr (FieldCount > 1) _mm512_storeu_ps(&ret[1], ymm_x2_to_zmm(_mm256_castpd_ps(b0_7), _mm256_castpd_ps(b8_15)));
-		if constexpr (FieldCount > 2) _mm512_storeu_ps(&ret[2], ymm_x2_to_zmm(_mm256_castpd_ps(c0_7), _mm256_castpd_ps(c8_15)));
-		if constexpr (FieldCount > 3) _mm512_storeu_ps(&ret[3], ymm_x2_to_zmm(_mm256_castpd_ps(d0_7), _mm256_castpd_ps(d8_15)));
-		if constexpr (FieldCount > 4) _mm512_storeu_ps(&ret[4], ymm_x2_to_zmm(_mm256_castpd_ps(e0_7), _mm256_castpd_ps(e8_15)));
-		if constexpr (FieldCount > 5) _mm512_storeu_ps(&ret[5], ymm_x2_to_zmm(_mm256_castpd_ps(f0_7), _mm256_castpd_ps(f8_15)));
-		if constexpr (FieldCount > 6) _mm512_storeu_ps(&ret[6], ymm_x2_to_zmm(_mm256_castpd_ps(g0_7), _mm256_castpd_ps(g8_15)));
-		if constexpr (FieldCount > 7) _mm512_storeu_ps(&ret[7], ymm_x2_to_zmm(_mm256_castpd_ps(h0_7), _mm256_castpd_ps(h8_15)));*/
 		return ret;
 	}
 #if 0

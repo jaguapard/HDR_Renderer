@@ -359,7 +359,6 @@ namespace AVXXY_NAMESPACE
 	//Requires size of inputs to be divisible by size of block.
 	//Requires number of indices and number of blocks in input to match.
 	//Requires all indices to be in range 0 to 2*C-1 inclusive, where C in number of blocks in the input vector.
-	
 	//@tparam Block This type's size is used as permutation granularity. Only scalar and vector types are accepted
 	//@tparam Idx zero-indexed source block indices. Output block i is copied from a's block Idx[i] if index is less than C or from b's block Idx[i] otherwise 
 	template<typename Block, size_t... Idx, typename S, size_t N>
