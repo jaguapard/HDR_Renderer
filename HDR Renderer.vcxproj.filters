@@ -43,9 +43,6 @@
     <Filter Include="Header Files\lib\avxxy">
       <UniqueIdentifier>{ffa497de-da58-4de7-aea4-79360fbf2ffd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\lib\avxxy\isas">
-      <UniqueIdentifier>{dc3cc1d3-e1bd-4265-90ec-0e031421cb34}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -263,32 +260,11 @@
     <ClInclude Include="lib\avxxy\operators.h">
       <Filter>Header Files\lib\avxxy</Filter>
     </ClInclude>
-    <ClInclude Include="lib\avxxy\SIMD_BitMask.h">
-      <Filter>Header Files\lib\avxxy</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\SIMD_BitMask_impl.h">
-      <Filter>Header Files\lib\avxxy</Filter>
-    </ClInclude>
     <ClInclude Include="lib\avxxy\SIMD_Vector.h">
-      <Filter>Header Files\lib\avxxy</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\tags.h">
       <Filter>Header Files\lib\avxxy</Filter>
     </ClInclude>
     <ClInclude Include="lib\avxxy\utils.h">
       <Filter>Header Files\lib\avxxy</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512BW.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512F.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512VL.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\scalar.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
     </ClInclude>
     <ClInclude Include="lib\avxxy\SIMD_Mask.h">
       <Filter>Header Files\lib\avxxy</Filter>
@@ -298,36 +274,6 @@
     </ClInclude>
     <ClInclude Include="lib\avxxy\tables.h">
       <Filter>Header Files\lib\avxxy</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX2.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512_BW.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512_CD.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512_DQ.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512_F.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512_VBMI.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512_VBMI2.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\AVX512_VL.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
-    </ClInclude>
-    <ClInclude Include="lib\avxxy\ISAs\F16C.h">
-      <Filter>Header Files\lib\avxxy\isas</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
