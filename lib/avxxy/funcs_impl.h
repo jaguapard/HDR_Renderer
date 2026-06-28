@@ -2266,4 +2266,36 @@ namespace AVXXY_NAMESPACE
 			}
 		}
 	}
+
+	template<typename Block, size_t... Idx, typename S, size_t N>
+	//requires (meta::IsScalarType<Block> || meta::IsSimdVector<Block>)
+	SIMD_Vector<S, N> permute(const SIMD_Vector<S, N>& a)
+	{
+		static_assert(meta::IsScalarType<Block> || meta::IsSimdVector<Block>, "permute block type must be scalar or vector");
+
+		using namespace meta;
+		using namespace internals;
+		using T = SIMD_Vector<S, N>;
+		
+		constexpr size_t atomSize = sizeof(Block);
+		constexpr size_t idxCount = sizeof...(Idx);
+		constexpr size_t atomCount = sizeof(T) / atomSize;
+		
+		static_assert(sizeof(T) % atomSize == 0, "permute vector size must be divisible by block size");
+		static_assert(atomCount == idxCount, "permute index count must match count of blocks in the input vector");
+
+		T ret;
+		constexpr size_t indices[] = { Idx... };
+
+		const auto* src = reinterpret_cast<const std::byte*>(&a);
+		auto* dst = reinterpret_cast<std::byte*>(&ret);
+
+		for (size_t i = 0; i < atomCount; ++i)
+		{
+			size_t ind = indices[i];
+			static_assert(ind < atomCount);
+			memcpy(dst + i * atomSize, src + ind * atomSize, atomSize);
+		}
+		return ret;		
+	}
 }

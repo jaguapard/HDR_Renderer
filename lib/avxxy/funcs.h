@@ -344,4 +344,20 @@ namespace AVXXY_NAMESPACE
 	//        ret[start + i] = b[start + i] > 127 ? 0 : a[start + (b[i] & 15)]
 	template<typename S, size_t N>
 	SIMD_Vector<S, N> byte_shuffle(const SIMD_Vector<S, N>& a, const SIMD_Vector<uint8_t, N * sizeof(S)>& b);
+
+
+	//Performs a block permutation of input vector by compile-time-known indices.
+	//Requires size of input to be divisible by size of block.
+	//Requires number of indices and number of blocks in input to match.
+	//Requires all indices to be in range 0 to C-1 inclusive, where C in number of blocks in the input vector.
+	//@tparam Block This type's size is used as permutation granularity. Only scalar and vector types are accepted
+	//@tparam Idx zero-indexed source block indices. Output block i is copied from input block Idx[i]
+	template<typename Block, size_t... Idx, typename S, size_t N>
+	SIMD_Vector<S, N> permute(const SIMD_Vector<S, N>& a);
+
+	//Loads a vector of same type as input from p using mask, then blends the loaded value with input vector, and stores the result back to p
+	//Pointer p does not have to be aligned.
+	//This operation is very similar to masked store, but umasked lanes may still cause memory-related faults.
+	//Due to not requiring masking, it is preferred to use this function if caller guarantees that the load will not touch invalid memory
+	//template<typename S, size_t N> blend_store(const SIMD_Vector<S, N>& v, const mask_t<S, N>& mask, void* p);
 }

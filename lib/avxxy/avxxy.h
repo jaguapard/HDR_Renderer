@@ -11,6 +11,7 @@
 
 namespace AVXXY_NAMESPACE
 {
+	typedef SIMD_Vector<int8_t, 1> i8x1;
 	typedef SIMD_Vector<int8_t, 2> i8x2;
 	typedef SIMD_Vector<int8_t, 4> i8x4;
 	typedef SIMD_Vector<int8_t, 8> i8x8;
@@ -18,6 +19,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<int8_t, 32> i8x32;
 	typedef SIMD_Vector<int8_t, 64> i8x64;
 
+	typedef SIMD_Vector<int16_t, 1> i16x1;
 	typedef SIMD_Vector<int16_t, 2> i16x2;
 	typedef SIMD_Vector<int16_t, 4> i16x4;
 	typedef SIMD_Vector<int16_t, 8> i16x8;
@@ -25,6 +27,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<int16_t, 32> i16x32;
 	typedef SIMD_Vector<int16_t, 64> i16x64;
 
+	typedef SIMD_Vector<int32_t, 1> i32x1;
 	typedef SIMD_Vector<int32_t, 2> i32x2;
 	typedef SIMD_Vector<int32_t, 4> i32x4;
 	typedef SIMD_Vector<int32_t, 8> i32x8;
@@ -32,6 +35,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<int32_t, 32> i32x32;
 	typedef SIMD_Vector<int32_t, 64> i32x64;
 
+	typedef SIMD_Vector<int64_t, 1> i64x1;
 	typedef SIMD_Vector<int64_t, 2> i64x2;
 	typedef SIMD_Vector<int64_t, 4> i64x4;
 	typedef SIMD_Vector<int64_t, 8> i64x8;
@@ -39,6 +43,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<int64_t, 32> i64x32;
 	typedef SIMD_Vector<int64_t, 64> i64x64;
 
+	typedef SIMD_Vector<uint8_t, 1> u8x1;
 	typedef SIMD_Vector<uint8_t, 2> u8x2;
 	typedef SIMD_Vector<uint8_t, 4> u8x4;
 	typedef SIMD_Vector<uint8_t, 8> u8x8;
@@ -46,6 +51,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<uint8_t, 32> u8x32;
 	typedef SIMD_Vector<uint8_t, 64> u8x64;
 
+	typedef SIMD_Vector<uint16_t, 1> u16x1;
 	typedef SIMD_Vector<uint16_t, 2> u16x2;
 	typedef SIMD_Vector<uint16_t, 4> u16x4;
 	typedef SIMD_Vector<uint16_t, 8> u16x8;
@@ -53,6 +59,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<uint16_t, 32> u16x32;
 	typedef SIMD_Vector<uint16_t, 64> u16x64;
 
+	typedef SIMD_Vector<fp16_t, 1> fp16x1;
 	typedef SIMD_Vector<fp16_t, 2> fp16x2;
 	typedef SIMD_Vector<fp16_t, 4> fp16x4;
 	typedef SIMD_Vector<fp16_t, 8> fp16x8;
@@ -60,6 +67,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<fp16_t, 32> fp16x32;
 	typedef SIMD_Vector<fp16_t, 64> fp16x64;
 	
+	typedef SIMD_Vector<bf16_t, 1> bf16x1;
 	typedef SIMD_Vector<bf16_t, 2> bf16x2;
 	typedef SIMD_Vector<bf16_t, 4> bf16x4;
 	typedef SIMD_Vector<bf16_t, 8> bf16x8;
@@ -67,6 +75,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<bf16_t, 32> bf16x32;
 	typedef SIMD_Vector<bf16_t, 64> bf16x64;
 
+	typedef SIMD_Vector<uint32_t, 1> u32x1;
 	typedef SIMD_Vector<uint32_t, 2> u32x2;
 	typedef SIMD_Vector<uint32_t, 4> u32x4;
 	typedef SIMD_Vector<uint32_t, 8> u32x8;
@@ -74,6 +83,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<uint32_t, 32> u32x32;
 	typedef SIMD_Vector<uint32_t, 64> u32x64;
 
+	typedef SIMD_Vector<uint64_t, 1> u64x1;
 	typedef SIMD_Vector<uint64_t, 2> u64x2;
 	typedef SIMD_Vector<uint64_t, 4> u64x4;
 	typedef SIMD_Vector<uint64_t, 8> u64x8;
@@ -81,6 +91,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<uint64_t, 32> u64x32;
 	typedef SIMD_Vector<uint64_t, 64> u64x64;
 
+	typedef SIMD_Vector<float, 1> f32x1;
 	typedef SIMD_Vector<float, 2> f32x2;
 	typedef SIMD_Vector<float, 4> f32x4;
 	typedef SIMD_Vector<float, 8> f32x8;
@@ -88,6 +99,7 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Vector<float, 32> f32x32;
 	typedef SIMD_Vector<float, 64> f32x64;
 
+	typedef SIMD_Vector<double, 1> f64x1;
 	typedef SIMD_Vector<double, 2> f64x2;
 	typedef SIMD_Vector<double, 4> f64x4;
 	typedef SIMD_Vector<double, 8> f64x8;
@@ -155,6 +167,11 @@ namespace AVXXY_NAMESPACE
 	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, meta::REG_LANE_COUNT_FOR<int16_t>> maskn_w;
 	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, meta::REG_LANE_COUNT_FOR<int32_t>> maskn_d;
 	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, meta::REG_LANE_COUNT_FOR<int64_t>> maskn_q;
+
+	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 1> mask1b;
+	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 1> mask1w;
+	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, 1> mask1d;
+	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, 1> mask1q;
 
 	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 2> mask2b;
 	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 2> mask2w;

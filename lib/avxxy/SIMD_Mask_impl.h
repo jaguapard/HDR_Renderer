@@ -233,7 +233,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
-	template<size_t N2> requires (N2 >= 2 && N2 * 2 == N)
+	template<size_t N2> requires (N2 * 2 == N)
 		inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS, N2>& lo, const SIMD_Mask<LS, N2>& hi)
 	{
 		if constexpr (IsBitMask) underlying = BitsUintT(lo) | (BitsUintT(hi) << (N / 2));
@@ -255,8 +255,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline auto SIMD_Mask<LS, N>::lo() const
-		requires (N % 2 == 0 && IsValid_SIMD_Mask<N / 2>)
+	inline auto SIMD_Mask<LS, N>::lo() const requires (N >= 2)
 	{
 		static_assert(N % 2 == 0);
 		SIMD_Mask<LS, N / 2> ret;
@@ -265,8 +264,7 @@ namespace AVXXY_NAMESPACE
 		return ret;
 	}
 	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline auto SIMD_Mask<LS, N>::hi() const
-		requires (N % 2 == 0 && IsValid_SIMD_Mask<N / 2>)
+	inline auto SIMD_Mask<LS, N>::hi() const requires (N >= 2)
 	{
 		static_assert(N % 2 == 0);
 		SIMD_Mask<LS, N / 2> ret;

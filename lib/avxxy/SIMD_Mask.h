@@ -19,7 +19,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<size_t N>
-	concept IsValid_SIMD_Mask = N >= 2 && N <= 64 && meta::isPowerOf2(N);
+	concept IsValid_SIMD_Mask = N == 1 || (N >= 2 && N <= 64 && meta::isPowerOf2(N));
 
 	template<meta::ScalarSizeClassEnum LS, size_t N>
 	requires IsValid_SIMD_Mask<N>
@@ -71,7 +71,7 @@ namespace AVXXY_NAMESPACE
 		//@param lo Lower half for the constructed mask
 		//@param hi Upper half for the constructed mask
 		template<size_t N2>
-		requires (N2 >= 2 && N2*2 == N)
+		requires (N2*2 == N)
 		SIMD_Mask(const SIMD_Mask<LS, N2>& lo, const SIMD_Mask<LS, N2>& hi);
 
 		//Constructs this mask from other mask type. Logical bits are preserved.
@@ -86,9 +86,9 @@ namespace AVXXY_NAMESPACE
 		void setBit(size_t i, bool value);
 
 		//Returns lower half of this mask
-		auto lo() const requires (N % 2 == 0 && IsValid_SIMD_Mask<N / 2>);
+		auto lo() const requires (N >= 2);
 		//Return upper half of this mask
-		auto hi() const requires (N % 2 == 0 && IsValid_SIMD_Mask<N / 2>);
+		auto hi() const requires (N >= 2);
 
 		operator BitsUintT() const;
 

@@ -58,7 +58,7 @@ namespace AVXXY_NAMESPACE
 		//For 33..64: bytes: 512 bit intrinsic types (__m512, __m512i, __m512d, __m512h, __m512bh)
 		//For larger than 64 bytes: std::array of 512 bit types
 		template<typename S, size_t N>
-		requires (IsScalarType<S> && meta::isPowerOf2(N))
+		requires (IsScalarType<S>)
 		using typed_intrinsic_storage_t =
 			std::conditional_t<sizeof(S)* N <= 16, xmm_t<S>,
 			std::conditional_t<sizeof(S)* N <= 32, ymm_t<S>,
