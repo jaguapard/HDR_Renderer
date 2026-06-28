@@ -10,6 +10,9 @@
 
 namespace AVXXY_NAMESPACE
 {
+	//Vector of N values of type S.
+	//@tparam S element type of this vector. Only these types are supported: signed and unsigned integers: 8, 16, 32 and 64-bit wide, float, double, FP16 (via fp16_t) and BF16 (via bf16_t)
+	//@tparam N Lane count of this vector. Must be one of these values: 2, 4, 8, 16, 32, 64
 	template <typename S, size_t N>
 		requires meta::IsValid_SIMD_Vector<S, N>
 	class alignas(std::min<uint32_t>(64, sizeof(S)* N)) SIMD_Vector
@@ -31,14 +34,19 @@ namespace AVXXY_NAMESPACE
 		using ScalarT = S;
 
 		SIMD_Vector() {};
+
+		//Returns a constant reference to i'th scalar element (lane) of this vector. Does not perform bounds checks.
 		const S& operator[](size_t i) const { return arr[i]; }
+
+		//Returns a non-constant reference to i'th scalar element (lane) of this vector. Does not perform bounds checks.
+		//The returned reference can be used to modify vector's values
 		S& operator[](size_t i) { return arr[i]; }
 
 		//Constructs this vector from other vector. If vector scalar types mismatch, the input is converted to this vector's scalar type before assignment
 		template<typename T>
 		SIMD_Vector(const SIMD_Vector<T, N>& other) { *this = vcvt<S>(other); }
 
-		//Constructs this vector by copying data into it's own storage
+		//Constructs this vector by copying input data into it's own storage
 		SIMD_Vector(const std::array<S, N>& data) { arr = data; }
 
 		//Constructs vector from it's intrinsic type. The intrinsic vector type must be of the same size class as constructed vector:

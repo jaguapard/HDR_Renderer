@@ -51,19 +51,25 @@ namespace AVXXY_NAMESPACE
 		static inline constexpr BitsUintT AllOnesUint = (N == sizeof(BitsUintT) * 8 ? ~BitsUintT(0) : ((BitsUintT(1) << N) - 1));
 		
 		SIMD_Mask() {};
+
+		//Constructs this mask by copying bits to it's internal storage
 		SIMD_Mask(BitsUintT bits);
 
 		//Constructs this mask from intrinsic vector of same size class by extracting uppermost bits of each of it's elements
+		//Input's elements are assumed to be the same size as this masks's scalar size class
+		//I.e. for byte-class masks, bits 7, 15, 23, ... will be extracted from input vector
+		//for word-class: 15, 31, 47, etc.
 		template<typename T>
 			requires (meta::IsIntrinsicVector<T>&& meta::SameSizeClasses<(sizeof(typename SIMD_Mask<LS, N>::VecT)), (sizeof(T))>)
 		SIMD_Mask(const T& intrinsicVec);
 
-		//Construct this mask by extracting uppermost bits of each lane and storing them the mask
+		//Construct this mask by extracting uppermost bits of each lane and storing them the mask.
+		//T is not required to be same size as this mask's scalar size class
 		template<typename T> SIMD_Mask(const SIMD_Vector<T, N>& vec);
+
 		//Constructs this mask by concatenating two masks of half it's size.
 		//@param lo Lower half for the constructed mask
 		//@param hi Upper half for the constructed mask
-
 		template<size_t N2>
 		requires (N2 >= 2 && N2*2 == N)
 		SIMD_Mask(const SIMD_Mask<LS, N2>& lo, const SIMD_Mask<LS, N2>& hi);
@@ -86,6 +92,8 @@ namespace AVXXY_NAMESPACE
 
 		operator BitsUintT() const;
 
+		//Converts this mask to intrinsic vector, whose elements have the same size class as this mask's scalar size class
+		//The returned vector is guaranteed to have all bits set to one for lanes corresponding to this mask's set bits, and all zeros for cleared bits
 		template<typename T>
 		requires (meta::IsIntrinsicVector<T> && (meta::ScalarSizeTraits<LS>::ByteSize * N == sizeof(T)))
 		operator T() const;
