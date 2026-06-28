@@ -846,7 +846,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<meta::IsScalarType S2, typename S, size_t N> requires (sizeof(SIMD_Vector<S, N>) % sizeof(S2) == 0)
-	__forceinline SIMD_Vector<S2, sizeof(SIMD_Vector<S, N>) / sizeof(S2)> vcast(const SIMD_Vector<S, N>& a)
+		__forceinline SIMD_Vector<S2, sizeof(SIMD_Vector<S, N>) / sizeof(S2)> vcast(const SIMD_Vector<S, N>& a)
 	{
 		using namespace meta;
 		using U = typename ScalarTraits<S>::UintT;
@@ -959,7 +959,7 @@ namespace AVXXY_NAMESPACE
 		using unaligned256i = __m256i;
 		using unaligned128i = __m128i;
 #endif
-		
+
 		auto ld = [&]() {
 			if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f64<S>) return _mm512_loadu_pd(p);
 			else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_f32<S>) return _mm512_loadu_ps(p);
@@ -1149,7 +1149,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N, size_t Scale, meta::any_int I>
-		__forceinline void scatter(const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask)
+	__forceinline void scatter(const SIMD_Vector<S, N>& v, void* base, const SIMD_Vector<I, N>& ind, const mask_t<S, N>& mask)
 	{
 		using namespace meta;
 		using namespace internals;
@@ -1645,7 +1645,7 @@ namespace AVXXY_NAMESPACE
 
 		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f64<S>) return _mm256_floor_pd(a);
 		else if constexpr (FS.has(AVX) && ymm_sized<T> && is_f32<S>) return _mm256_floor_ps(a);
-		
+
 		else if constexpr (FS.has(SSE41) && xmm_sized<T> && is_f64<S>) return _mm_floor_pd(a);
 		else if constexpr (FS.has(SSE41) && xmm_sized<T> && is_f32<S>) return _mm_floor_ps(a);
 		else if constexpr (sizeof(T) > 16) return T{ floor(a.lo()), floor(a.hi()) };
@@ -1912,7 +1912,7 @@ namespace AVXXY_NAMESPACE
 			else return _mm256_blendv_epi8(vreinterpret_us<__m256i>(tmp), src, permx_ind);
 		}
 
-		
+
 		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 4)
 		{
 			int maskb = mask;
@@ -2020,7 +2020,7 @@ namespace AVXXY_NAMESPACE
 			__m512i upper_nibbles = _mm512_and_si512(_mm512_srli_epi32(a, 4), nibble_mask);
 			return _mm512_add_epi8(_mm512_shuffle_epi8(popcnt_table, lower_nibbles), _mm512_shuffle_epi8(popcnt_table, upper_nibbles));
 		}
-		
+
 		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i64<S>) return _mm256_sad_epu8(vpopcnt(vcast<uint8_t>(a)), _mm256_setzero_si256());
 		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i32<S>) return _mm256_madd_epi16(vpopcnt(vcast<uint16_t>(a)), _mm256_set1_epi16(1));
 		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i16<S>) return _mm256_maddubs_epi16(vpopcnt(vcast<uint8_t>(a)), _mm256_set1_epi8(1));
@@ -2035,7 +2035,7 @@ namespace AVXXY_NAMESPACE
 
 		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && any_i64<S>) return _mm_sad_epu8(vpopcnt(vcast<uint8_t>(a)), _mm_setzero_si128());
 		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && any_i32<S>) return _mm_madd_epi16(vpopcnt(vcast<uint16_t>(a)), _mm_set1_epi16(1));
-		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && any_i16<S>) return _mm_maddubs_epi16(vpopcnt(vcast<uint8_t>(a)), _mm_set1_epi8(1));	
+		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && any_i16<S>) return _mm_maddubs_epi16(vpopcnt(vcast<uint8_t>(a)), _mm_set1_epi8(1));
 		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && any_i8<S>)
 		{
 			__m128i popcnt_table = _mm_load_si128(reinterpret_cast<const __m128i*>(tables::popcnt_table_for_nibbles_as_epi8.data()));
@@ -2276,16 +2276,22 @@ namespace AVXXY_NAMESPACE
 		using namespace meta;
 		using namespace internals;
 		using T = SIMD_Vector<S, N>;
-		
+
 		constexpr size_t atomSize = sizeof(Block);
 		constexpr size_t idxCount = sizeof...(Idx);
 		constexpr size_t atomCount = sizeof(T) / atomSize;
-		
+
 		static_assert(sizeof(T) % atomSize == 0, "permute vector size must be divisible by block size");
 		static_assert(atomCount == idxCount, "permute index count must match count of blocks in the input vector");
 
 		T ret;
 		constexpr size_t indices[] = { Idx... };
+
+		constexpr bool indices_valid = []() {
+			for (size_t i = 0; i < atomCount; ++i) if (indices[i] >= atomCount) return false;
+			return true;
+			}();
+		static_assert(indices_valid, "permute block indices must be less than twice the block count in the input type");
 
 		const auto* src = reinterpret_cast<const std::byte*>(&a);
 		auto* dst = reinterpret_cast<std::byte*>(&ret);
@@ -2293,9 +2299,45 @@ namespace AVXXY_NAMESPACE
 		for (size_t i = 0; i < atomCount; ++i)
 		{
 			size_t ind = indices[i];
-			static_assert(ind < atomCount);
 			memcpy(dst + i * atomSize, src + ind * atomSize, atomSize);
 		}
-		return ret;		
+		return ret;
+	}
+	template<typename Block, size_t ...Idx, typename S, size_t N>
+	SIMD_Vector<S, N> permute2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
+	{
+		static_assert(meta::IsScalarType<Block> || meta::IsSimdVector<Block>, "permute2 block type must be scalar or vector");
+
+		using namespace meta;
+		using namespace internals;
+		using T = SIMD_Vector<S, N>;
+
+		constexpr size_t atomSize = sizeof(Block);
+		constexpr size_t idxCount = sizeof...(Idx);
+		constexpr size_t atomCount = sizeof(T) / atomSize;
+
+		static_assert(sizeof(T) % atomSize == 0, "permute2 vector size must be divisible by block size");
+		static_assert(atomCount == idxCount, "permute2 index count must match count of blocks in the input vector");
+
+		T ret;
+		constexpr size_t indices[] = { Idx... };
+
+		constexpr bool indices_valid = []() {
+			for (size_t i = 0; i < atomCount; ++i) if (indices[i] >= atomCount * 2) return false;
+			return true;
+			}();
+		static_assert(indices_valid, "permute2 block indices must be less than twice the block count in the input type");
+
+		const auto* src1 = reinterpret_cast<const std::byte*>(&a);
+		const auto* src2 = reinterpret_cast<const std::byte*>(&b);
+		auto* dst = reinterpret_cast<std::byte*>(&ret);
+
+		for (size_t i = 0; i < atomCount; ++i)
+		{
+			size_t ind = indices[i];
+			const auto* src = ind < atomCount ? (src1 + ind * atomSize) : (src2 + (ind - atomCount) * atomSize);
+			memcpy(dst + i * atomSize, src, atomSize);
+		}
+		return ret;
 	}
 }

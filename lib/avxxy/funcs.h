@@ -355,6 +355,16 @@ namespace AVXXY_NAMESPACE
 	template<typename Block, size_t... Idx, typename S, size_t N>
 	SIMD_Vector<S, N> permute(const SIMD_Vector<S, N>& a);
 
+	//Performs a block permutation of 2 input vectors by compile-time-known indices.
+	//Requires size of inputs to be divisible by size of block.
+	//Requires number of indices and number of blocks in input to match.
+	//Requires all indices to be in range 0 to 2*C-1 inclusive, where C in number of blocks in the input vector.
+	
+	//@tparam Block This type's size is used as permutation granularity. Only scalar and vector types are accepted
+	//@tparam Idx zero-indexed source block indices. Output block i is copied from a's block Idx[i] if index is less than C or from b's block Idx[i] otherwise 
+	template<typename Block, size_t... Idx, typename S, size_t N>
+	SIMD_Vector<S, N> permute2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
+
 	//Loads a vector of same type as input from p using mask, then blends the loaded value with input vector, and stores the result back to p
 	//Pointer p does not have to be aligned.
 	//This operation is very similar to masked store, but umasked lanes may still cause memory-related faults.

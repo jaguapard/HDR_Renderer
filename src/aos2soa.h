@@ -57,36 +57,37 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		if constexpr (FieldCount > 3) store(unpackhi(ccdd01, ccdd23), &ret[3]);
 		return ret;
 	}
-#if 0
+
 	else if constexpr (FieldCount > 4 && FieldCount <= 8)
 	{
-		__m256 struct0 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[0]));
-		__m256 struct1 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[1]));
-		__m256 struct2 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[2]));
-		__m256 struct3 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[3]));
-		__m256 struct4 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[4]));
-		__m256 struct5 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[5]));
-		__m256 struct6 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[6]));
-		__m256 struct7 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[7]));
-		__m256 struct8 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[8]));
-		__m256 struct9 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[9]));
-		__m256 struct10 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[10]));
-		__m256 struct11 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[11]));
-		__m256 struct12 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[12]));
-		__m256 struct13 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[13]));
-		__m256 struct14 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[14]));
-		__m256 struct15 = _mm256_maskz_loadu_ps(packLoadMask, (const void*)(rawBase + offsets[15]));
+		f32x8 structs[16];
+		for (int i = 0; i < 16; ++i) structs[i] = load<f32x8>((const void*)(rawBase + offsets[i]), packLoadMask);
 
+		f64x4 tmp[16];
+		for (int i = 0; i < 8; ++i)
+		{
+			tmp[i] = vcast<double>(unpacklo(structs[i * 2], structs[i * 2 + 1]));
+			tmp[i+8] = vcast<double>(unpackhi(structs[i * 2], structs[i * 2 + 1]));
+		}
+
+		f64x4 xmm[16];
+		for (int i = 0; i < 16; i += 2)
+		{
+			xmm[i] = unpacklo(tmp[i], tmp[i + 1]);
+			xmm[i+1] = unpackhi(tmp[i], tmp[i + 1]);
+		}
+	
+		/*
 		//64-bit packs are brought into proper order by these unpacks
-		__m256d tmp0 = _mm256_castps_pd(_mm256_unpacklo_ps(struct0, struct1)); //|a0,a1,b0,b1|e0,e1,f0,f1|
-		__m256d tmp1 = _mm256_castps_pd(_mm256_unpacklo_ps(struct2, struct3)); //|a2,a3,b2,b3|e2,e3,f2,f3|
-		__m256d tmp2 = _mm256_castps_pd(_mm256_unpacklo_ps(struct4, struct5)); //|a4,a5,b4,b5|e4,e5,f4,f5|
-		__m256d tmp3 = _mm256_castps_pd(_mm256_unpacklo_ps(struct6, struct7)); //|a6,a7,b6,b7|e6,e7,f6,f7|
-		__m256d tmp4 = _mm256_castps_pd(_mm256_unpacklo_ps(struct8, struct9)); //|a8,a9,b8,b9|e8,e9,f8,f9|
-		__m256d tmp5 = _mm256_castps_pd(_mm256_unpacklo_ps(struct10, struct11)); //|a10,a11,b10,b11|e10,e11,f10,f11|
-		__m256d tmp6 = _mm256_castps_pd(_mm256_unpacklo_ps(struct12, struct13)); //|a12,a13,b12,b13|e12,e13,f12,f13|
-		__m256d tmp7 = _mm256_castps_pd(_mm256_unpacklo_ps(struct14, struct15)); //|a14,a15,b14,b15|e14,e15,f14,f15|
-		__m256d tmp8 = _mm256_castps_pd(_mm256_unpackhi_ps(struct0, struct1)); //|c0,c1,d0,d1|g0,g1,h0,h1|
+		__m256d tmp0 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[0, struct1)); //|a0,a1,b0,b1|e0,e1,f0,f1|
+		__m256d tmp1 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[2, struct3)); //|a2,a3,b2,b3|e2,e3,f2,f3|
+		__m256d tmp2 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[4, struct5)); //|a4,a5,b4,b5|e4,e5,f4,f5|
+		__m256d tmp3 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[6, struct7)); //|a6,a7,b6,b7|e6,e7,f6,f7|
+		__m256d tmp4 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[8, struct9)); //|a8,a9,b8,b9|e8,e9,f8,f9|
+		__m256d tmp5 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[10, struct11)); //|a10,a11,b10,b11|e10,e11,f10,f11|
+		__m256d tmp6 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[12, struct13)); //|a12,a13,b12,b13|e12,e13,f12,f13|
+		__m256d tmp7 = _mm256_castps_pd(_mm256_unpacklo_ps(structs[14, struct15)); //|a14,a15,b14,b15|e14,e15,f14,f15|
+		__m256d tmp8 = _mm256_castps_pd(_mm256_unpackhi_ps(structs[0, struct1)); //|c0,c1,d0,d1|g0,g1,h0,h1|
 		__m256d tmp9 = _mm256_castps_pd(_mm256_unpackhi_ps(struct2, struct3)); //|c2,c3,d2,d3|g2,g3,h2,h3|
 		__m256d tmp10 = _mm256_castps_pd(_mm256_unpackhi_ps(struct4, struct5)); //|c4,c5,d4,d5|g4,g5,h4,h5|
 		__m256d tmp11 = _mm256_castps_pd(_mm256_unpackhi_ps(struct6, struct7)); //|c6,c7,d6,d7|g6,g7,h6,h7|
@@ -112,7 +113,28 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m256d xmm13 = _mm256_unpackhi_pd(tmp12, tmp13); //|d8,d9,d10,d11|h8,h9,h10,h11|
 		__m256d xmm14 = _mm256_unpacklo_pd(tmp14, tmp15); //|c12,c13,c14,c15|g12,g13,g14,g15|
 		__m256d xmm15 = _mm256_unpackhi_pd(tmp14, tmp15); //|d12,d13,d14,d15|h12,h13,h14,h15|
+		*/
 
+		f64x4 ymm[16];
+		for (int i = 0; i < 16; i += 8)
+		{
+			int j = i / 2;
+			ymm[i+0] = permute2<f32x4, 0, 2>(xmm[0+j], xmm[2+j]);
+			ymm[i+1] = permute2<f32x4, 0, 2>(xmm[1+j], xmm[3+j]);
+			ymm[i+2] = permute2<f32x4, 0, 2>(xmm[8+j], xmm[10+j]);
+			ymm[i+3] = permute2<f32x4, 0, 2>(xmm[9+j], xmm[11+j]);
+			ymm[i+4] = permute2<f32x4, 1, 3>(xmm[0+j], xmm[2+j]);
+			ymm[i+5] = permute2<f32x4, 1, 3>(xmm[1+j], xmm[3+j]);
+			ymm[i+6] = permute2<f32x4, 1, 3>(xmm[8+j], xmm[10+j]);
+			ymm[i+7] = permute2<f32x4, 1, 3>(xmm[9+j], xmm[11+j]);
+		}
+
+		for (int i = 0; i < 8; i++)
+		{
+			if (FieldCount > i) store(f64x8{ ymm[i], ymm[i + 8] }, &ret[i]);
+		}
+		return ret;
+		/*
 		//256-bit packs are brought into proper order by these unpacks
 		__m256d a0_7 = _mm256_insertf128_pd(xmm0, _mm256_castpd256_pd128(xmm2), 1);
 		__m256d b0_7 = _mm256_insertf128_pd(xmm1, _mm256_castpd256_pd128(xmm3), 1);
@@ -129,8 +151,9 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		__m256d e8_15 = _mm256_permute2f128_pd(xmm4, xmm6, 1 | (3 << 4));
 		__m256d f8_15 = _mm256_permute2f128_pd(xmm5, xmm7, 1 | (3 << 4));
 		__m256d g8_15 = _mm256_permute2f128_pd(xmm12, xmm14, 1 | (3 << 4));
-		__m256d h8_15 = _mm256_permute2f128_pd(xmm13, xmm15, 1 | (3 << 4));
+		__m256d h8_15 = _mm256_permute2f128_pd(xmm13, xmm15, 1 | (3 << 4));*/
 
+		/*
 		if constexpr (FieldCount > 0) _mm512_storeu_ps(&ret[0], ymm_x2_to_zmm(_mm256_castpd_ps(a0_7), _mm256_castpd_ps(a8_15)));
 		if constexpr (FieldCount > 1) _mm512_storeu_ps(&ret[1], ymm_x2_to_zmm(_mm256_castpd_ps(b0_7), _mm256_castpd_ps(b8_15)));
 		if constexpr (FieldCount > 2) _mm512_storeu_ps(&ret[2], ymm_x2_to_zmm(_mm256_castpd_ps(c0_7), _mm256_castpd_ps(c8_15)));
@@ -138,9 +161,10 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		if constexpr (FieldCount > 4) _mm512_storeu_ps(&ret[4], ymm_x2_to_zmm(_mm256_castpd_ps(e0_7), _mm256_castpd_ps(e8_15)));
 		if constexpr (FieldCount > 5) _mm512_storeu_ps(&ret[5], ymm_x2_to_zmm(_mm256_castpd_ps(f0_7), _mm256_castpd_ps(f8_15)));
 		if constexpr (FieldCount > 6) _mm512_storeu_ps(&ret[6], ymm_x2_to_zmm(_mm256_castpd_ps(g0_7), _mm256_castpd_ps(g8_15)));
-		if constexpr (FieldCount > 7) _mm512_storeu_ps(&ret[7], ymm_x2_to_zmm(_mm256_castpd_ps(h0_7), _mm256_castpd_ps(h8_15)));
+		if constexpr (FieldCount > 7) _mm512_storeu_ps(&ret[7], ymm_x2_to_zmm(_mm256_castpd_ps(h0_7), _mm256_castpd_ps(h8_15)));*/
 		return ret;
 	}
+#if 0
 
 	else if constexpr (FieldCount > 8 && FieldCount <= 16)
 	{
