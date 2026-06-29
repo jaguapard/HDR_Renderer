@@ -275,6 +275,9 @@ namespace AVXXY_NAMESPACE
 					Feature::AVX512_VNNI |
 		#endif
 
+		//TODO: proper way of checking for them. According to wikipedia list, there VBMI2, GFNI, VAES and VPCLMULQDQ are always supported together or not at all. 
+		//For now, I haven't found the proper way to check it, since __AVX512GFNI__ and others don't seem to exist
+#ifdef __AVX512VBMI2__
 		#ifdef __VPCLMULQDQ__
 					Feature::AVX512_VPCLMULQDQ |
 		#endif
@@ -286,7 +289,7 @@ namespace AVXXY_NAMESPACE
 		#ifdef __VAES__
 				Feature::AVX512_VAES |
 		#endif
-
+#endif
 		#ifdef __AVX512BF16__
 				Feature::AVX512_BF16 |
 		#endif

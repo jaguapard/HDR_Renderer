@@ -222,6 +222,8 @@ namespace AVXXY_NAMESPACE
 			else return 1;
 			}();
 
+		template<typename T>
+		concept IsSimdVector = requires { T::IsSimdVector; };
 
 		template<typename S>
 		concept vpopcnt_allowed = (meta::any_int<S> || settings::ALLOW_VPOPCNT_FOR_NON_INTS);
