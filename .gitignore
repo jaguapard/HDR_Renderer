@@ -364,3 +364,5 @@ FodyWeavers.xsd
 *.xlsx
 *.txt
 /scenes/
+/HDR_Renderer/SSE2_RelClang/HDR_Renderer.tlog
+/SSE2_RelClang/Shaders
