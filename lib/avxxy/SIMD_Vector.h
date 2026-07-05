@@ -10,9 +10,16 @@
 
 namespace AVXXY_NAMESPACE
 {
-	//Vector of N values of type S.
-	//@tparam S element type of this vector. Only these types are supported: signed and unsigned integers: 8, 16, 32 and 64-bit wide, float, double, FP16 (via fp16_t) and BF16 (via bf16_t)
-	//@tparam N Lane count of this vector. Must be one of these values: 2, 4, 8, 16, 32, 64
+	/**
+	* Vector of N values of type S.
+	* Although vectors don't have a hard size cap, the limitations grow more severe as vector size grows:
+	* masked operations are unavailable for N > 64, 
+	* other operation-specific limitations apply for large vectors.
+	* Stack space can become a concern with large vectors
+	* Performance scales non-linearly with vector size for some operations
+	* @tparam S element type of this vector. Only these types are supported: signed and unsigned integers: 8, 16, 32 and 64-bit wide, float, double, FP16 (via fp16_t) and BF16 (via bf16_t)
+	* @tparam N Lane count of this vector. Must be 1 or any power of 2.
+	*/
 	template <typename S, size_t N>
 		requires meta::IsValid_SIMD_Vector<S, N>
 	class alignas(std::min<uint32_t>(64, sizeof(S)* N)) SIMD_Vector
@@ -20,7 +27,7 @@ namespace AVXXY_NAMESPACE
 	private:
 		union {
 			std::array<S, N> arr;
-			struct { std::array<S, N / 2> half_lo, half_hi; };
+			//struct { std::array<S, N / 2> half_lo, half_hi; };
 		};
 	public:
 		template<typename FriendS, size_t FriendN> requires meta::IsValid_SIMD_Vector<FriendS, FriendN>
@@ -30,7 +37,6 @@ namespace AVXXY_NAMESPACE
 		static inline constexpr size_t LaneCount = N;
 
 		using IntrinsicT = meta::typed_intrinsic_storage_t<S, N>;
-		using MaskT = SIMD_Mask<meta::ScalarTraits<S>::size_class, N>;
 		using ScalarT = S;
 
 		SIMD_Vector() {};
@@ -77,12 +83,12 @@ namespace AVXXY_NAMESPACE
 
 		//Constructs vector from halves
 		template<size_t N2>
-			requires (N2 >= 2 && N2 * 2 == N)
+			requires (N2 * 2 == N)
 		SIMD_Vector(const SIMD_Vector<S, N2>& lo, const SIMD_Vector<S, N2>& hi)
 		{
 			static_assert(N % 2 == 0);
-			half_lo = lo.arr;
-			half_hi = hi.arr;
+			memcpy(arr.data(), lo.arr.data(), sizeof(lo.arr));
+			memcpy(arr.data() + N / 2, hi.arr.data(), sizeof(hi.arr));
 		}
 
 
@@ -98,36 +104,25 @@ namespace AVXXY_NAMESPACE
 			return ret;
 		}
 		//Copies and returns lower half of this vector
-		auto lo() const
-			requires (N >= 4)
+		auto lo() const requires (N >= 2)
 		{
-			return SIMD_Vector<S, N / 2>(half_lo);
+			SIMD_Vector<S, N / 2> ret;
+			memcpy(ret.arr.data(), arr.data(), sizeof(ret.arr));
+			return ret;
 		}
 		//Copies and returns upper half of this vector
-		auto hi() const
-			requires (N >= 4)
+		auto hi() const requires (N >= 2)
 		{
-			return SIMD_Vector<S, N / 2>(half_hi);
+			SIMD_Vector<S, N / 2> ret;
+			memcpy(ret.arr.data(), arr.data() + N / 2, sizeof(ret.arr));
+			return ret;
 		}
-		//Copies and returns lower half of this vector
-		S lo() const
-			requires (N == 2)
-		{
-			return arr[0];
-		}
-		//Copies and returns upper half of this vector
-		S hi() const
-			requires (N == 2)
-		{
-			return arr[1];
-		}
-
 
 		//Constructs vector by reinterperting the value of inp as vector of wanted type
 		//If input value is larger than returned vector, the input's upper bits are discarded
 		//If input value is smaller than returned vector, upper bits of returned vector values are underfined
 		template<typename T>
-		static SIMD_Vector<S, N> from_bits_us(const T& inp)
+		static SIMD_Vector<S, N> fromBits(const T& inp)
 		{
 			SIMD_Vector<S, N> ret;
 			static_assert(sizeof(ret.arr) == sizeof(ret));
@@ -221,6 +216,17 @@ namespace AVXXY_NAMESPACE
 			(*this)[48] = s48; (*this)[49] = s49; (*this)[50] = s50; (*this)[51] = s51; (*this)[52] = s52; (*this)[53] = s53; (*this)[54] = s54; (*this)[55] = s55;
 			(*this)[56] = s56; (*this)[57] = s57; (*this)[58] = s58; (*this)[59] = s59; (*this)[60] = s60; (*this)[61] = s61; (*this)[62] = s62; (*this)[63] = s63;
 		}
+
+		//Generic constructor. Converts all input arguments to vector's scalar type and assigns them in left-to-right order
+		template<typename... Ts> requires (N != 1 && N > 64 && meta::AllAreScalarTypes<Ts...> && sizeof...(Ts) == N)
+			SIMD_Vector(Ts... s)
+		{
+			size_t i = 0;
+			auto append = [&](auto x) {
+				(*this)[i++] = x;
+				};
+			(append(s), ...);
+		}
 	};
 
 	template<typename S, size_t N>
@@ -234,13 +240,4 @@ namespace AVXXY_NAMESPACE
 		}
 		return os;
 	}
-
-	namespace meta
-	{
-		template<typename T>
-		concept IsSimdVector = requires { T::IsSimdVector; };
-	}
-
-	template<typename S, size_t N>
-	using mask_t = SIMD_Vector<S, N>::MaskT;
 }

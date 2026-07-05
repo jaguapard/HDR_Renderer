@@ -69,7 +69,7 @@ __forceinline void interleaved_ph_to_ps(__m512i inp, float32x16& retLow, float32
 
 //Returns 64 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 000011112222...dddd
 template <meta::ScalarSizeClassEnum LS>
-__forceinline SIMD_Mask<LS, 64> duplicate_mmask_bits_16_to_64(SIMD_Mask<LS, 16> m)
+__forceinline internals::SIMD_Mask<LS, 64> duplicate_mmask_bits_16_to_64(internals::SIMD_Mask<LS, 16> m)
 {
 	i32x16 a = movm<int32_t>(m);
 	return movemask(vcast<u8x64>(a));
@@ -79,18 +79,6 @@ __forceinline SIMD_Mask<LS, 64> duplicate_mmask_bits_16_to_64(SIMD_Mask<LS, 16> 
 __forceinline __m512i helper_mm512_setr_epi8(int8_t i0, int8_t i1, int8_t i2, int8_t i3, int8_t i4, int8_t i5, int8_t i6, int8_t i7, int8_t i8, int8_t i9, int8_t i10, int8_t i11, int8_t i12, int8_t i13, int8_t i14, int8_t i15, int8_t i16, int8_t i17, int8_t i18, int8_t i19, int8_t i20, int8_t i21, int8_t i22, int8_t i23, int8_t i24, int8_t i25, int8_t i26, int8_t i27, int8_t i28, int8_t i29, int8_t i30, int8_t i31, int8_t i32, int8_t i33, int8_t i34, int8_t i35, int8_t i36, int8_t i37, int8_t i38, int8_t i39, int8_t i40, int8_t i41, int8_t i42, int8_t i43, int8_t i44, int8_t i45, int8_t i46, int8_t i47, int8_t i48, int8_t i49, int8_t i50, int8_t i51, int8_t i52, int8_t i53, int8_t i54, int8_t i55, int8_t i56, int8_t i57, int8_t i58, int8_t i59, int8_t i60, int8_t i61, int8_t i62, int8_t i63)
 {
 	return _mm512_set_epi8(i63, i62, i61, i60, i59, i58, i57, i56, i55, i54, i53, i52, i51, i50, i49, i48, i47, i46, i45, i44, i43, i42, i41, i40, i39, i38, i37, i36, i35, i34, i33, i32, i31, i30, i29, i28, i27, i26, i25, i24, i23, i22, i21, i20, i19, i18, i17, i16, i15, i14, i13, i12, i11, i10, i9, i8, i7, i6, i5, i4, i3, i2, i1, i0);
-}
-
-//Returns 64 bit mask that has all bits of m duplicated three times, i.e: mask with bits 0123456789abcdef will become 000111222...eeefff. Returned mask's bits 48-63 are set to zero
-__forceinline __mmask64 duplicate_mmask_bits_16_to_48(__mmask16 m)
-{
-	__m512i a = _mm512_movm_epi32(m);
-	__m512i b = _mm512_maskz_compress_epi8(0x7777777777777777, a);
-	return _mm512_movepi8_mask(b);
-	/*
-	__m128i a = _mm_movm_epi8(m);
-	__m512i b = _mm512_maskz_permutexvar_epi8(0x0000FFFFFFFFFFFF, helper_mm512_setr_epi8(0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15, 15, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), _mm512_castsi128_si512(a));
-	return _mm512_movepi8_mask(b);*/
 }
 
 //Returns 32 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcdef will become 001122...ddeeff
@@ -138,31 +126,9 @@ Check deduplicate_epi32x16 for more details
 __forceinline void deduplicate_ps512(float32x16 inputValues, float invalidValue, mask16d activeMask, float32x16& outUniqueValues, uint32_t* outUniqueCount = nullptr, mask16d* outUniqueMask = nullptr)
 {
 	int32x16 unique;
-	deduplicate_epi32x16(_mm512_castps_si512(inputValues), std::bit_cast<int32_t>(invalidValue), activeMask, unique, outUniqueCount, outUniqueMask);
+	deduplicate_epi32x16(vcast<int32_t>(inputValues), std::bit_cast<int32_t>(invalidValue), activeMask, unique, outUniqueCount, outUniqueMask);
 	outUniqueValues = _mm512_castsi512_ps(unique);
 }
 
-/*
-Builds 512-bit vector from 128-bit chunks.
-ret[0..127] = xmm0
-ret[128..255] = xmm1
-ret[256..383] = xmm2
-ret[384..511] = xmm3
-*/
-__forceinline __m512 xmm_x4_to_zmm(__m128 xmm0, __m128 xmm1, __m128 xmm2, __m128 xmm3)
-{
-	__m256 ymm0 = _mm256_insertf128_ps(_mm256_castps128_ps256(xmm0), xmm1, 1);
-	__m256 ymm1 = _mm256_insertf128_ps(_mm256_castps128_ps256(xmm2), xmm3, 1);
-	return _mm512_insertf32x8(_mm512_castps256_ps512(ymm0), ymm1, 1);
-}
-/*
-Builds 512-bit vector from 256-bit chunks.
-ret[0..255] = ymm0
-ret[256..511] = ymm1
-*/
-__forceinline __m512 ymm_x2_to_zmm(__m256 ymm0, __m256 ymm1)
-{
-	return _mm512_insertf32x8(_mm512_castps256_ps512(ymm0), ymm1, 1);
-}
 
 static constexpr double PI = 3.1415926535897932384626433;

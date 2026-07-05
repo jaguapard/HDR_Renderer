@@ -139,7 +139,7 @@ bob::_SSE_Vec4_float Matrix4::multiplyByTransposed(const bob::_SSE_Vec4_float v)
 	f32x4 p2 = load<f32x4>(p+4) * v.y;
 	f32x4 p3 = load<f32x4>(p+8) * v.z;
 	f32x4 p4 = load<f32x4>(p+12) * v.w;
-	return vreinterpret<__m128>((p1 + p2) + (p3 + p4));
+	return vcast<__m128>((p1 + p2) + (p3 + p4));
 #endif
 }
 
