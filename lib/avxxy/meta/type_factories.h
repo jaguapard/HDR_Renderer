@@ -65,6 +65,16 @@ namespace AVXXY_NAMESPACE
 			std::conditional_t<sizeof(S)* N <= 64, zmm_t<S>,
 			std::array<zmm_t<S>, sizeof(S) * N / 64>>>>;
 
+		//Returns a storage type that can hold at least N bits.
+		//For <= 64 bits: smallest unsigned integer type than can hold at least N bits
+		//For > 64 bits: std::array of uint64_t with total size not less than N bits
+		template<size_t N>
+		using bits_storage_t = 
+			std::conditional_t<N <= 8, uint8_t,
+			std::conditional_t<N <= 16, uint16_t,
+			std::conditional_t<N <= 32, uint32_t,
+			std::conditional_t<N <= 64, uint64_t, 
+			std::array<uint64_t, N/64+bool(N%64)> >>>>;
 		template<size_t N>
 		requires (N<=64)
 		using bits_to_uint_t =

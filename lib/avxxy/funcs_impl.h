@@ -39,7 +39,29 @@ namespace AVXXY_NAMESPACE
 	}
 
 
-
+	namespace internals
+	{
+		//Attempts to split vector at HeadByte boundary.
+		//Returns a pair of values, first value is not greater than HeadBytes large.
+		//Second value not greater than sizeof(a) - HeadBytes bytes large
+		//If input size is smaller or equal to HeadBytes, returns pair of a and std::nullopt
+		template<size_t HeadBytes, typename S, size_t N>
+		requires (HeadBytes % sizeof(S) == 0)
+		auto vsplit(const SIMD_Vector<S, N>& a)
+		{
+			using T = SIMD_Vector<S, N>;
+			if constexpr (sizeof(T) <= HeadBytes) return std::make_pair(a, std::nullopt);
+			else
+			{
+				constexpr size_t HeadN = HeadBytes / sizeof(S);
+				SIMD_Vector<S, HeadN> head;
+				SIMD_Vector<S, N - HeadN> tail;
+				memcpy(&head, &a[0], sizeof(head));
+				memcpy(&tail, &a[HeadN], sizeof(tail));
+				return std::make_pair(head, tail);
+			}
+		}
+	}
 
 
 
@@ -347,14 +369,14 @@ namespace AVXXY_NAMESPACE
 		using namespace internals;
 		using namespace meta;
 		using T = SIMD_Vector<S, N>;
-		using canon_t = typename ScalarTraits<S>::UintT;
+		using canon_shift_amount_t = typename ScalarTraits<S>::UintT;
 
 		constexpr bool has_native_16bit_shift = FS.has(AVX512_BW) && (zmm_sized<T> || FS.has(AVX512_VL));
 		using routing_t = std::conditional_t<has_native_16bit_shift, uint16_t, uint32_t>;
 
 		//zero-extend small integers, shift and convert back. TODO: There could be a better way?
 		if constexpr ((any_i16<S> && !has_native_16bit_shift) || (any_i8<S>)) return vrtrunc<S>(shift_left(vrzext<routing_t>(a), b));
-		else if constexpr (!std::is_same_v<I, canon_t>) return shift_left(a, vcvt<canon_t>(b));
+		else if constexpr (!std::is_same_v<I, canon_shift_amount_t>) return shift_left(a, vcvt<canon_shift_amount_t>(b));
 
 		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && any_i16<S>) return _mm512_sllv_epi16(a, b);
 		else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && ymm_sized<T> && any_i16<S>) return _mm256_sllv_epi16(a, b);
@@ -385,26 +407,36 @@ namespace AVXXY_NAMESPACE
 		using namespace internals;
 		using namespace meta;
 		using T = SIMD_Vector<S, N>;
-		using canon_t = typename ScalarTraits<S>::UintT;
+		using canon_shift_amount_t = typename ScalarTraits<S>::UintT;
 
 		constexpr bool has_native_16bit_shift = FS.has(AVX512_BW) && (zmm_sized<T> || FS.has(AVX512_VL));
-		using routing_t = std::conditional_t<has_native_16bit_shift, uint16_t, uint32_t>;
+		using same_signedness_int16_t = std::conditional_t<std::is_signed_v<S>, int16_t, uint16_t>;
+		using same_signedness_int32_t = std::conditional_t<std::is_signed_v<S>, int32_t, uint32_t>;
+		using routing_t = std::conditional_t<has_native_16bit_shift, same_signedness_int16_t, same_signedness_int32_t>;
 
 		//zero-extend small integers, shift and convert back. TODO: There could be a better way?
-		if constexpr ((any_i16<S> && !has_native_16bit_shift) || (any_i8<S>)) return vrtrunc<S>(shift_right(vrzext<routing_t>(a), b));
-		else if constexpr (!std::is_same_v<I, canon_t>) return shift_right(a, vcvt<canon_t>(b));
+		if constexpr ((any_i16<S> && !has_native_16bit_shift) || (any_i8<S>)) return vcvt<S>(shift_right(vcvt<routing_t>(a), b));
+		else if constexpr (!std::is_same_v<I, canon_shift_amount_t>) return shift_right(a, vcvt<canon_shift_amount_t>(b));
 
-		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && any_i16<S>) return _mm512_srlv_epi16(a, b);
-		else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && ymm_sized<T> && any_i16<S>) return _mm256_srlv_epi16(a, b);
-		else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && xmm_sized<T> && any_i16<S>) return _mm_srlv_epi16(a, b);
-		else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && any_i8<S>) return vrtrunc<S>(shift_right(vrzext<uint16_t>(a), b));
-		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && any_i64<S>) return _mm512_srlv_epi64(a, b);
-		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && any_i32<S>) return _mm512_srlv_epi32(a, b);
+		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u16<S>) return _mm512_srlv_epi16(a, b);
+		else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && ymm_sized<T> && is_u16<S>) return _mm256_srlv_epi16(a, b);
+		else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && xmm_sized<T> && is_u16<S>) return _mm_srlv_epi16(a, b);
+		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u64<S>) return _mm512_srlv_epi64(a, b);
+		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u32<S>) return _mm512_srlv_epi32(a, b);
+		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i16<S>) return _mm512_srav_epi16(a, b);
+		else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && ymm_sized<T> && is_i16<S>) return _mm256_srav_epi16(a, b);
+		else if constexpr (FS.has(AVX512_BW) && FS.has(AVX512_VL) && xmm_sized<T> && is_i16<S>) return _mm_srav_epi16(a, b);
+		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_i64<S>) return _mm512_srav_epi64(a, b);
+		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_i32<S>) return _mm512_srav_epi32(a, b);
 
-		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i64<S>) return _mm256_srlv_epi64(a, b);
-		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i32<S>) return _mm256_srlv_epi32(a, b);
-		else if constexpr (FS.has(AVX2) && xmm_sized<T> && any_i64<S>) return _mm_srlv_epi64(a, b); //no shifts in SSE!
-		else if constexpr (FS.has(AVX2) && xmm_sized<T> && any_i32<S>) return _mm_srlv_epi32(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_u64<S>) return _mm256_srlv_epi64(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_u32<S>) return _mm256_srlv_epi32(a, b);
+		else if constexpr (FS.has(AVX2) && xmm_sized<T> && is_u64<S>) return _mm_srlv_epi64(a, b); //no shifts in SSE!
+		else if constexpr (FS.has(AVX2) && xmm_sized<T> && is_u32<S>) return _mm_srlv_epi32(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i64<S>) return _mm256_srav_epi64(a, b);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i32<S>) return _mm256_srav_epi32(a, b);
+		else if constexpr (FS.has(AVX2) && xmm_sized<T> && is_i64<S>) return _mm_srav_epi64(a, b); //no shifts in SSE!
+		else if constexpr (FS.has(AVX2) && xmm_sized<T> && is_i32<S>) return _mm_srav_epi32(a, b);
 
 		else if constexpr (sizeof(T) > 16) return { shift_right(a.lo(), b.lo()), shift_right(a.hi(), b.hi()) };
 		else
@@ -430,7 +462,7 @@ namespace AVXXY_NAMESPACE
 		{
 			//TODO: this will fail on vectors < 4 sized. Same with shift_right
 			auto interm = shift_left<A>(vcast<uint32_t>(a));
-			constexpr uint32_t andc = ((1 << N) - 1) & 0xFF;
+			constexpr uint32_t andc = ((1 << A) - 1) & 0xFF;
 			constexpr uint32_t andc2 = (andc << 8) | (andc << 16) | (andc << 24);
 			return vcast<T>(interm & ~andc2); //remove bits bleeding over neighboring bytes
 		}
@@ -465,22 +497,39 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (A >= sizeof(S) * 8) return T(0);
 		else if constexpr (any_i8<S>)
 		{
-			auto interm = shift_right<A>(vcast<uint32_t>(a));
-			constexpr uint32_t fin = ((1 << (8 - N)) - 1) & 0xFF;
-			constexpr uint32_t andc2 = (fin << 0) | (fin << 8) | (fin << 16) | (fin << 24);
-			return vcast<T>(interm & andc2); //remove bits bleeding over neighboring bytes
+			auto interm = shift_right<A>(vcast<uint32_t>(a)); //everything has 32-bit shifts!
+			constexpr uint32_t fin = ((1 << (8 - A)) - 1) & 0xFF;
+			constexpr uint32_t andc2 = (fin << 0) | (fin << 8) | (fin << 16) | (fin << 24); //zero-out A most significant bits in each byte, removing bits shifted in from neighbors
+			
+			auto shiftedInZeros = interm & andc2;
+			if constexpr (is_u8<S>) return vcast<T>(shiftedInZeros);
+			else
+			{
+				mask_t<S, N> zcmp = vcast<int8_t>(a) < 0;
+				auto shiftedInOnes = vcast<T>(shiftedInZeros | ~andc2); //force shifted in bits to ones for initially negative inputs
+				return mask_mov(vcast<T>(shiftedInZeros), zcmp, vcast<T>(shiftedInOnes));
+			}
 		}
-		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && any_i16<S>) return _mm512_srli_epi16(a, A);
-		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && any_i32<S>) return _mm512_srli_epi32(a, A);
-		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && any_i64<S>) return _mm512_srli_epi64(a, A);
+		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_u16<S>) return _mm512_srli_epi16(a, A);
+		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u32<S>) return _mm512_srli_epi32(a, A);
+		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_u64<S>) return _mm512_srli_epi64(a, A);
+		else if constexpr (FS.has(AVX512_BW) && zmm_sized<T> && is_i16<S>) return _mm512_srai_epi16(a, A);
+		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_i32<S>) return _mm512_srai_epi32(a, A);
+		else if constexpr (FS.has(AVX512_F) && zmm_sized<T> && is_i64<S>) return _mm512_srai_epi64(a, A);
 
-		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i16<S>) return _mm256_srli_epi16(a, A);
-		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i32<S>) return _mm256_srli_epi32(a, A);
-		else if constexpr (FS.has(AVX2) && ymm_sized<T> && any_i64<S>) return _mm256_srli_epi64(a, A);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_u16<S>) return _mm256_srli_epi16(a, A);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_u32<S>) return _mm256_srli_epi32(a, A);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_u64<S>) return _mm256_srli_epi64(a, A);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i16<S>) return _mm256_srai_epi16(a, A);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i32<S>) return _mm256_srai_epi32(a, A);
+		else if constexpr (FS.has(AVX2) && ymm_sized<T> && is_i64<S>) return _mm256_srai_epi64(a, A);
 
-		else if constexpr (FS.has(SSE2) && xmm_sized<T> && any_i16<S>) return _mm_srli_epi16(a, A);
-		else if constexpr (FS.has(SSE2) && xmm_sized<T> && any_i32<S>) return _mm_srli_epi32(a, A);
-		else if constexpr (FS.has(SSE2) && xmm_sized<T> && any_i64<S>) return _mm_srli_epi64(a, A);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_u16<S>) return _mm_srli_epi16(a, A);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_u32<S>) return _mm_srli_epi32(a, A);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_u64<S>) return _mm_srli_epi64(a, A);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_i16<S>) return _mm_srai_epi16(a, A);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_i32<S>) return _mm_srai_epi32(a, A);
+		else if constexpr (FS.has(SSE2) && xmm_sized<T> && is_i64<S>) return _mm_srai_epi64(a, A);
 		else if constexpr (sizeof(T) > 16) return { shift_right<A>(a.lo()), shift_right<A>(a.hi()) };
 		else
 		{
@@ -491,13 +540,19 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N, meta::any_int I>
-	__forceinline SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind)
+	__forceinline SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& indBase)
 	{
 		using namespace meta;
 		using namespace internals;
 		using U = typename ScalarTraits<S>::UintT;
 		using canon_t = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
+
+		//Native permutexvar implementations wrap around themselves, but on truncated vectors, they still follow XMM wrapping, which pulls in garbage. 
+		//For example, if permx is called on SIMD_Vector<uint8_t, 4>, API documents wrapping around 4, but native permutex/shuffle will still wrap around 16 bytes.
+		//In this case, if ind is 5, garbage will be pulled in, while API documents that it will wrap to 1 and stay within input's bounds.
+		SIMD_Vector<I, N> ind = indBase;
+		if constexpr (sizeof(T) < 16) ind &= N - 1;
 
 		if constexpr (!is_f64<S> && !is_f32<S> && !any_int<S>) return vcast<S>(permx(vcast<U>(a), ind));
 		//TODO: some workaround for 127+ 8-bit perms?
@@ -560,8 +615,8 @@ namespace AVXXY_NAMESPACE
 			__m256 b2 = _mm256_blendv_ps(_mm256_castsi256_ps(p2s), _mm256_castsi256_ps(p2), bmask2);
 			return _mm256_blend_epi16(_mm256_castps_si256(b1), _mm256_castps_si256(b2), 0b10101010);
 		}
-		else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 4) return _mm_permutevar_ps(vcast<__m128>(a), ind);
-		else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 8) return _mm_permutevar_pd(vcast<__m128d>(a), ind);
+		else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 4) return T::fromBits(_mm_permutevar_ps(vcast<__m128>(a), ind));
+		else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 8) return T::fromBits(_mm_permutevar_pd(vcast<__m128d>(a), shift_left<1>(ind))); //TY intel for laying this trap for me. for some reason, it takes bit 1 and 65, NOT 0 or 64!!! While ps version is actually sane. lol.
 
 		//TODO: these may break with >127 bytes. Also check if they work at all
 		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 1) return _mm_shuffle_epi8(a, ind & 0x7F); //discard sign bit to avoid unwanted zero-masking
@@ -606,7 +661,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N, meta::any_int I>
-	__forceinline SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind)
+	__forceinline SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& indBase)
 	{
 		using namespace meta;
 		using namespace internals;
@@ -614,7 +669,25 @@ namespace AVXXY_NAMESPACE
 		using canon_t = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
 
-		if constexpr (!is_f64<S> && !is_f32<S> && !any_int<S>) return vcast<S>(permx2(vcast<U>(a), vcast<U>(b), ind));
+		SIMD_Vector<I, N> ind = indBase;
+		auto emulation = [&]() {
+			T pa = permx(a, ind);
+			T pb = permx(b, ind);
+			return mask_mov(pb, (ind & (2 * N - 1)) < N, pa);
+			};
+
+		//Native permutex2var implementations wrap around themselves, but on truncated vectors, it's a whole other can of worms:
+		//1) Native still wraps only around 2*N - 1 for XMM size, not truncated size. Since vectors are automatically expanded, it will pull garbage for indices outside -N+1..N-1 range
+		//2) The criterion for picking table b is also XMM-sized, meaning it compares for 16 bytes/sizeof(S).
+		//Thus, in a scenario: permx2<uint8_t, 4>({0,1,2,3}, {4,5,6,7}, {3,6,1,0}) API documents result: {3,6,1,0},
+		//But non-scalar implementation will act as: N == 16, so return result is: {3, garbage from expanded A, 1, 0} (b never even considered).
+		//This if block fixes it		
+		if constexpr (sizeof(T) < 16)
+		{
+			ind &= 2 * N - 1;
+			return emulation();
+		}
+		else if constexpr (!is_f64<S> && !is_f32<S> && !any_int<S>) return vcast<S>(permx2(vcast<U>(a), vcast<U>(b), ind));
 		else if constexpr (sizeof(I) != sizeof(S)) return permx2(a, b, vcvt<canon_t>(ind));
 
 		else if constexpr (FS.has(AVX512_VBMI) && zmm_sized<T> && any_i8<S>) return _mm512_permutex2var_epi8(a, ind, b);
@@ -638,12 +711,7 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && is_f32<S>) return _mm_permutex2var_ps(a, ind, b);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i64<S>) return _mm_permutex2var_epi64(a, ind, b);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i32<S>) return _mm_permutex2var_epi32(a, ind, b);
-		else if constexpr (true || sizeof(T) > 16) //TODO: seems to work, but very sus. Although, what else to do?
-		{
-			T pa = permx(a, ind);
-			T pb = permx(b, ind);
-			return mask_mov(pb, (ind & (2 * N - 1)) < N, pa);
-		}
+		else if constexpr (true || sizeof(T) > 16) return emulation(); //TODO: seems to work, but very sus. Although, what else to do?
 		else
 		{
 			internals::scream();
@@ -685,7 +753,7 @@ namespace AVXXY_NAMESPACE
 		using U = typename ScalarTraits<S>::UintT;
 		using T = SIMD_Vector<S, N>;
 
-		if constexpr (!is_f32<S>) return sqrtd(vcvt<double>(a));
+		if constexpr (!is_f64<S>) return sqrtd(vcvt<double>(a));
 		else if constexpr (FS.has(AVX512_F) && zmm_sized<T>) return _mm512_sqrt_pd(a);
 		else if constexpr (FS.has(AVX) && ymm_sized<T>) return _mm256_sqrt_pd(a);
 		else if constexpr (FS.has(SSE2) && xmm_sized<T>) return _mm_sqrt_pd(a);
@@ -1434,7 +1502,7 @@ namespace AVXXY_NAMESPACE
 		else
 		{
 			internals::scream();
-			typename SIMD_Vector<S, N>::MaskT ret = 0;
+			mask_t<S, N> ret = 0;
 			for (size_t i = 0; i < N; ++i) ret.setBit(i, a[i] != b[i]);
 			return ret;
 		}
@@ -1937,6 +2005,7 @@ namespace AVXXY_NAMESPACE
 		}
 	}
 	template<typename S, size_t N>
+		requires meta::unpackhi_legal<S, N>
 	__forceinline SIMD_Vector<S, N> unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
 	{
 		using namespace meta;
@@ -2134,7 +2203,7 @@ namespace AVXXY_NAMESPACE
 		else
 		{
 			T ret;
-			for (size_t i = 0; i < N; ++i) ret[i] = std::popcount(a[i]);
+			for (size_t i = 0; i < N; ++i) ret[i] = std::popcount(std::bit_cast<U>(a[i]));
 			return ret;
 		}
 	}
@@ -2159,7 +2228,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, meta::ScalarSizeClassEnum C, size_t N>
-	__forceinline SIMD_Vector<S, N> movm(const SIMD_Mask<C, N>& mask)
+	__forceinline SIMD_Vector<S, N> movm(const internals::SIMD_Mask<C, N>& mask)
 	{
 		using namespace meta;
 		using namespace internals;
@@ -2214,14 +2283,14 @@ namespace AVXXY_NAMESPACE
 		{
 			T ret;
 			for (size_t start = 0; start < N; start += 16)
-				for (size_t i = 0; i < std::min(N - start, 16); ++i)
+				for (size_t i = 0; i < std::min<size_t>(N - start, 16); ++i)
 					ret[start + i] = b[start + i] > 127 ? 0 : a[start + (b[i] & 15)];
 			return ret;
 		}
 	}
 
 	template<typename S, size_t N, size_t Scale, meta::any_int I>
-	__forceinline SIMD_Vector<S, N> __gather_impl(const void* p, const SIMD_Vector<I, N>& ind, const typename SIMD_Vector<S, N>::MaskT& mask, const SIMD_Vector<S, N>& src)
+	__forceinline SIMD_Vector<S, N> __gather_impl(const void* p, const SIMD_Vector<I, N>& ind, const mask_t<S,N>& mask, const SIMD_Vector<S, N>& src)
 	{
 		using namespace meta;
 		using namespace internals;

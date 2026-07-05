@@ -2,7 +2,6 @@
 #include "SIMD_Vector.h"
 #include "SIMD_Mask.h"
 
-//template <typename S, size_t N> class SIMD_Mask;
 namespace AVXXY_NAMESPACE
 {
 	//Performs element-wise addition of vectors and returns the result
@@ -33,9 +32,7 @@ namespace AVXXY_NAMESPACE
 	//Returns bitwise logical negation of the input vector. Floating point vectors are also legibile for this operation.
 	template<typename S, size_t N> SIMD_Vector<S, N> logic_not(const SIMD_Vector<S, N>& a);
 
-
-
-	//Shift packed integers in `a` left by the amount specified by the corresponding element of `amount` while shifting in zeros, and returns the result.
+	//Shifts integers in a by amount bits to the left, shifting in zeros.
 	template<meta::any_int S, size_t N, meta::any_int I>
 	SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount);
 
@@ -43,11 +40,11 @@ namespace AVXXY_NAMESPACE
 	template<size_t A, meta::any_int S, size_t N>
 	SIMD_Vector<S, N> shift_left(const SIMD_Vector<S, N>& a);
 
-	//Shift packed integers in `a` right by the amount specified by the corresponding element of `amount` while shifting in zeros, and returns the result.
+	//Shifts integers in a by amount bits to the right. For unsigned a, shifts in zeros, for signed - sign bits.
 	template<meta::any_int S, size_t N, meta::any_int I>
 	SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& amount);
 
-	//Shift packed integers in `a` right by the amount specified by the template parameter A while shifting in zeros, and returns the result.
+	//Shifts integers in a by compile-time-constant amount of bits to the right. For unsigned a, shifts in zeros, for signed - sign bits.
 	template<size_t A, meta::any_int S, size_t N>
 	SIMD_Vector<S, N> shift_right(const SIMD_Vector<S, N>& a);
 
@@ -85,28 +82,28 @@ namespace AVXXY_NAMESPACE
 	auto concat(const SIMD_Vector<S, Ns>&... vectors);
 
 	//vrzext - vector reinterpret and zero-extend
-	//Reinterprets input vector as raw memory, zero-extends each element vector to size of S2 and returns the resultant vector
+	//Zero-extends each element of input vector to sizeof(S2) bytes and returns the resultant vector reinterpreted to output type
 	//requires output scalar type to be larger or equal in size to input scalar type
-	//i.e. vrzext<double>(SIMD_Vector<int8_t, 8>>) will put the input element into lowest byte of 8 byte lane of output, upper 7 bytes will be filled with zeros, then reinterpreted as doubles and returned
+	//i.e. vrzext<double>(SIMD_Vector<int8_t, 8>>) will put input values in lowest byte of each lane in the returned vector, while upper 7 bytes of each lane are filled with zeros
 	//If input and output scalar sizes match, the input vector is only reinterpreted as output vector
 	template<typename S2, typename S, size_t N>
 	requires (sizeof(S2) >= sizeof(S))
 	SIMD_Vector<S2, N> vrzext(const SIMD_Vector<S, N>& a);
 
 	//vrtrunc - vector reinterpret and truncate
-	//Reinterprets input vector as raw memory and returns only the lowest sizeof(S) bytes in each elemnt, reinterpreted back to output type
+	//Discards upper sizeof(S)-sizeof(S2) bytes from each element in the input vector and returns the resultant vector reinterpreted to vector of S2.
 	//requires output scalar type to be less or equal in size to input scalar type
-	//i.e. vrtrunc<int16_t>(SIMD_Vector<double, 8>> will discard upper 6 bytes each input double and return the low 2 bytes of each element reinterpreted as int16_t
+	//i.e. vrtrunc<int16_t>(SIMD_Vector<double, 8>) will discard upper 6 bytes each input double.
 	//If input and output scalar sizes match, the input vector is only reinterpreted as output vector
 	template<typename S2, typename S, size_t N>
 	requires (sizeof(S2) <= sizeof(S))
 	SIMD_Vector<S2, N> vrtrunc(const SIMD_Vector<S, N>& a);
 
-	//Reinterprets input vector as any type of any size
+	//Reinterprets input vector as any non-scalar type of any size
 	//Requires the output type to be trivially copyable
 	//If T is a scalar type, the vector is reinterpreted as vector of other scalar type
 	//with lane count calculated automatically to be smallest vector that is bigger or the same size as input
-	//i.e. vcast<uint32_t, uint8_t, 3> will return SIMD_Vector<uint32_t, 1>
+	//i.e. vcast<uint32_t>(SIMD_Vector<uint8_t, 3>) will return SIMD_Vector<uint32_t, 1>
 	//If output type is larger than input, the upper bytes of output are undefined
 	//If output type is smaller than input, the upper bytes of input are discarded
 	template<typename To, typename S, size_t N> requires (std::is_trivially_copyable_v<To>)
@@ -160,7 +157,7 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//ret[i] = mask[i] ? reinterpret_cast<const S*>(p)[i] : std::bit_cast<S>(0);
 	template<typename S, size_t N> SIMD_Vector<S, N> load(const void* p, const mask_t<S, N>& mask);
-	template<meta::IsSimdVector T> T __forceinline load(const void* p, const typename T::MaskT& mask)
+	template<meta::IsSimdVector T> T __forceinline load(const void* p, const mask_t<typename T::ScalarT, T::LaneCount>& mask)
 	{
 		return load<typename T::ScalarT, T::LaneCount>(p, mask);
 	}
@@ -177,7 +174,7 @@ namespace AVXXY_NAMESPACE
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//ret[i] = mask[i] ? reinterpret_cast<const S*>(p)[i] : src[i]
 	template<meta::IsSimdVector T>
-	__forceinline T load(const void* p, const typename T::MaskT& mask, const T& src)
+	__forceinline T load(const void* p, const mask_t<typename T::ScalarT, T::LaneCount>& mask, const T& src)
 	{
 		return load<typename T::ScalarT, T::LaneCount>(p, mask, src);
 	}
@@ -208,7 +205,7 @@ namespace AVXXY_NAMESPACE
 	//By default, scale is set to the size of vector's scalar type
 	//ret[i] = mask[i] ? *reinterpret_cast<const S*>(size_t(base) + Scale*ind[i]) : src[i]
 	template <meta::IsSimdVector T, size_t Scale = sizeof(typename T::ScalarT), meta::any_int I>
-	__forceinline T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const typename T::MaskT& mask = T::MaskT::AllOnesUint, const T& src = 0)
+	__forceinline T gather(const void* base, const SIMD_Vector<I, T::LaneCount>& ind, const mask_t<typename T::ScalarT, T::LaneCount>& mask = mask_t<typename T::ScalarT, T::LaneCount>::AllOnesUint, const T& src = 0)
 	{
 		return __gather_impl<typename T::ScalarT, T::LaneCount, Scale>(base, ind, mask, src);
 	}
@@ -272,17 +269,17 @@ namespace AVXXY_NAMESPACE
 	//ret[i] = tmp > max[i] ? max[i] : tmp
 	template<typename S, size_t N> SIMD_Vector<S, N> clamp(const SIMD_Vector<S, N>& val, const SIMD_Vector<S, N>& min, const SIMD_Vector<S, N>& max);
 
-	//Split input vectors into 128-bit chunks. Upper half of each chunk are discarded.
+	//Split input vectors into 128-bit chunks. Upper halves of each chunk are discarded.
 	//For each result chunk, even elements are picked from a, while odd elements are picked from b.
 	//Chunks are merged back into the resultant vector in the same order they appear in input vectors
 	//chunk_ret[i] = i % 2 == 0 ? chunk_a[i/2] : chunk_b[i/2]
 	template<typename S, size_t N> SIMD_Vector<S, N> unpacklo(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
-	//Split input vectors into 128-bit chunks. Lower half of each chunk are discarded.
+	//Split input vectors into 128-bit chunks. Lower halves of each chunk are discarded.
 	//For each result chunk, even elements are picked from a, while odd elements are picked from b.
 	//Chunks are merged back into the resultant vector in the same order they appear in input vectors
 	//x = 8 bytes / sizeof(S)
 	//chunk_ret[i] = i % 2 == 0 ? chunk_a[x+i/2] : chunk_b[x+i/2]
-	template<typename S, size_t N> SIMD_Vector<S, N> unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
+	template<typename S, size_t N> requires meta::unpackhi_legal<S, N> SIMD_Vector<S, N> unpackhi(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
 
 	//Copies vector `src` and conditionally overwrites it with elements of vector `a`
 	//Mask is iterated from lower bits to higher ones. 
@@ -313,7 +310,7 @@ namespace AVXXY_NAMESPACE
 	//@tparam S scalar type of the returned vector
 	//@tparam N number of lanes in returned vector, same as bit count of input mask
 	//@tparam C size class of the input mask
-	template <typename S, meta::ScalarSizeClassEnum C, size_t N> SIMD_Vector<S, N> movm(const SIMD_Mask<C, N>& mask);
+	template <typename S, meta::ScalarSizeClassEnum C, size_t N> SIMD_Vector<S, N> movm(const internals::SIMD_Mask<C, N>& mask);
 
 	//Reinterprets `a` as vector of bytes, then shuffles these bytes within 128-bit lanes by indices `b`.
 	//After the shuffle is done, reinterprets the shuffled vector back to input type and returns it.
@@ -323,7 +320,7 @@ namespace AVXXY_NAMESPACE
 	//X = sizeof(a)
 	//for (size_t start = 0; start < X; start += 16)
 	//    for (size_t i = 0; i < std::min(X-start, 16); ++i)
-	//        ret[start + i] = b[start + i] > 127 ? 0 : a[start + (b[i] & 15)]
+	//        ret[start + i] = b[start + i] > 127 ? 0 : a[start + (b[start+i] & 15)]
 	template<typename S, size_t N>
 	SIMD_Vector<S, N> byte_shuffle(const SIMD_Vector<S, N>& a, const SIMD_Vector<uint8_t, N * sizeof(S)>& b);
 

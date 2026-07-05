@@ -10,9 +10,16 @@
 
 namespace AVXXY_NAMESPACE
 {
-	//Vector of N values of type S.
-	//@tparam S element type of this vector. Only these types are supported: signed and unsigned integers: 8, 16, 32 and 64-bit wide, float, double, FP16 (via fp16_t) and BF16 (via bf16_t)
-	//@tparam N Lane count of this vector. Must be one of these values: 1, 2, 4, 8, 16, 32, 64
+	/**
+	* Vector of N values of type S.
+	* Although vectors don't have a hard size cap, the limitations grow more severe as vector size grows:
+	* masked operations are unavailable for N > 64, 
+	* other operation-specific limitations apply for large vectors.
+	* Stack space can become a concern with large vectors
+	* Performance scales non-linearly with vector size for some operations
+	* @tparam S element type of this vector. Only these types are supported: signed and unsigned integers: 8, 16, 32 and 64-bit wide, float, double, FP16 (via fp16_t) and BF16 (via bf16_t)
+	* @tparam N Lane count of this vector. Must be 1 or any power of 2.
+	*/
 	template <typename S, size_t N>
 		requires meta::IsValid_SIMD_Vector<S, N>
 	class alignas(std::min<uint32_t>(64, sizeof(S)* N)) SIMD_Vector
@@ -30,7 +37,6 @@ namespace AVXXY_NAMESPACE
 		static inline constexpr size_t LaneCount = N;
 
 		using IntrinsicT = meta::typed_intrinsic_storage_t<S, N>;
-		using MaskT = SIMD_Mask<meta::ScalarTraits<S>::size_class, N>;
 		using ScalarT = S;
 
 		SIMD_Vector() {};
@@ -234,7 +240,4 @@ namespace AVXXY_NAMESPACE
 		}
 		return os;
 	}
-
-	template<typename S, size_t N>
-	using mask_t = SIMD_Vector<S, N>::MaskT;
 }

@@ -218,153 +218,156 @@ namespace AVXXY_NAMESPACE
 		}
 	}
 
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N>::SIMD_Mask(BitsUintT bits)
+	namespace internals
 	{
-		if constexpr (IsBitMask) underlying = bits & AllOnesUint;
-		else underlying = internals::_movm_raw<VecIntT, N>(bits & AllOnesUint);
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	template<typename T>
-	inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Vector<T, N>& vec)
-	{
-		*this = movemask(vec);
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
-	template<size_t N2> requires (N2 * 2 == N)
-		inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS, N2>& lo, const SIMD_Mask<LS, N2>& hi)
-	{
-		if constexpr (IsBitMask) underlying = BitsUintT(lo) | (BitsUintT(hi) << (N / 2));
-		else underlying = { lo.underlying, hi.underlying };
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline bool SIMD_Mask<LS, N>::operator[](size_t i) const
-	{
-		return BitsUintT(*this) & (BitsUintT(1) << i);
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
-	inline void SIMD_Mask<LS, N>::setBit(size_t i, bool value)
-	{
-		BitsUintT u = *this;
-		u &= ~(BitsUintT(1) << i);
-		*this = u | BitsUintT(value) << i;
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline auto SIMD_Mask<LS, N>::lo() const requires (N >= 2)
-	{
-		static_assert(N % 2 == 0);
-		SIMD_Mask<LS, N / 2> ret;
-		if constexpr (IsBitMask) ret.underlying = underlying;
-		else ret.underlying = underlying.lo();
-		return ret;
-	}
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline auto SIMD_Mask<LS, N>::hi() const requires (N >= 2)
-	{
-		static_assert(N % 2 == 0);
-		SIMD_Mask<LS, N / 2> ret;
-		if constexpr (IsBitMask) ret.underlying = underlying >> (N / 2);
-		else ret.underlying = underlying.hi();
-		return ret;
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N>::operator BitsUintT() const
-	{
-		if constexpr (IsBitMask) return underlying & AllOnesUint;
-		else return internals::_movemask_raw(underlying) & AllOnesUint;
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	template<typename T> requires (meta::IsIntrinsicVector<T> && (meta::ScalarSizeTraits<LS>::ByteSize* N == sizeof(T)))
-		inline SIMD_Mask<LS, N>::operator T() const
-	{
-		if constexpr (IsBitMask) return vcast<T>(movm<VecIntT>(*this));
-		else
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N>::SIMD_Mask(BitsUintT bits)
 		{
-			return vcast<T>(internals::clean_mask_vector(underlying));
+			if constexpr (IsBitMask) underlying = bits & AllOnesUint;
+			else underlying = internals::_movm_raw<VecIntT, N>(bits & AllOnesUint);
 		}
-	}
 
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator&(const SIMD_Mask<LS, N>& other) const
-	{
-		SIMD_Mask<LS, N> ret;
-		ret.underlying = underlying & other.underlying;
-		return ret;
-	}
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator|(const SIMD_Mask<LS, N>& other) const
-	{
-		SIMD_Mask<LS, N> ret;
-		ret.underlying = underlying | other.underlying;
-		return ret;
-	}
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator^(const SIMD_Mask<LS, N>& other) const
-	{
-		SIMD_Mask<LS, N> ret;
-		ret.underlying = underlying ^ other.underlying;
-		return ret;
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator~() const
-	{
-		SIMD_Mask<LS, N> ret;
-		ret.underlying = ~underlying;
-		return ret;
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator&=(const SIMD_Mask<LS, N>& other)
-	{
-		*this = *this & other;
-		return *this;
-	}
-	template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator|=(const SIMD_Mask<LS, N>& other)
-	{
-		*this = *this | other;
-		return *this;
-	}
-	template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
-	inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator^=(const SIMD_Mask<LS, N>& other)
-	{
-		*this = *this ^ other;
-		return *this;
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	template<meta::ScalarSizeClassEnum LS2, size_t N2> requires (N >= N2)
-		inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS2, N2>& other)
-	{
-		if constexpr (IsBitMask) underlying = other;
-		else underlying = other.underlying;
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
-	template<typename T> requires (meta::IsIntrinsicVector<T> && meta::SameSizeClasses<(sizeof(typename SIMD_Mask<LS,N>::VecT)), (sizeof(T))>)
-	inline SIMD_Mask<LS, N>::SIMD_Mask(const T& intrinsicVec)
-	{
-		auto v = VecT::fromBits(intrinsicVec);
-		if constexpr (IsBitMask) underlying = internals::_movemask_raw(v);
-		else underlying = internals::clean_mask_vector(v);
-	}
-
-	template<meta::ScalarSizeClassEnum LS, size_t N>
-	std::ostream& operator<<(std::ostream& os, const SIMD_Mask<LS, N>& mask)
-	{
-		for (size_t i = 0; i < mask; ++i)
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		template<typename T>
+		inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Vector<T, N>& vec)
 		{
-			os << int(mask[i]);
-			if (i < N - 1) os << ",";
+			*this = movemask(vec);
 		}
-		return os;
+
+		template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
+		template<size_t N2> requires (N2 * 2 == N)
+			inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS, N2>& lo, const SIMD_Mask<LS, N2>& hi)
+		{
+			if constexpr (IsBitMask) underlying = BitsUintT(lo) | (BitsUintT(hi) << (N / 2));
+			else underlying = { lo.underlying, hi.underlying };
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		inline bool SIMD_Mask<LS, N>::operator[](size_t i) const
+		{
+			return BitsUintT(*this) & (BitsUintT(1) << i);
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
+		inline void SIMD_Mask<LS, N>::setBit(size_t i, bool value)
+		{
+			BitsUintT u = *this;
+			u &= ~(BitsUintT(1) << i);
+			*this = u | BitsUintT(value) << i;
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		inline auto SIMD_Mask<LS, N>::lo() const requires (N >= 2)
+		{
+			static_assert(N % 2 == 0);
+			SIMD_Mask<LS, N / 2> ret;
+			if constexpr (IsBitMask) ret.underlying = underlying;
+			else ret.underlying = underlying.lo();
+			return ret;
+		}
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		inline auto SIMD_Mask<LS, N>::hi() const requires (N >= 2)
+		{
+			static_assert(N % 2 == 0);
+			SIMD_Mask<LS, N / 2> ret;
+			if constexpr (IsBitMask) ret.underlying = underlying >> (N / 2);
+			else ret.underlying = underlying.hi();
+			return ret;
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N>::operator BitsUintT() const
+		{
+			if constexpr (IsBitMask) return underlying & AllOnesUint;
+			else return internals::_movemask_raw(underlying) & AllOnesUint;
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		template<typename T> requires (meta::IsIntrinsicVector<T> && (meta::ScalarSizeTraits<LS>::ByteSize* N == sizeof(T)))
+			inline SIMD_Mask<LS, N>::operator T() const
+		{
+			if constexpr (IsBitMask) return vcast<T>(movm<VecIntT>(*this));
+			else
+			{
+				return vcast<T>(internals::clean_mask_vector(underlying));
+			}
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator&(const SIMD_Mask<LS, N>& other) const
+		{
+			SIMD_Mask<LS, N> ret;
+			ret.underlying = underlying & other.underlying;
+			return ret;
+		}
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator|(const SIMD_Mask<LS, N>& other) const
+		{
+			SIMD_Mask<LS, N> ret;
+			ret.underlying = underlying | other.underlying;
+			return ret;
+		}
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator^(const SIMD_Mask<LS, N>& other) const
+		{
+			SIMD_Mask<LS, N> ret;
+			ret.underlying = underlying ^ other.underlying;
+			return ret;
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N> SIMD_Mask<LS, N>::operator~() const
+		{
+			SIMD_Mask<LS, N> ret;
+			ret.underlying = ~underlying;
+			return ret;
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator&=(const SIMD_Mask<LS, N>& other)
+		{
+			*this = *this & other;
+			return *this;
+		}
+		template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator|=(const SIMD_Mask<LS, N>& other)
+		{
+			*this = *this | other;
+			return *this;
+		}
+		template<meta::ScalarSizeClassEnum LS, size_t N>  requires IsValid_SIMD_Mask<N>
+		inline SIMD_Mask<LS, N>& SIMD_Mask<LS, N>::operator^=(const SIMD_Mask<LS, N>& other)
+		{
+			*this = *this ^ other;
+			return *this;
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		template<meta::ScalarSizeClassEnum LS2, size_t N2> requires (N >= N2)
+			inline SIMD_Mask<LS, N>::SIMD_Mask(const SIMD_Mask<LS2, N2>& other)
+		{
+			if constexpr (IsBitMask) underlying = other;
+			else underlying = other.underlying;
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N> requires IsValid_SIMD_Mask<N>
+		template<typename T> requires (meta::IsIntrinsicVector<T>&& meta::SameSizeClasses<(sizeof(typename SIMD_Mask<LS, N>::VecT)), (sizeof(T))>)
+			inline SIMD_Mask<LS, N>::SIMD_Mask(const T& intrinsicVec)
+		{
+			auto v = VecT::fromBits(intrinsicVec);
+			if constexpr (IsBitMask) underlying = internals::_movemask_raw(v);
+			else underlying = internals::clean_mask_vector(v);
+		}
+
+		template<meta::ScalarSizeClassEnum LS, size_t N>
+		std::ostream& operator<<(std::ostream& os, const SIMD_Mask<LS, N>& mask)
+		{
+			for (size_t i = 0; i < mask; ++i)
+			{
+				os << int(mask[i]);
+				if (i < N - 1) os << ",";
+			}
+			return os;
+		}
 	}
 }

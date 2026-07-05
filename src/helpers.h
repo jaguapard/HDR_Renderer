@@ -69,7 +69,7 @@ __forceinline void interleaved_ph_to_ps(__m512i inp, float32x16& retLow, float32
 
 //Returns 64 bit mask that has all bits of m duplicated four times, i.e: mask with bits 0123456789abcd will become 000011112222...dddd
 template <meta::ScalarSizeClassEnum LS>
-__forceinline SIMD_Mask<LS, 64> duplicate_mmask_bits_16_to_64(SIMD_Mask<LS, 16> m)
+__forceinline internals::SIMD_Mask<LS, 64> duplicate_mmask_bits_16_to_64(internals::SIMD_Mask<LS, 16> m)
 {
 	i32x16 a = movm<int32_t>(m);
 	return movemask(vcast<u8x64>(a));

@@ -24,19 +24,21 @@ namespace AVXXY_NAMESPACE
 		//Is this a valid intrinsic vector type? Does not check for actual availabilty (i.e. __m512 will pass this test even if AVX512 is not available)
 		template<typename T> concept IsIntrinsicVector = is_any_of_v<T, __m128i, __m128, __m128d, __m128h, __m128bh, __m256i, __m256, __m256d, __m256h, __m256bh, __m512i, __m512, __m512d, __m512h, __m512bh>;
 
-		template<typename T> inline constexpr T BitsAllZero = []() {
+		template<typename T> static inline T BitsAllZero() {
 			std::array<std::byte, sizeof(T)> ret;
 			for (auto& it : ret) it = 0;
 			return std::bit_cast<T>(ret);
-			}();
-		template<typename T> inline constexpr T BitsAllOne = []() {
-			std::array<std::byte, sizeof(T)> ret;
+		};
+
+		template<typename T> static inline T BitsAllOne()
+		{
+			std::array<std::uint8_t, sizeof(T)> ret;
 			for (auto& it : ret) it = 0xFF;
 			return std::bit_cast<T>(ret);
-			}();
+		};
 
-		template<typename T> static constexpr T BitsAllZeroF(T) { return BitsAllZero<T>; }
-		template<typename T> static constexpr T BitsAllOneF(T) { return BitsAllOne<T>; }
+		template<typename T> static inline T BitsAllZeroF(T) { return BitsAllZero<T>(); }
+		template<typename T> static inline T BitsAllOneF(T) { return BitsAllOne<T>(); }
 
 		//template <typename T>
 		//struct ScalarTraits;
@@ -146,7 +148,7 @@ namespace AVXXY_NAMESPACE
 		//@note for now, bigger than 64 lanes vectors are not supported (mainly due to mask type not being ready for it)
 		//@tparam S scalar type of the would-be vector
 		//@tparam N lane count of the would-be vector
-		template<typename S, size_t N> concept IsValid_SIMD_Vector = IsScalarType<S> && ((N == 1) || (N >= 2 && N <= 64 && isPowerOf2(N)));
+		template<typename S, size_t N> concept IsValid_SIMD_Vector = IsScalarType<S> && ((N == 1) || isPowerOf2(N));
 
 		template<typename T> inline constexpr bool xmm_sized = vector_size_class_v<T> == VectorSizeClassEnum::XMM;
 		template<typename T> inline constexpr bool ymm_sized = vector_size_class_v<T> == VectorSizeClassEnum::YMM;
@@ -189,6 +191,7 @@ namespace AVXXY_NAMESPACE
 		template <typename T> inline constexpr bool any_i64 = (is_u64<T> || is_i64<T>);
 		//indicates whether this type is integral scalar type
 		template <typename T> concept any_int = std::is_integral_v<T> && IsScalarType<T>;
+		template <typename T> concept any_uint = any_int<T> && !std::is_signed_v<T>;
 		//indicates whether this type is not integral
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool not_int = !std::is_integral_v<T>;
 
@@ -227,5 +230,9 @@ namespace AVXXY_NAMESPACE
 
 		template<typename S>
 		concept vpopcnt_allowed = (meta::any_int<S> || settings::ALLOW_VPOPCNT_FOR_NON_INTS);
+
+		//TODO: relax this requirement some time. It needs at least 1 S element at starting at 64 bits of xmm
+		template<typename S, size_t N>
+		concept unpackhi_legal = IsScalarType<S> && (sizeof(S) * N % 16 == 0);
 	}
 }

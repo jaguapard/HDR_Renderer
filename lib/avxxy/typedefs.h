@@ -158,43 +158,43 @@ namespace AVXXY_NAMESPACE
 
 
 
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, meta::REG_LANE_COUNT_FOR<int8_t>> maskn_b;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, meta::REG_LANE_COUNT_FOR<int16_t>> maskn_w;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, meta::REG_LANE_COUNT_FOR<int32_t>> maskn_d;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, meta::REG_LANE_COUNT_FOR<int64_t>> maskn_q;
+	typedef mask_t<int8_t, meta::REG_LANE_COUNT_FOR<int8_t>> maskn_b;
+	typedef mask_t<int16_t, meta::REG_LANE_COUNT_FOR<int16_t>> maskn_w;
+	typedef mask_t<int32_t, meta::REG_LANE_COUNT_FOR<int32_t>> maskn_d;
+	typedef mask_t<int64_t, meta::REG_LANE_COUNT_FOR<int64_t>> maskn_q;
 
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 1> mask1b;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 1> mask1w;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, 1> mask1d;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, 1> mask1q;
+	typedef mask_t<int8_t, 1> mask1b;
+	typedef mask_t<int16_t, 1> mask1w;
+	typedef mask_t<int32_t, 1> mask1d;
+	typedef mask_t<int64_t, 1> mask1q;
 
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 2> mask2b;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 2> mask2w;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, 2> mask2d;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, 2> mask2q;
+	typedef mask_t<int8_t, 2> mask2b;
+	typedef mask_t<int16_t, 2> mask2w;
+	typedef mask_t<int32_t, 2> mask2d;
+	typedef mask_t<int64_t, 2> mask2q;
 
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 4> mask4b;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 4> mask4w;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, 4> mask4d;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, 4> mask4q;
+	typedef mask_t<int8_t, 4> mask4b;
+	typedef mask_t<int16_t, 4> mask4w;
+	typedef mask_t<int32_t, 4> mask4d;
+	typedef mask_t<int64_t, 4> mask4q;
 
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 8> mask8b;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 8> mask8w;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, 8> mask8d;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, 8> mask8q;
+	typedef mask_t<int8_t, 8> mask8b;
+	typedef mask_t<int16_t, 8> mask8w;
+	typedef mask_t<int32_t, 8> mask8d;
+	typedef mask_t<int64_t, 8> mask8q;
 
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 16> mask16b;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 16> mask16w;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, 16> mask16d;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, 16> mask16q;
+	typedef mask_t<int8_t, 16> mask16b;
+	typedef mask_t<int16_t, 16> mask16w;
+	typedef mask_t<int32_t, 16> mask16d;
+	typedef mask_t<int64_t, 16> mask16q;
 
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 32> mask32b;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 32> mask32w;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, 32> mask32d;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, 32> mask32q;
+	typedef mask_t<int8_t, 32> mask32b;
+	typedef mask_t<int16_t, 32> mask32w;
+	typedef mask_t<int32_t, 32> mask32d;
+	typedef mask_t<int64_t, 32> mask32q;
 
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::byte, 64> mask64b;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::word, 64> mask64w;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::dword, 64> mask64d;
-	typedef SIMD_Mask<meta::ScalarSizeClassEnum::qword, 64> mask64q;
+	typedef mask_t<int8_t, 64> mask64b;
+	typedef mask_t<int16_t, 64> mask64w;
+	typedef mask_t<int32_t, 64> mask64d;
+	typedef mask_t<int64_t, 64> mask64q;
 }
