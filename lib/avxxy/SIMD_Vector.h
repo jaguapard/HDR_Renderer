@@ -240,4 +240,26 @@ namespace AVXXY_NAMESPACE
 		}
 		return os;
 	}
+
+	namespace internals
+	{
+		template<size_t TypeIndex, size_t LaneCount>
+		requires (LaneCount >= 1)
+		static constexpr bool NoPaddingAssuptionCheck()
+		{
+			using type_order = std::tuple<int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float, double, fp16_t, bf16_t>;
+
+			if constexpr (TypeIndex >= std::tuple_size_v<type_order>) return true;
+			else if constexpr (LaneCount > 64) return NoPaddingAssuptionCheck<TypeIndex + 1, 1>();
+			else
+			{
+				using S = std::tuple_element_t<TypeIndex, type_order>;
+				static_assert(!meta::IsValid_SIMD_Vector<S,LaneCount> || (sizeof(S) * LaneCount == sizeof(SIMD_Vector<S, LaneCount>)), "SIMD_Vector has padding! Assess all implementations for operations to remove no-padding assumption, or contact the library's authors to fix it.");
+				return NoPaddingAssuptionCheck<TypeIndex, LaneCount * 2>();
+			}
+		}
+
+		//Only to make it compile, the value is meaningless
+		static constexpr bool no_padding_useless_value_discard_this = NoPaddingAssuptionCheck<0, 1>();
+	}
 }

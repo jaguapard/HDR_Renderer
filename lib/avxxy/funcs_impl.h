@@ -46,7 +46,7 @@ namespace AVXXY_NAMESPACE
 		//Second value not greater than sizeof(a) - HeadBytes bytes large
 		//If input size is smaller or equal to HeadBytes, returns pair of a and std::nullopt
 		template<size_t HeadBytes, typename S, size_t N>
-		requires (HeadBytes % sizeof(S) == 0)
+			requires (HeadBytes % sizeof(S) == 0)
 		auto vsplit(const SIMD_Vector<S, N>& a)
 		{
 			using T = SIMD_Vector<S, N>;
@@ -353,7 +353,7 @@ namespace AVXXY_NAMESPACE
 	__forceinline SIMD_Vector<S, N> logic_not(const SIMD_Vector<S, N>& a)
 	{
 		using namespace meta;
-		return logic_xor(a, meta::BitsAllOneF(a));
+		return logic_xor(a, meta::AllOnes<SIMD_Vector<S, N>>);
 		/*
 		using U = typename ScalarTraits<S>::UintT;
 
@@ -500,7 +500,7 @@ namespace AVXXY_NAMESPACE
 			auto interm = shift_right<A>(vcast<uint32_t>(a)); //everything has 32-bit shifts!
 			constexpr uint32_t fin = ((1 << (8 - A)) - 1) & 0xFF;
 			constexpr uint32_t andc2 = (fin << 0) | (fin << 8) | (fin << 16) | (fin << 24); //zero-out A most significant bits in each byte, removing bits shifted in from neighbors
-			
+
 			auto shiftedInZeros = interm & andc2;
 			if constexpr (is_u8<S>) return vcast<T>(shiftedInZeros);
 			else
@@ -540,6 +540,7 @@ namespace AVXXY_NAMESPACE
 	}
 
 	template<typename S, size_t N, meta::any_int I>
+		requires (N - 1 <= std::numeric_limits<typename meta::ScalarTraits<I>::UintT>::max())
 	__forceinline SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& indBase)
 	{
 		using namespace meta;
@@ -555,7 +556,8 @@ namespace AVXXY_NAMESPACE
 		if constexpr (sizeof(T) < 16) ind &= N - 1;
 
 		if constexpr (!is_f64<S> && !is_f32<S> && !any_int<S>) return vcast<S>(permx(vcast<U>(a), ind));
-		//TODO: some workaround for 127+ 8-bit perms?
+
+		//if removing this canonization step, be sure to check all implementations below, since some of them assume the ind to be canonized
 		else if constexpr (sizeof(I) != sizeof(S)) return permx(a, vcvt<canon_t>(ind));
 		else if constexpr (FS.has(AVX512_VBMI) && zmm_sized<T> && any_i8<S>) return _mm512_permutexvar_epi8(ind, a);
 		else if constexpr (FS.has(AVX512_VBMI) && FS.has(AVX512_VL) & ymm_sized<T> && any_i8<S>) return _mm256_permutexvar_epi8(ind, a);
@@ -618,37 +620,42 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 4) return T::fromBits(_mm_permutevar_ps(vcast<__m128>(a), ind));
 		else if constexpr (FS.has(AVX) && xmm_sized<T> && sizeof(S) == 8) return T::fromBits(_mm_permutevar_pd(vcast<__m128d>(a), shift_left<1>(ind))); //TY intel for laying this trap for me. for some reason, it takes bit 1 and 65, NOT 0 or 64!!! While ps version is actually sane. lol.
 
-		//TODO: these may break with >127 bytes. Also check if they work at all
-		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 1) return _mm_shuffle_epi8(a, ind & 0x7F); //discard sign bit to avoid unwanted zero-masking
-		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 2)
+		//shuffle_epi8 can't properly handle more than 128 bytes due to index being 7 usable bits (sign bit activates zeroing that we don't want)
+		//Thus, limit it to 128 bytes and fall back to scalar otherwise
+		//TODO: make proper fallbacks for large vectors
+		else if constexpr (sizeof(T) <= 128)
 		{
-			__m128i ind2 = _mm_slli_epi16(ind, 1);
-			__m128i db = _mm_shuffle_epi8(ind2, _mm_setr_epi8(0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14)); //duplicate low byte of each word
-			__m128i ind3 = _mm_or_si128(db, _mm_setr_epi8(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1));
-			__m128i ind4 = _mm_and_si128(ind3, _mm_set1_epi8(0x7F));
-			return T::fromBits(_mm_shuffle_epi8(vcast<__m128i>(a), ind4));
-		}
-		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 4)
-		{
-			__m128i ind2 = _mm_slli_epi32(ind, 2);
-			__m128i db = _mm_shuffle_epi8(ind2, _mm_setr_epi8(0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12)); //duplicate low byte of each dword
-			__m128i ind3 = _mm_or_si128(db, _mm_setr_epi8(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3));
-			__m128i ind4 = _mm_and_si128(ind3, _mm_set1_epi8(0x7F));
-			return T::fromBits(_mm_shuffle_epi8(vcast<__m128i>(a), ind4));
-		}
-		else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 8)
-		{
-			__m128i ind2 = _mm_slli_epi64(ind, 3);
-			__m128i db = _mm_shuffle_epi8(ind2, _mm_setr_epi8(0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8, 8)); //duplicate low byte of each qword
-			__m128i ind3 = _mm_or_si128(db, _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7));
-			__m128i ind4 = _mm_and_si128(ind3, _mm_set1_epi8(0x7F));
-			return T::fromBits(_mm_shuffle_epi8(vcast<__m128i>(a), ind4));
-		}
-		else if constexpr (sizeof(T) > 16)
-		{
-			auto alo = a.lo();
-			auto ahi = a.hi();
-			return T{ permx2(alo, ahi, ind.lo()), permx2(alo, ahi, ind.hi()) };
+			if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 1) return _mm_shuffle_epi8(a, ind & 0x7F); //discard sign bit to avoid unwanted zero-masking
+			else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 2)
+			{
+				__m128i ind2 = _mm_slli_epi16(ind, 1); //it's OK, since we only use low bytes and AND with 127 anyway
+				__m128i db = _mm_shuffle_epi8(ind2, _mm_setr_epi8(0, 0, 2, 2, 4, 4, 6, 6, 8, 8, 10, 10, 12, 12, 14, 14)); //duplicate low byte of each word
+				__m128i ind3 = _mm_or_si128(db, _mm_setr_epi8(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1));
+				__m128i ind4 = _mm_and_si128(ind3, _mm_set1_epi8(0x7F));
+				return T::fromBits(_mm_shuffle_epi8(vcast<__m128i>(a), ind4));
+			}
+			else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 4)
+			{
+				__m128i ind2 = _mm_slli_epi32(ind, 2);
+				__m128i db = _mm_shuffle_epi8(ind2, _mm_setr_epi8(0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 8, 8, 12, 12, 12, 12)); //duplicate low byte of each dword
+				__m128i ind3 = _mm_or_si128(db, _mm_setr_epi8(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3));
+				__m128i ind4 = _mm_and_si128(ind3, _mm_set1_epi8(0x7F));
+				return T::fromBits(_mm_shuffle_epi8(vcast<__m128i>(a), ind4));
+			}
+			else if constexpr (FS.has(SSSE3) && xmm_sized<T> && sizeof(S) == 8)
+			{
+				__m128i ind2 = _mm_slli_epi64(ind, 3);
+				__m128i db = _mm_shuffle_epi8(ind2, _mm_setr_epi8(0, 0, 0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8, 8)); //duplicate low byte of each qword
+				__m128i ind3 = _mm_or_si128(db, _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7));
+				__m128i ind4 = _mm_and_si128(ind3, _mm_set1_epi8(0x7F));
+				return T::fromBits(_mm_shuffle_epi8(vcast<__m128i>(a), ind4));
+			}
+			else if constexpr (sizeof(T) > 16)
+			{
+				auto alo = a.lo();
+				auto ahi = a.hi();
+				return T{ permx2(alo, ahi, ind.lo()), permx2(alo, ahi, ind.hi()) };
+			}
 		}
 		else
 		{
@@ -657,10 +664,10 @@ namespace AVXXY_NAMESPACE
 			for (size_t i = 0; i < N; ++i) ret[i] = a[ind[i] & (N - 1)];
 			return ret;
 		}
-
 	}
 
 	template<typename S, size_t N, meta::any_int I>
+		requires (N * 2 - 1 <= std::numeric_limits<typename meta::ScalarTraits<I>::UintT>::max())
 	__forceinline SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& indBase)
 	{
 		using namespace meta;
@@ -1230,7 +1237,8 @@ namespace AVXXY_NAMESPACE
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && is_f32<S>) return _mm_mask_loadu_ps(src, mask, p);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i64<S>) return _mm_mask_loadu_epi64(src, mask, p);
 		else if constexpr (FS.has(AVX512_F) && FS.has(AVX512_VL) && xmm_sized<T> && any_i32<S>) return _mm_mask_loadu_epi32(src, mask, p);
-		else return mask_mov(src, mask, load<S, N>(p, mask)); //TODO: this is pessimization for large vectors (AVX512 may have caught it)
+		else if constexpr (sizeof(T) > 64) return T{ load<S,N / 2>(p,mask.lo(),src.lo()), load<S,N / 2>(sp + N / 2, mask.hi(), src.hi()) };
+		else return mask_mov(src, mask, load<S, N>(p, mask));
 	}
 	template<typename S, size_t N>
 	__forceinline void store(const SIMD_Vector<S, N>& v, void* p, const mask_t<S, N>& mask)
@@ -2289,6 +2297,8 @@ namespace AVXXY_NAMESPACE
 		}
 	}
 
+
+
 	template<typename S, size_t N, size_t Scale, meta::any_int I>
 	__forceinline SIMD_Vector<S, N> __gather_impl(const void* p, const SIMD_Vector<I, N>& ind, const mask_t<S,N>& mask, const SIMD_Vector<S, N>& src)
 	{
@@ -2423,76 +2433,47 @@ namespace AVXXY_NAMESPACE
 		}
 	}
 
-	template<typename Block, size_t... Idx, typename S, size_t N>
-	//requires (meta::IsScalarType<Block> || meta::IsSimdVector<Block>)
-	SIMD_Vector<S, N> permute(const SIMD_Vector<S, N>& a)
+	template<typename BlockT, size_t... Inds, typename... Ss, size_t... Ns>
+	auto block_permute(const SIMD_Vector<Ss, Ns>& ...vectors)
 	{
-		static_assert(meta::IsScalarType<Block> || meta::IsSimdVector<Block>, "permute block type must be scalar or vector");
-
 		using namespace meta;
 		using namespace internals;
-		using T = SIMD_Vector<S, N>;
+		static_assert(IsScalarType<BlockT> || IsSimdVector<BlockT>, "block_permute: block type must be scalar or SIMD_Vector");
 
-		constexpr size_t atomSize = sizeof(Block);
-		constexpr size_t idxCount = sizeof...(Idx);
-		constexpr size_t atomCount = sizeof(T) / atomSize;
+		constexpr size_t TmpByteSize = ((sizeof(Ss) * Ns) + ...);
+		std::array<std::byte, TmpByteSize> tmp;
+		constexpr size_t blockSize = sizeof(BlockT);
+		constexpr size_t indexCount = sizeof...(Inds);
+		constexpr size_t inputBlockCount = sizeof(tmp) / sizeof(BlockT);
 
-		static_assert(sizeof(T) % atomSize == 0, "permute vector size must be divisible by block size");
-		static_assert(atomCount == idxCount, "permute index count must match count of blocks in the input vector");
-
-		T ret;
-		constexpr size_t indices[] = { Idx... };
-
-		constexpr bool indices_valid = []() {
-			for (size_t i = 0; i < atomCount; ++i) if (indices[i] >= atomCount) return false;
+		static_assert(sizeof(tmp) % blockSize == 0, "block_permute: sum of inputs' sizes must be divisible by size of block type");
+		constexpr size_t indices[] = { Inds... };
+		constexpr bool allIndsInRange = []() {
+			for (size_t i = 0; i < indexCount; ++i) if (indices[i] >= inputBlockCount) return false;
 			return true;
 			}();
-		static_assert(indices_valid, "permute block indices must be less than twice the block count in the input type");
+		static_assert(allIndsInRange, "block_permute: all block indices must be less than sum of block counts in input vectors");
 
-		const auto* src = reinterpret_cast<const std::byte*>(&a);
-		auto* dst = reinterpret_cast<std::byte*>(&ret);
+		std::byte* p = tmp.data();
+		auto append = [&](const auto& v)
+			{
+				memcpy(p, &v, sizeof(v));
+				p += sizeof(v);
+			};
+		(append(vectors), ...);
 
-		for (size_t i = 0; i < atomCount; ++i)
+		using RetS = std::conditional_t<IsScalarType<BlockT>, BlockT, BlockT::ScalarT>;
+		constexpr size_t RetByteSize = indexCount * blockSize;
+		constexpr size_t RetN = RetByteSize / sizeof(RetS);
+		static_assert(RetByteSize % sizeof(RetS) == 0, "block_permute: return value's byte size must be divisible by size of block's scalar type");
+
+		SIMD_Vector<RetS, RetN> ret;
+		std::byte* src = tmp.data();
+		std::byte* dst = reinterpret_cast<std::byte*>(&ret);
+		for (size_t i = 0; i < indexCount; ++i)
 		{
 			size_t ind = indices[i];
-			memcpy(dst + i * atomSize, src + ind * atomSize, atomSize);
-		}
-		return ret;
-	}
-	template<typename Block, size_t ...Idx, typename S, size_t N>
-	SIMD_Vector<S, N> permute2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b)
-	{
-		static_assert(meta::IsScalarType<Block> || meta::IsSimdVector<Block>, "permute2 block type must be scalar or vector");
-
-		using namespace meta;
-		using namespace internals;
-		using T = SIMD_Vector<S, N>;
-
-		constexpr size_t atomSize = sizeof(Block);
-		constexpr size_t idxCount = sizeof...(Idx);
-		constexpr size_t atomCount = sizeof(T) / atomSize;
-
-		static_assert(sizeof(T) % atomSize == 0, "permute2 vector size must be divisible by block size");
-		static_assert(atomCount == idxCount, "permute2 index count must match count of blocks in the input vector");
-
-		T ret;
-		constexpr size_t indices[] = { Idx... };
-
-		constexpr bool indices_valid = []() {
-			for (size_t i = 0; i < atomCount; ++i) if (indices[i] >= atomCount * 2) return false;
-			return true;
-			}();
-		static_assert(indices_valid, "permute2 block indices must be less than twice the block count in the input type");
-
-		const auto* src1 = reinterpret_cast<const std::byte*>(&a);
-		const auto* src2 = reinterpret_cast<const std::byte*>(&b);
-		auto* dst = reinterpret_cast<std::byte*>(&ret);
-
-		for (size_t i = 0; i < atomCount; ++i)
-		{
-			size_t ind = indices[i];
-			const auto* src = ind < atomCount ? (src1 + ind * atomSize) : (src2 + (ind - atomCount) * atomSize);
-			memcpy(dst + i * atomSize, src, atomSize);
+			memcpy(dst + i * blockSize, src + ind * blockSize, blockSize);
 		}
 		return ret;
 	}

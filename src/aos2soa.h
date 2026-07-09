@@ -82,14 +82,14 @@ __forceinline std::array<ReturnType, FieldCount> aos2soa_gather_and_transpose(co
 		for (int i = 0; i < 16; i += 8)
 		{
 			int j = i / 2;
-			ymm[i+0] = permute2<f32x4, 0, 2>(xmm[0+j], xmm[2+j]);
-			ymm[i+1] = permute2<f32x4, 0, 2>(xmm[1+j], xmm[3+j]);
-			ymm[i+2] = permute2<f32x4, 0, 2>(xmm[8+j], xmm[10+j]);
-			ymm[i+3] = permute2<f32x4, 0, 2>(xmm[9+j], xmm[11+j]);
-			ymm[i+4] = permute2<f32x4, 1, 3>(xmm[0+j], xmm[2+j]);
-			ymm[i+5] = permute2<f32x4, 1, 3>(xmm[1+j], xmm[3+j]);
-			ymm[i+6] = permute2<f32x4, 1, 3>(xmm[8+j], xmm[10+j]);
-			ymm[i+7] = permute2<f32x4, 1, 3>(xmm[9+j], xmm[11+j]);
+			ymm[i+0] = block_permute<f64x2, 0, 2>(xmm[0+j], xmm[2+j]);
+			ymm[i+1] = block_permute<f64x2, 0, 2>(xmm[1+j], xmm[3+j]);
+			ymm[i+2] = block_permute<f64x2, 0, 2>(xmm[8+j], xmm[10+j]);
+			ymm[i+3] = block_permute<f64x2, 0, 2>(xmm[9+j], xmm[11+j]);
+			ymm[i+4] = block_permute<f64x2, 1, 3>(xmm[0+j], xmm[2+j]);
+			ymm[i+5] = block_permute<f64x2, 1, 3>(xmm[1+j], xmm[3+j]);
+			ymm[i+6] = block_permute<f64x2, 1, 3>(xmm[8+j], xmm[10+j]);
+			ymm[i+7] = block_permute<f64x2, 1, 3>(xmm[9+j], xmm[11+j]);
 		}
 
 		for (int i = 0; i < 8; i++)

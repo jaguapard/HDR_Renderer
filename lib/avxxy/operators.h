@@ -4,6 +4,7 @@
 #include "funcs.h"
 namespace AVXXY_NAMESPACE
 {
+	//All operators here allow passing any type to right-hand-side argument. A SIMD_Vector of left-hand-side will be created from RHS argument
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator+(const SIMD_Vector<S, N>& a, const T& b) { return add(a, SIMD_Vector<S, N>(b)); };
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator-(const SIMD_Vector<S, N>& a, const T& b) { return sub(a, SIMD_Vector<S, N>(b)); };
 	template <typename T, typename S, size_t N> __forceinline SIMD_Vector<S, N> operator*(const SIMD_Vector<S, N>& a, const T& b) { return mul(a, SIMD_Vector<S, N>(b)); };

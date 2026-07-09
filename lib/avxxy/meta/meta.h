@@ -17,31 +17,25 @@ namespace AVXXY_NAMESPACE
 		//concept SupportsSizeClass = 
 
 		template<class...> inline constexpr bool always_false_v = false;
-		template <typename T, typename... Ts> inline constexpr bool is_any_of_v = (std::is_same_v<T, Ts> || ...);
+		template <typename T, typename... Ts> inline constexpr bool is_any_of_v = (std::same_as<T, Ts> || ...);
 		//Is this a supported scalar type? Any of these: signed/unsigned 8, 16, 32 and 64 bit ints, float, double, custom FP16 or BF16 type
 		template<typename T> concept IsScalarType = is_any_of_v<T, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float, double, fp16_t, bf16_t>;
 		template<typename... Ts> concept AllAreScalarTypes = (IsScalarType<Ts> && ...);
 		//Is this a valid intrinsic vector type? Does not check for actual availabilty (i.e. __m512 will pass this test even if AVX512 is not available)
 		template<typename T> concept IsIntrinsicVector = is_any_of_v<T, __m128i, __m128, __m128d, __m128h, __m128bh, __m256i, __m256, __m256d, __m256h, __m256bh, __m512i, __m512, __m512d, __m512h, __m512bh>;
 
-		template<typename T> static inline T BitsAllZero() {
-			std::array<std::byte, sizeof(T)> ret;
-			for (auto& it : ret) it = 0;
-			return std::bit_cast<T>(ret);
-		};
-
-		template<typename T> static inline T BitsAllOne()
-		{
-			std::array<std::uint8_t, sizeof(T)> ret;
-			for (auto& it : ret) it = 0xFF;
-			return std::bit_cast<T>(ret);
-		};
-
-		template<typename T> static inline T BitsAllZeroF(T) { return BitsAllZero<T>(); }
-		template<typename T> static inline T BitsAllOneF(T) { return BitsAllOne<T>(); }
-
-		//template <typename T>
-		//struct ScalarTraits;
+		//Constexpr variable of type T with all bits set to one
+		template<typename T> requires std::is_trivially_copyable_v<T> constexpr inline T AllOnes = []() {
+			std::array<uint8_t, sizeof(T)> arr;
+			for (auto& it : arr) it = 0xFF;
+			return std::bit_cast<T>(arr);
+			}();
+		//Constexpr variable of type T with all bits set to zero
+		template<typename T> requires std::is_trivially_copyable_v<T> constexpr inline T AllZeros = []() {
+			std::array<uint8_t, sizeof(T)> arr;
+			for (auto& it : arr) it = 0;
+			return std::bit_cast<T>(arr);
+			}();
 
 		template<meta::ScalarSizeClassEnum LS>
 		struct ScalarSizeTraits
@@ -71,41 +65,7 @@ namespace AVXXY_NAMESPACE
 			requires IsScalarType<S>
 		struct ScalarTraits : ScalarSizeTraits<scalar_size_class_v<S>>
 		{
-			static inline constexpr bool is_fp16 = std::is_same_v<S, fp16_t>;
-			static inline constexpr bool is_bf16 = std::is_same_v<S, bf16_t>;
-			static inline constexpr bool is_f32 = std::is_same_v<S, float>;
-			static inline constexpr bool is_f64 = std::is_same_v<S, double>;
-			static inline constexpr bool is_i64 = std::is_same_v<S, int64_t>;
-			static inline constexpr bool is_i32 = std::is_same_v<S, int32_t>;
-			static inline constexpr bool is_i16 = std::is_same_v<S, int16_t>;
-			static inline constexpr bool is_i8 = std::is_same_v<S, int8_t>;
-			static inline constexpr bool is_u64 = std::is_same_v<S, uint64_t>;
-			static inline constexpr bool is_u32 = std::is_same_v<S, uint32_t>;
-			static inline constexpr bool is_u16 = std::is_same_v<S, uint16_t>;
-			static inline constexpr bool is_u8 = std::is_same_v<S, uint8_t>;
-
-			//indicates wheteher this type is a signed 8 or 16 bit integer
-			static inline constexpr bool is_small_sint = is_i16 || is_i8;
-			//indicates wheteher this type is a unsigned 8 or 16 bit integer
-			static inline constexpr bool is_small_uint = is_u16 || is_u8;
-			//indicates wheteher this type is any 8 or 16 bit integer, signed or unsigned
-			static inline constexpr bool any_small_int = is_small_sint || is_small_uint;
-
-			//indicates wheteher this type is a floating point type (double, single, half precision or BF16)
-			//Note that std::is_floating_point_v is not exactly equal to this, since FP16 and BF16 have limited support and are using custom types
-			static inline constexpr bool any_float = is_any_of_v<S, float, double, fp16_t, bf16_t>;
-			//indicates whether this type is 8 bit integer, signed or unsigned
-			static inline constexpr bool any_i8 = (is_u8 || is_i8);
-			//indicates whether this type is 16 bit integer, signed or unsigned
-			static inline constexpr bool any_i16 = (is_u16 || is_i16);
-			//indicates whether this type is 32 bit integer, signed or unsigned
-			static inline constexpr bool any_i32 = (is_u32 || is_i32);
-			//indicates whether this type is 64 bit integer, signed or unsigned
-			static inline constexpr bool any_i64 = (is_u64 || is_i64);
-			//indicates whether this type is integral
-			static inline constexpr bool any_int = std::is_integral_v<S>;
-			//indicates whether this type is not integral
-			static inline constexpr bool not_int = !std::is_integral_v<S>;
+			
 		};
 
 		template<typename T> requires IsScalarType<T> inline constexpr T UppermostBitMask = std::bit_cast<T>(ScalarTraits<T>::SignMask);
@@ -150,26 +110,26 @@ namespace AVXXY_NAMESPACE
 		//@tparam N lane count of the would-be vector
 		template<typename S, size_t N> concept IsValid_SIMD_Vector = IsScalarType<S> && ((N == 1) || isPowerOf2(N));
 
-		template<typename T> inline constexpr bool xmm_sized = vector_size_class_v<T> == VectorSizeClassEnum::XMM;
-		template<typename T> inline constexpr bool ymm_sized = vector_size_class_v<T> == VectorSizeClassEnum::YMM;
-		template<typename T> inline constexpr bool zmm_sized = vector_size_class_v<T> == VectorSizeClassEnum::ZMM;
+		template<typename T> concept xmm_sized = vector_size_class_v<T> == VectorSizeClassEnum::XMM;
+		template<typename T> concept ymm_sized = vector_size_class_v<T> == VectorSizeClassEnum::YMM;
+		template<typename T> concept zmm_sized = vector_size_class_v<T> == VectorSizeClassEnum::ZMM;
 
 		constexpr bool is_xmm_size(size_t N) { return N <= 16; }
 		constexpr bool is_ymm_size(size_t N) { return N > 16 && N <= 32; }
 		constexpr bool is_zmm_size(size_t N) { return N > 32 && N <= 64; }
 
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_fp16 = std::is_same_v<T, fp16_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_bf16 = std::is_same_v<T, bf16_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_f32 = std::is_same_v<T, float>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_f64 = std::is_same_v<T, double>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_i64 = std::is_same_v<T, int64_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_i32 = std::is_same_v<T, int32_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_i16 = std::is_same_v<T, int16_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_i8 = std::is_same_v<T, int8_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_u64 = std::is_same_v<T, uint64_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_u32 = std::is_same_v<T, uint32_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_u16 = std::is_same_v<T, uint16_t>;
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_u8 = std::is_same_v<T, uint8_t>;
+		template <typename T> concept is_fp16 = std::same_as<T, fp16_t>;
+		template <typename T> concept is_bf16 = std::same_as<T, bf16_t>;
+		template <typename T> concept is_f32 = std::same_as<T, float>;
+		template <typename T> concept is_f64 = std::same_as<T, double>;
+		template <typename T> concept is_i64 = std::same_as<T, int64_t>;
+		template <typename T> concept is_i32 = std::same_as<T, int32_t>;
+		template <typename T> concept is_i16 = std::same_as<T, int16_t>;
+		template <typename T> concept is_i8 = std::same_as<T, int8_t>;
+		template <typename T> concept is_u64 = std::same_as<T, uint64_t>;
+		template <typename T> concept is_u32 = std::same_as<T, uint32_t>;
+		template <typename T> concept is_u16 = std::same_as<T, uint16_t>;
+		template <typename T> concept is_u8 = std::same_as<T, uint8_t>;
 
 		//indicates wheteher this type is a signed 8 or 16 bit integer
 		template <typename T> requires (IsScalarType<T>) inline constexpr bool is_small_sint = is_i16<T> || is_i8<T>;
@@ -182,18 +142,18 @@ namespace AVXXY_NAMESPACE
 		//Note that std::is_floating_point_v is not exactly equal to this, since FP16 and BF16 have limited support and are using custom types
 		template <typename T> concept any_float = is_any_of_v<T, float, double, fp16_t, bf16_t>;
 		//indicates whether this type is 8 bit integer, signed or unsigned
-		template <typename T> inline constexpr bool any_i8 = (is_u8<T> || is_i8<T>);
+		template <typename T> concept any_i8 = (is_u8<T> || is_i8<T>);
 		//indicates whether this type is 16 bit integer, signed or unsigned
-		template <typename T> inline constexpr bool any_i16 = (is_u16<T> || is_i16<T>);
+		template <typename T> concept any_i16 = (is_u16<T> || is_i16<T>);
 		//indicates whether this type is 32 bit integer, signed or unsigned
-		template <typename T> inline constexpr bool any_i32 = (is_u32<T> || is_i32<T>);
+		template <typename T> concept any_i32 = (is_u32<T> || is_i32<T>);
 		//indicates whether this type is 64 bit integer, signed or unsigned
-		template <typename T> inline constexpr bool any_i64 = (is_u64<T> || is_i64<T>);
+		template <typename T> concept any_i64 = (is_u64<T> || is_i64<T>);
 		//indicates whether this type is integral scalar type
 		template <typename T> concept any_int = std::is_integral_v<T> && IsScalarType<T>;
 		template <typename T> concept any_uint = any_int<T> && !std::is_signed_v<T>;
 		//indicates whether this type is not integral
-		template <typename T> requires (IsScalarType<T>) inline constexpr bool not_int = !std::is_integral_v<T>;
+		template <typename T> concept not_int = IsScalarType<T> && !std::is_integral_v<T>;
 
 		template <typename T> concept IsCvtOp = requires {typename T::cvt_to_t; };
 		template <typename T> concept IsLoadOp = requires {T::_avxxy_is_load_tag; };
@@ -206,7 +166,7 @@ namespace AVXXY_NAMESPACE
 
 		//Returns the number of elements of type S that the largest architectual registers of current feature set can hold.
 		//Note that this in no way related to whether or not the operations on these vectors will be native or not.
-		//It is purely a numerical size quantity, equal to largest native vector width divided by the sizeof(S).
+		//It is purely a numerical size quantity, equal to largest native vector width divided by sizeof(S).
 		//Largest native vector widths are:
 		//128 bits for SSE and above
 		//256 bits for AVX and above
@@ -231,7 +191,7 @@ namespace AVXXY_NAMESPACE
 		template<typename S>
 		concept vpopcnt_allowed = (meta::any_int<S> || settings::ALLOW_VPOPCNT_FOR_NON_INTS);
 
-		//TODO: relax this requirement some time. It needs at least 1 S element at starting at 64 bits of xmm
+		//TODO: relax this requirement some time. It needs at least 1 S element starting at 64 bits of xmm
 		template<typename S, size_t N>
 		concept unpackhi_legal = IsScalarType<S> && (sizeof(S) * N % 16 == 0);
 	}

@@ -51,15 +51,21 @@ namespace AVXXY_NAMESPACE
 
 	//Performs permutation on the elements from vector `a`. Elements of the returned vector are gathered from vector `a` by indices passed in `ind`.
 	//Indices outside the range [0, N-1] wrap around N (-1 maps to N-1, N maps to 0).
+	//Requires N-1 to fit into unsigned integer type's bounds, where unsigned integer type has the same size as I
 	//ret[i] = a[ind[i] & (N-1)]
-	template<typename S, size_t N, meta::any_int I> SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind);
+	template<typename S, size_t N, meta::any_int I>
+		requires (N-1 <= std::numeric_limits<typename meta::ScalarTraits<I>::UintT>::max())
+	SIMD_Vector<S, N> permx(const SIMD_Vector<S, N>& a, const SIMD_Vector<I, N>& ind);
 
 	//Appends vector `b` to vector `a`, then performs permutation on the elements from this temporary value. 
 	//Elements of the returned vector are gathered from temporary vector by indices passed in `ind` 
 	//Indices outside the range [0, 2*N-1] wrap around 2*N (-1 maps to 2*N-1, 2*N maps to 0).
+	//Requires 2*N-1 to fit into unsigned integer type's bounds, where unsigned integer type has the same size as I
 	//t = ind[i] & (2*N - 1)
 	//ret[i] = t < N ? a[t] : b[t-N]
-	template<typename S, size_t N, meta::any_int I> SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind);
+	template<typename S, size_t N, meta::any_int I> 
+	requires (N*2-1 <= std::numeric_limits<typename meta::ScalarTraits<I>::UintT>::max())
+	SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind);
 
 
 
@@ -325,23 +331,19 @@ namespace AVXXY_NAMESPACE
 	SIMD_Vector<S, N> byte_shuffle(const SIMD_Vector<S, N>& a, const SIMD_Vector<uint8_t, N * sizeof(S)>& b);
 
 
-	//Performs a block permutation of input vector by compile-time-known indices.
-	//Requires size of input to be divisible by size of block.
-	//Requires number of indices and number of blocks in input to match.
-	//Requires all indices to be in range 0 to C-1 inclusive, where C in number of blocks in the input vector.
-	//@tparam Block This type's size is used as permutation granularity. Only scalar and vector types are accepted
-	//@tparam Idx zero-indexed source block indices. Output block i is copied from input block Idx[i]
-	template<typename Block, size_t... Idx, typename S, size_t N>
-	SIMD_Vector<S, N> permute(const SIMD_Vector<S, N>& a);
+	//Concatenates all input vectors in left-to-right order into a temporary value, then performs a block permutation of temporary by compile-time-known indices and returns the result.
+	//The concatenated temporary value does not have to be a valid SIMD_Vector, thus, any combination of SIMD_Vectors can be passed as inputs. Only the output type has to be a valid SIMD_Vector.
+	//@tparam BlockT This type is used for deducting output type, and it's size is used as permutation granularity. Only scalar and vector types are allowed, but they are not required to be related to input vectors (i.e. you can permute integer vectors as floating point blocks, or permute mixture of any vectors as 4x32-bit integer blocks, etc.)
+	//@tparam Inds zero-indexed block indices. Output block at index i is copied from temporary's block at index Inds[i]
+	//@tparam Ss deduced automatically. Scalar types of input vectors. These are not required to match
+	//@tparam Ns deduced automatically. Lane count of input vectors. These are not required to match
+	//@return SIMD_Vector<RetS, RetN>, where RetS is BlockT if BlockT is a scalar type, or BlockT's scalar type if BlockT is SIMD_Vector; RetN = number of indices in Inds * sizeof(BlockT) / sizeof(RetS).
+	template<typename BlockT, size_t... Inds, typename... Ss, size_t... Ns>
+	auto block_permute(const SIMD_Vector<Ss, Ns>&... vectors);
 
-	//Performs a block permutation of 2 input vectors by compile-time-known indices.
-	//Requires size of inputs to be divisible by size of block.
-	//Requires number of indices and number of blocks in input to match.
-	//Requires all indices to be in range 0 to 2*C-1 inclusive, where C in number of blocks in the input vector.
-	//@tparam Block This type's size is used as permutation granularity. Only scalar and vector types are accepted
-	//@tparam Idx zero-indexed source block indices. Output block i is copied from a's block Idx[i] if index is less than C or from b's block Idx[i] otherwise 
-	template<typename Block, size_t... Idx, typename S, size_t N>
-	SIMD_Vector<S, N> permute2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b);
+	/*
+	template<typename RetS, typename BlockT, size_t... Inds, typename Ss..., size_t Ns...>
+	auto block_permute_typeless*/
 
 	//Loads a vector of same type as input from p using mask, then blends the loaded value with input vector, and stores the result back to p
 	//Pointer p does not have to be aligned.
