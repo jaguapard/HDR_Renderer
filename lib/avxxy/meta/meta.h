@@ -6,7 +6,7 @@
 #include <bit>
 #include "enums.h"
 #include <array>
-#include "../FeatureSet.h"
+#include "../internals/FeatureSet.h"
 #include "../settings.h"
 
 namespace AVXXY_NAMESPACE
@@ -25,15 +25,15 @@ namespace AVXXY_NAMESPACE
 		template<typename T> concept IsIntrinsicVector = is_any_of_v<T, __m128i, __m128, __m128d, __m128h, __m128bh, __m256i, __m256, __m256d, __m256h, __m256bh, __m512i, __m512, __m512d, __m512h, __m512bh>;
 
 		//Constexpr variable of type T with all bits set to one
-		template<typename T> requires std::is_trivially_copyable_v<T> constexpr inline T AllOnes = []() {
+		template<typename T> requires std::is_trivially_copyable_v<T> static const T AllOnes = []() {
 			std::array<uint8_t, sizeof(T)> arr;
-			for (auto& it : arr) it = 0xFF;
+			for (auto& it : arr) it = uint8_t(0xFF);
 			return std::bit_cast<T>(arr);
 			}();
 		//Constexpr variable of type T with all bits set to zero
-		template<typename T> requires std::is_trivially_copyable_v<T> constexpr inline T AllZeros = []() {
+		template<typename T> requires std::is_trivially_copyable_v<T> static const T AllZeros = []() {
 			std::array<uint8_t, sizeof(T)> arr;
-			for (auto& it : arr) it = 0;
+			for (auto& it : arr) it = uint8_t(0);
 			return std::bit_cast<T>(arr);
 			}();
 

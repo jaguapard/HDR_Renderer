@@ -1,6 +1,6 @@
 #pragma once
 #include "SIMD_Vector.h"
-#include "SIMD_Mask.h"
+#include "internals/SIMD_Mask.h"
 
 namespace AVXXY_NAMESPACE
 {
@@ -68,17 +68,24 @@ namespace AVXXY_NAMESPACE
 	SIMD_Vector<S, N> permx2(const SIMD_Vector<S, N>& a, const SIMD_Vector<S, N>& b, const SIMD_Vector<I, N>& ind);
 
 
+	//Converts the input to RetT, then returns the square root of this value
+	template<meta::any_float RetT, typename S, size_t N> SIMD_Vector<RetT, N> vsqrt(const SIMD_Vector<S, N>& a);
 
 	//Converts the input to single-precision floating point numbers, then returns the square root of this value
-	template<typename S, size_t N> SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a);
+	template<typename S, size_t N> SIMD_Vector<float, N> sqrtf(const SIMD_Vector<S, N>& a) { return vsqrt<float>(a); }
 	//Converts the input to double-precision floating point numbers, then returns the square root of this value
-	template<typename S, size_t N> SIMD_Vector<double, N> sqrtd(const SIMD_Vector<S, N>& a);
+	template<typename S, size_t N> SIMD_Vector<double, N> sqrtd(const SIMD_Vector<S, N>& a) { return vsqrt<double>(a); }
 
 	//Converts the vector of one scalar type to vector of another scalar type and returns the result
 	//For floating point to integer conversions, the input vector is truncated
 	//For integer to bigger integer conversions, the input vector is sign or zero extended, depending on input signedness
 	//For integer to smaller integer conversions, the input vector is wrapped around small integer's max value (TODO: is it true?)
 	template<meta::IsScalarType To, size_t N, meta::IsScalarType From> SIMD_Vector<To, N> vcvt(const SIMD_Vector<From, N>& value);
+
+	//Converts integral input to other integral vector by using saturation and returns the result.
+	//The input is clamped to output's scalar type range
+	template<meta::any_int To, meta::any_int From, size_t N>
+	static SIMD_Vector<To, N> vsat(const SIMD_Vector<From, N>& a);
 
 	//Concatenates vectors in order they are passed to function call (left to right) and returns the result.
 	//Leftmost vector is copied to lowest bits of the output, then second leftmost is appended to it, etc
@@ -185,12 +192,20 @@ namespace AVXXY_NAMESPACE
 		return load<typename T::ScalarT, T::LaneCount>(p, mask, src);
 	}
 
+	//Stores vector `v` to memory location `p`. Memory does not have to be aligned.
+	template<typename S, size_t N> void store(const SIMD_Vector<S, N>& v, void* p);
+	//Stores vector `v` to memory location `p`. Memory must be aligned to a boundary depending on vector size:
+	//16 bytes for vectors less than or equal to 16 bytes
+	//32 bytes for vectors sized between 17 and 32 bytes inclusive
+	//64 bytes for vectors larger than 32 bytes
+	template<typename S, size_t N> void store_a(const SIMD_Vector<S, N>& v, void* p);
+
 	//Conditionally stores vector `v` to memory location pointed by `p` using mask `mask`.
 	//If the corresponding mask bit is set, the corresponding element of `v` is stored into the memory
 	//Else, no action is performed
 	//Masked out elements are guaranteed to not cause memory-related faults
 	//if (mask[i]) reinterpret_cast<S*>(p)[i] = v[i]
-	template<typename S, size_t N> void store(const SIMD_Vector<S, N>& v, void* p, const mask_t<S, N>& mask = mask_t<S, N>::AllOnesUint);
+	template<typename S, size_t N> void store(const SIMD_Vector<S, N>& v, void* p, const mask_t<S, N>& mask);
 
 	//Conditionally gathers elements from memory, stores them into a vector and returns the result.
 	//If the corresponding mask bit is set, the corresponding element in memory is read and stored into the returned vector
@@ -328,6 +343,7 @@ namespace AVXXY_NAMESPACE
 	//    for (size_t i = 0; i < std::min(X-start, 16); ++i)
 	//        ret[start + i] = b[start + i] > 127 ? 0 : a[start + (b[start+i] & 15)]
 	template<typename S, size_t N>
+	requires (sizeof(SIMD_Vector<S,N>) % 16 == 0)
 	SIMD_Vector<S, N> byte_shuffle(const SIMD_Vector<S, N>& a, const SIMD_Vector<uint8_t, N * sizeof(S)>& b);
 
 

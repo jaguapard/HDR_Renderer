@@ -1,6 +1,6 @@
 #pragma once
 #include "namespace.h"
-#include "SIMD_Mask.h"
+#include "internals/SIMD_Mask.h"
 #include "SIMD_Vector.h"
 #include "meta/meta.h"
 

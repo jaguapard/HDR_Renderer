@@ -20,12 +20,12 @@ namespace AVXXY_NAMESPACE
 		//static constexpr bool NARROWING_CVT_ZERO_FILL = false;
 
 
-		//When using unsafe operations (vreinterpret_us, SIMD_Vector::from_bits_us) and output type is larger than input, the output's upper bits are undefined.
+		//When using unsafe operations (vcast, SIMD_Vector::fromBits) and output type is larger than input, the output's upper bits are undefined.
 		//With this set to true, they will be forced to zero with some performance penalty. Usually, this does not matter if you're not relying on this exact behavior
 		//Default value: false
 		static constexpr bool ZERO_FILL_UNSAFES = false;
 
-		//If set to false, unsafe operations will not be available (vreinterpret_us, SIMD_Vector::from_bits_us)
+		//If set to false, unsafe operations will not be available (vcast, SIMD_Vector::fromBits)
 		//Operations relying on it will use zero-filling if they have size mismatch
 		static constexpr bool ALLOW_UNSAFE_OPERATIONS = true;
 
@@ -67,8 +67,6 @@ namespace AVXXY_NAMESPACE
 
 		//static_assert(!NARROWING_CVT_ZERO_FILL, "Narrowing cvt zero-fill emulation is not currently supported.");
 		static_assert(FP16_EMULATIONS_RETURN_FP16_ONLY, "FP16-in-FP32 proxy not yet supported");
-		static_assert(!NOISY_SCALAR, "Noisy scalar flag is currently not supported");
-		static_assert(!ZERO_FILL_UNSAFES, "Zero fill unsafes flag is currently not supported");
 		static_assert(ALLOW_UNSAFE_OPERATIONS, "Disallowing unsafe operations is currently not supported");
 	}
 }

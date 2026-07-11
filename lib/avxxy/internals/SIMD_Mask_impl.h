@@ -2,7 +2,7 @@
 #include "SIMD_Mask.h"
 #include <iostream>
 //#include "funcs.h"
-#include "SIMD_Vector.h"
+#include "../SIMD_Vector.h"
 namespace AVXXY_NAMESPACE
 {
 	namespace internals

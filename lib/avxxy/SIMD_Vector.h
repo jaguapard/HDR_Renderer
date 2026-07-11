@@ -6,7 +6,8 @@
 #include <cstring>
 #include "meta/meta.h"
 #include "meta/type_factories.h"
-#include "SIMD_Mask.h"
+#include "internals/SIMD_Mask.h"
+#include "internals/internal_ops.h"
 
 namespace AVXXY_NAMESPACE
 {
@@ -64,21 +65,14 @@ namespace AVXXY_NAMESPACE
 		//If SIMD_Vector and intrinsic vector sizes mismatch, only the lower sizeof(SIMD_Vector) bytes from intrinsic vector are copied to the constructed SIMD_Vector
 		SIMD_Vector(const IntrinsicT& intrinsicVec)
 		{
-			if constexpr (sizeof(arr) == sizeof(intrinsicVec)) arr = std::bit_cast<decltype(arr)>(intrinsicVec);
-			else memcpy(arr.data(), &intrinsicVec, std::min(sizeof(arr), sizeof(intrinsicVec)));
+			arr = internals::avxxy_bit_cast<decltype(arr)>(intrinsicVec);
 		}
 
 		//Converts the SIMD_Vector to it's intrinsic vector type.
 		//If intrinsic vector is larger than SIMD_Vector, upper bytes of returned value are undefined
 		operator IntrinsicT() const
 		{
-			IntrinsicT ret;
-			if constexpr (sizeof(IntrinsicT) == sizeof(arr)) return std::bit_cast<IntrinsicT>(arr);
-			else
-			{
-				memcpy(&ret, arr.data(), std::min(sizeof(arr), sizeof(ret)));
-				return ret;
-			}
+			return internals::avxxy_bit_cast<IntrinsicT>(arr);
 		}
 
 		//Constructs vector from halves
@@ -126,8 +120,7 @@ namespace AVXXY_NAMESPACE
 		{
 			SIMD_Vector<S, N> ret;
 			static_assert(sizeof(ret.arr) == sizeof(ret));
-			if constexpr (sizeof(ret.arr) == sizeof(inp)) ret.arr = std::bit_cast<decltype(ret.arr)>(inp);
-			else memcpy(ret.arr.data(), &inp, std::min(sizeof(inp), sizeof(ret)));
+			ret = internals::avxxy_bit_cast<decltype(ret)>(inp);
 			return ret;
 		}
 

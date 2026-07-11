@@ -1,6 +1,6 @@
 #pragma once
-#include "namespace.h"
-#include "meta/meta.h"
+#include "../namespace.h"
+#include "../meta/meta.h"
 #include "FeatureSet.h"
 
 namespace AVXXY_NAMESPACE
