@@ -21,10 +21,10 @@ __forceinline Vec4f getFaceNormalForTriangle(const Vec4f& v0, const Vec4f& v1, c
 	n.w = 0;
 	return n / n.len();
 }
-__forceinline Vec4_f32x16 getFaceNormalsForTriangles16(const Vec4_f32x16& v0, const Vec4_f32x16& v1, const Vec4_f32x16& v2)
+__forceinline Vec3_f32x16 getFaceNormalsForTriangles16(const Vec4_f32x16& v0, const Vec4_f32x16& v1, const Vec4_f32x16& v2)
 {
-	Vec4_f32x16 n = (v2 - v0).cross3d(v1 - v0);
-	return n / n.len3d();
+	Vec3_f32x16 n = (v2 - v0).cross3d(v1 - v0);
+	return n / n.len<3>();
 }
 
 inline std::string toThousandsSeparatedString(int64_t value, std::string sep = ",")

@@ -26,16 +26,16 @@ public:
 	virtual ~RendererBase() {};
 
 	template<size_t N>
-	static void mask_store_vec4_f32x16_to_framebuffer(const VectorPack<SIMD_Vector<float, N>>& pack, void* frameBuffer, int x, int y, int w, const mask_t<float, N>& mask)
+	static void mask_store_vec4_f32x16_to_framebuffer(const SIMD_VectorPack<SIMD_Vector<float, N>, 4>& pack, void* frameBuffer, int x, int y, int w, const mask_t<float, N>& mask)
 	{
 		//we have px[0] == r0,r1,r2...,r15, px[1] == g0,..g15, ...
 		//DX wants: r0,g0,b0,a0,r1,g1,b1,a1, etc
 		//Meanings, that first 16-wide register to store should be r0,g0,b0,a0,...,r3,g3,b3,a3
 		//Second - 4-7, third - 8-11, fourth - 12-15
-		SIMD_Vector<fp16_t, N> ph_r = pack.r;
-		SIMD_Vector<fp16_t, N> ph_g = pack.g;
-		SIMD_Vector<fp16_t, N> ph_b = pack.b;
-		SIMD_Vector<fp16_t, N> ph_a = pack.a;
+		SIMD_Vector<fp16_t, N> ph_r = pack.x;
+		SIMD_Vector<fp16_t, N> ph_g = pack.y;
+		SIMD_Vector<fp16_t, N> ph_b = pack.z;
+		SIMD_Vector<fp16_t, N> ph_a = pack.w;
 
 		SIMD_Vector<uint16_t, N> rg_permind, ba_permind;
 		mask_t<fp16_t, N> mov_mask = 0;
