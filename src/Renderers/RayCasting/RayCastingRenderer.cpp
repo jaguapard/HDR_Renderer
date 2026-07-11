@@ -59,8 +59,10 @@ mask16d raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, 
 	constexpr float epsilon = std::numeric_limits<float>::epsilon();
 	constexpr float eps = std::numeric_limits<float>::epsilon();
 
-	Vec4_f32x16 edge1 = triB - triA;
-	Vec4_f32x16 edge2 = triC - triA;
+	Vec4f e1v = triB - triA;
+	Vec4f e2v = triC - triA;
+	Vec4_f32x16 edge1(e1v.x, e1v.y, e1v.z, e1v.z);
+	Vec4_f32x16 edge2(e2v.x, e2v.y, e2v.z, e2v.z);
 
 	mask16d activeRays = 0xFFFF;
 	// Backface culling, assuming CW-wound triangles.
@@ -104,8 +106,10 @@ mask8d raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec
 	constexpr float epsilon = std::numeric_limits<float>::epsilon();
 	const f32x8 eps = std::numeric_limits<float>::epsilon();
 
-	Vec4_f32x8 edge1 = triB - triA;
-	Vec4_f32x8 edge2 = triC - triA;
+	Vec4f e1v = triB - triA;
+	Vec4f e2v = triC - triA;
+	Vec4_f32x8 edge1(e1v.x, e1v.y, e1v.z, e1v.z);
+	Vec4_f32x8 edge2(e2v.x, e2v.y, e2v.z, e2v.z);
 
 	mask8d activeRays = 0xFF;
 	// Backface culling, assuming CW-wound triangles.
