@@ -197,6 +197,19 @@ namespace AVXXY_NAMESPACE
 			};
 			//return { y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x, 0.f };
 		}
+
+		//Returns this vector pack resized to other dimension count.
+		//If new dimension count is greater than current, the new dimensions are filled with zeros
+		//If new dimension count is less than current, the dimensions at indices Dim2 and above are discarded
+		template<size_t Dim2>
+		SIMD_VectorPack<V, Dim2> resized() const 
+		{
+			SIMD_VectorPack<V, Dim2> ret;
+			constexpr size_t copyCount = std::min(Dim, Dim2);
+			for (size_t i = 0; i < copyCount; ++i) ret[i] = (*this)[i];
+			for (size_t i = copyCount; i < Dim2; ++i) ret[i] = 0;
+			return ret;
+		}
 	private:
 
 	};

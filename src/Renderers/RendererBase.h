@@ -113,11 +113,11 @@ public:
 		beta = (d11 * d20 - d01 * d21) / den;
 		gamma = (d00 * d21 - d01 * d20) / den;
 		alpha = float32x16(1) - beta - gamma; //doesn't seem to hurt calculating it like this*/
-
-		VectorType n = (B - A).cross3d(C - A);
-		ret[0] = ((B - P).cross3d(C - P)).dot<3>(n) / n.dot<3>(n);
-		ret[1] = ((C - P).cross3d(A - P)).dot<3>(n) / n.dot<3>(n);
-		ret[2] = ((A - P).cross3d(B - P)).dot<3>(n) / n.dot<3>(n);
+ 
+		auto n = (B - A).cross3d(C - A);
+		ret[0] = (((B - P).cross3d(C - P)).dot<3>(n) / n.dot<3>(n)).template resized<4>();
+		ret[1] = (((C - P).cross3d(A - P)).dot<3>(n) / n.dot<3>(n)).template resized<4>();
+		ret[2] = (((A - P).cross3d(B - P)).dot<3>(n) / n.dot<3>(n)).template resized<4>();;
 	}
 
 	/*
