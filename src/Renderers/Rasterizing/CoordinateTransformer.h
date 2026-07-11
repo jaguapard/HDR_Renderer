@@ -24,7 +24,7 @@ public:
 	SIMD_VectorPack<SIMD_Vector<float,N>, 4> inverseScreenPixelsToWorld(const SIMD_VectorPack<SIMD_Vector<float, N>, 4>& v) const
 	{
 		using vp = SIMD_VectorPack<SIMD_Vector<float, N>, 4>;
-		vp screenSpace = v * this->rcp_hVec;
+		vp screenSpace = v * vp(this->rcp_hVec.x, this->rcp_hVec.y, this->rcp_hVec.z, this->rcp_hVec.w);
 		vp post_zDivide = screenSpace - vp(this->_shift.x, _shift.y, _shift.z, _shift.w);
 		vp pre_zDivide = post_zDivide / v.w;
 		return inverseRotationTranslation * pre_zDivide;
