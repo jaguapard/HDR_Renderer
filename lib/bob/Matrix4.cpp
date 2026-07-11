@@ -2,7 +2,7 @@
 #include "../../src/LUTMan.h"
 using namespace bob;
 using namespace AVXXY_NAMESPACE;
-Matrix4::Matrix4(const std::initializer_list<bob::_SSE_Vec4_float> lst)
+Matrix4::Matrix4(const std::initializer_list<_SSE_Vec4_float> lst)
 {
 	assert(lst.size() == 4);
 	for (int i = 0; i < 4; ++i) this->val[i] = *(lst.begin() + i);
@@ -44,7 +44,7 @@ Matrix4 Matrix4::operator*(const Matrix4& other) const
 	return ret;
 }
 
-bob::_SSE_Vec4_float Matrix4::operator*(const bob::_SSE_Vec4_float v) const
+_SSE_Vec4_float Matrix4::operator*(const _SSE_Vec4_float v) const
 {
 	/*
 #if __AVX512F__
@@ -119,7 +119,7 @@ Matrix4 Matrix4::transposed() const
 	//#endif
 }
 
-bob::_SSE_Vec4_float Matrix4::multiplyByTransposed(const bob::_SSE_Vec4_float v) const
+_SSE_Vec4_float Matrix4::multiplyByTransposed(const _SSE_Vec4_float v) const
 {
 #if __AVX512F__
 	__m512 bcst = _mm512_permutexvar_ps(_mm512_setr_epi32(0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3), _mm512_castps128_ps512(v));
@@ -136,21 +136,21 @@ bob::_SSE_Vec4_float Matrix4::multiplyByTransposed(const bob::_SSE_Vec4_float v)
 #else
 	const float* p = (const float*)this;
 	f32x4 p1 = load<f32x4>(p) * v.x;
-	f32x4 p2 = load<f32x4>(p+4) * v.y;
-	f32x4 p3 = load<f32x4>(p+8) * v.z;
-	f32x4 p4 = load<f32x4>(p+12) * v.w;
+	f32x4 p2 = load<f32x4>(p + 4) * v.y;
+	f32x4 p3 = load<f32x4>(p + 8) * v.z;
+	f32x4 p4 = load<f32x4>(p + 12) * v.w;
 	return vcast<__m128>((p1 + p2) + (p3 + p4));
 #endif
 }
 
-const bob::_SSE_Vec4_float& Matrix4::operator[](int i) const
+const _SSE_Vec4_float& Matrix4::operator[](int i) const
 {
 	return val[i];
 }
 
-bob::_SSE_Vec4_float& Matrix4::operator[](int i)
+_SSE_Vec4_float& Matrix4::operator[](int i)
 {
-	return const_cast<bob::_SSE_Vec4_float&>(const_cast<const Matrix4*>(this)->operator[](i));
+	return const_cast<_SSE_Vec4_float&>(const_cast<const Matrix4*>(this)->operator[](i));
 }
 
 std::string Matrix4::toString(int precision) const
@@ -216,10 +216,10 @@ Matrix4 Matrix4::rotationX(float theta)
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
 	return {
-		bob::_SSE_Vec4_float(cosTheta,	sinTheta, 0.0, 0.0),
-		bob::_SSE_Vec4_float(-sinTheta, cosTheta, 0.0, 0.0),
-		bob::_SSE_Vec4_float(0.0,		0.0,	  1.0, 0.0),
-		bob::_SSE_Vec4_float(0.0,		0.0,	  0.0, 1.0),
+		_SSE_Vec4_float(cosTheta,	sinTheta, 0.0, 0.0),
+		_SSE_Vec4_float(-sinTheta, cosTheta, 0.0, 0.0),
+		_SSE_Vec4_float(0.0,		0.0,	  1.0, 0.0),
+		_SSE_Vec4_float(0.0,		0.0,	  0.0, 1.0),
 	};
 }
 
@@ -228,10 +228,10 @@ Matrix4 Matrix4::rotationY(float theta)
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
 	return {
-		bob::_SSE_Vec4_float(cosTheta,  0.0,	-sinTheta,	0.0),
-		bob::_SSE_Vec4_float(0.0,		1.0,	0.0,		0.0),
-		bob::_SSE_Vec4_float(sinTheta,  0.0,	cosTheta,	0.0),
-		bob::_SSE_Vec4_float(0.0,		0.0,	0.0,		1.0),
+		_SSE_Vec4_float(cosTheta,  0.0,	-sinTheta,	0.0),
+		_SSE_Vec4_float(0.0,		1.0,	0.0,		0.0),
+		_SSE_Vec4_float(sinTheta,  0.0,	cosTheta,	0.0),
+		_SSE_Vec4_float(0.0,		0.0,	0.0,		1.0),
 	};
 }
 
@@ -240,10 +240,10 @@ Matrix4 Matrix4::rotationZ(float theta)
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
 	return {
-		bob::_SSE_Vec4_float(1.0,	0.0,		0.0,		0.0),
-		bob::_SSE_Vec4_float(0.0,	cosTheta,	sinTheta,	0.0),
-		bob::_SSE_Vec4_float(0.0,	-sinTheta,	cosTheta,	0.0),
-		bob::_SSE_Vec4_float(0.0,	0.0,		0.0,		1.0),
+		_SSE_Vec4_float(1.0,	0.0,		0.0,		0.0),
+		_SSE_Vec4_float(0.0,	cosTheta,	sinTheta,	0.0),
+		_SSE_Vec4_float(0.0,	-sinTheta,	cosTheta,	0.0),
+		_SSE_Vec4_float(0.0,	0.0,		0.0,		1.0),
 	};
 }
 
@@ -401,7 +401,7 @@ MatrixPack16_4x4 MatrixPack16_4x4::rotationZ(AVXXY_NAMESPACE::f32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::rotationXYZ(const bob::Vec4_f32x16& angle)
+MatrixPack16_4x4 MatrixPack16_4x4::rotationXYZ(const Vec4_f32x16& angle)
 {
 	return rotationZ(angle.z) * rotationY(angle.y) * rotationX(angle.x);
 }
@@ -484,7 +484,7 @@ MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationZ(AVXXY_NAMESPACE::f32x16 theta)
 	return ret;
 }
 
-MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationXYZ(const bob::Vec4_f32x16& angle)
+MatrixPack16_4x4 MatrixPack16_4x4::fast_rotationXYZ(const Vec4_f32x16& angle)
 {
 	return fast_rotationZ(angle.z) * fast_rotationY(angle.y) * fast_rotationX(angle.x);
 }

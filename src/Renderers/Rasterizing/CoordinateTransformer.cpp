@@ -41,7 +41,7 @@ Vec4f CoordinateTransformer::screenSpaceToPixels(const Vec4f v) const
 	return (v + this->_shift) * hVec;
 }
 
-bob::Vec4_f32x16 CoordinateTransformer::screenSpaceToPixels(const bob::Vec4_f32x16& v) const
+Vec4_f32x16 CoordinateTransformer::screenSpaceToPixels(const Vec4_f32x16& v) const
 {
 	Vec4_f32x16 ret;
 	ret.x = (v.x + this->shift_hVec.x) * this->shift_hVec.z;

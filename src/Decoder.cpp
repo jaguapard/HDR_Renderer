@@ -22,13 +22,13 @@ Vec4_f32x16 Decoder::R10G11B10A1_gamma2_to_linear(int32x16 packed)
 Vec4_f32x16 Decoder::RGBA8888_to_linear_using_FP16_LUT(const u32x16& packed)
 {
     Vec4_f32x16 ret;
-    ret.a = f32x16(packed >> 24) / 255;
+    ret.w = f32x16(packed >> 24) / 255;
     f32x16 r = f32x16((packed >> 0) & 0xFF) / 255;
     f32x16 g = f32x16((packed >> 8) & 0xFF) / 255;
     f32x16 b = f32x16((packed >> 16) & 0xFF) / 255;
-    ret.r = r * r * sqrtf(sqrtf(r));
-    ret.g = g * g * sqrtf(sqrtf(g));
-    ret.b = b * b * sqrtf(sqrtf(b));
+    ret.x = r * r * sqrtf(sqrtf(r));
+    ret.y = g * g * sqrtf(sqrtf(g));
+    ret.z = b * b * sqrtf(sqrtf(b));
     return ret;
 
     /*

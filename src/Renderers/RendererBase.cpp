@@ -12,10 +12,10 @@ Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* fra
 	u16x32 b0_15_a0_15_ph = permx2(rgba0_7, rgba8_15, u16x32(2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62, 3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63));
 
 	Vec4_f32x16 ret;
-	ret.r = r0_15_g0_15_ph.lo();
-	ret.g = r0_15_g0_15_ph.hi();
-	ret.b = b0_15_a0_15_ph.lo();
-	ret.a = b0_15_a0_15_ph.hi();
+	ret.x = r0_15_g0_15_ph.lo();
+	ret.y = r0_15_g0_15_ph.hi();
+	ret.z = b0_15_a0_15_ph.lo();
+	ret.w = b0_15_a0_15_ph.hi();
 	return ret;
 }
 
@@ -23,10 +23,10 @@ Vec4_f32x16 RendererBase::mask_load_vec4_f32x16_from_framebuffer(const void* fra
 void RendererBase::scatterToFrameBuffer(const Vec4_f32x16& colors, int32x16 x, int32x16 y, mask16d mask, void* frameBuf, int framebufW)
 {
 	int32x16 scatterInd = y * framebufW + x;
-	fp16x16 fp16_r = colors.r;
-	fp16x16 fp16_g = colors.g;
-	fp16x16 fp16_b = colors.b;
-	fp16x16 fp16_a = colors.a; //TODO: can be forced to 1 and moved later
+	fp16x16 fp16_r = colors.x;
+	fp16x16 fp16_g = colors.y;
+	fp16x16 fp16_b = colors.z;
+	fp16x16 fp16_a = colors.w; //TODO: can be forced to 1 and moved later
 
 	fp16x32 fp16_rg = { fp16_r, fp16_g };
 	fp16x32 fp16_ba = { fp16_b, fp16_a };

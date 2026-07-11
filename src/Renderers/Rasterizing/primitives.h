@@ -34,7 +34,7 @@ namespace Rasterizing
 			ret.normal.x = lerp(from.normal.x, to.normal.x, alpha);
 			ret.normal.y = lerp(from.normal.y, to.normal.y, alpha);
 			ret.normal.z = lerp(from.normal.z, to.normal.z, alpha);
-			ret.normal /= ret.normal.len3d();
+			ret.normal /= ret.normal.len<3>();
 			ret.u = lerp(from.u, to.u, alpha);
 			ret.v = lerp(from.v, to.v, alpha);
 			return ret;

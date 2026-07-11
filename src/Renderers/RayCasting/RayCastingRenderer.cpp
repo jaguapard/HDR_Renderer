@@ -70,27 +70,27 @@ mask16d raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, 
 	if (!activeRays) return 0;*/
 
 	Vec4_f32x16 ray_cross_e2 = rayDirs.cross3d(edge2);
-	float32x16 det = edge1.dot3d(ray_cross_e2);
+	float32x16 det = edge1.dot<3>(ray_cross_e2);
 
 	activeRays &= abs(det) >= eps;
 	if (!activeRays) return 0; // Ray is parallel to triangle
 
 	float32x16 inv_det = float32x16(1.f) / det;
 	Vec4_f32x16 s = rayOrigins - triA;
-	float32x16 u = inv_det * s.dot3d(ray_cross_e2);
+	float32x16 u = inv_det * s.dot<3>(ray_cross_e2);
 
 	activeRays &= u >= -eps & (u - 1) <= eps;
 	if (!activeRays) return 0; // Ray passes outside edge2's bounds
 
 	Vec4_f32x16 s_cross_e1 = s.cross3d(edge1);
-	float32x16 v = inv_det * rayDirs.dot3d(s_cross_e1);
+	float32x16 v = inv_det * rayDirs.dot<3>(s_cross_e1);
 	activeRays &= (v >= -eps) & (u + v - 1) <= eps; 
 	if (!activeRays) return 0; // Ray passes outside edge1's bounds
 
 	// The ray line intersects with the triangle.
 	// We compute t to find where on the ray the intersection is.
 	// t < epsilon means that there is a line intersection but not a ray intersection.
-	float32x16 t = inv_det * edge2.dot3d(s_cross_e1);
+	float32x16 t = inv_det * edge2.dot<3>(s_cross_e1);
 	retT = t;
 	return activeRays & t > epsilon; // Ray intersection
 }
@@ -115,27 +115,27 @@ mask8d raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec
 	if (!activeRays) return 0;*/
 
 	Vec4_f32x8 ray_cross_e2 = rayDirs.cross3d(edge2);
-	float32x8 det = edge1.dot3d(ray_cross_e2);
+	float32x8 det = edge1.dot<3>(ray_cross_e2);
 	
 	activeRays &= abs(det) >= eps;
 	if (!activeRays) return 0; // Ray is parallel to triangle
 
 	float32x8 inv_det = float32x8(1.f) / det;
 	Vec4_f32x8 s = rayOrigins - triA;
-	float32x8 u = inv_det * s.dot3d(ray_cross_e2);
+	float32x8 u = inv_det * s.dot<3>(ray_cross_e2);
 
 	activeRays &= u >= -eps & ((u - 1) <= eps);
 	if (!activeRays) return 0; // Ray passes outside edge2's bounds
 
 	Vec4_f32x8 s_cross_e1 = s.cross3d(edge1);
-	float32x8 v = inv_det * rayDirs.dot3d(s_cross_e1);
+	float32x8 v = inv_det * rayDirs.dot<3>(s_cross_e1);
 	activeRays &= (v >= -eps) & ((u + v - 1) <= eps);
 	if (!activeRays) return 0; // Ray passes outside edge1's bounds
 
 	// The ray line intersects with the triangle.
 	// We compute t to find where on the ray the intersection is.
 	// t < epsilon means that there is a line intersection but not a ray intersection.
-	float32x8 t = inv_det * edge2.dot3d(s_cross_e1);
+	float32x8 t = inv_det * edge2.dot<3>(s_cross_e1);
 	retT = t;
 	return activeRays & (t > epsilon); // Ray intersection
 }
@@ -281,7 +281,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 				float32x16 progressX = x / float(bufH);
 				float32x16 progressY = y / float(bufH);
 				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
-				rayDirs /= rayDirs.len3d();
+				rayDirs /= rayDirs.len<3>();
 
 				TraceResults hits = this->traceRays(rayOrigins, rayDirs, bounds, false, threadIndexFake);
 
@@ -292,7 +292,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 					int32x16 diffuseMapIndices = gather<i32x16, 1>(this->sceneModels.data(), modelTextureIndOffset, hits.raysHit);
 					textureColors = this->textureManager.gatherLinearIntesitiesFromMultipleTextures(diffuseMapIndices, hits.textureCoords[0], hits.textureCoords[1], hits.raysHit);
 					
-					float32x16 normalShadingMult = max(f32x16(0), hits.normals.dot3d(lightDir));
+					float32x16 normalShadingMult = max(f32x16(0), hits.normals.dot<3>(lightDir));
 					Vec4_f32x16 shadowTraceRayOrigins = rayOrigins + rayDirs * hits.t + hits.normals * 1;
 					TraceResults shadowTrace = this->traceRays(shadowTraceRayOrigins, lightDir, hits.raysHit, true, threadIndexFake);
 					float32x16 totalMult = ambientLightIntensity + maskz_mov(~shadowTrace.raysHit, normalShadingMult);
@@ -372,7 +372,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 				ret.triangleIndices = mask_mov(ret.triangleIndices, toOverride, int32x16(triangleIndex));
 				Vec4_f32x16 normals(0.f, 0.f, 0.f, 0.f);
 				for (int i = 0; i < 3; ++i) normals += Vec4_f32x16(triangle.tv[i].normal) * worldBarycentrics[i];
-				normals /= normals.len3d();
+				normals /= normals.len<3>();
 
 				for (int k = 0; k < 3; ++k)
 				{
