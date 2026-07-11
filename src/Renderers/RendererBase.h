@@ -114,13 +114,14 @@ public:
 		gamma = (d00 * d21 - d01 * d20) / den;
 		alpha = float32x16(1) - beta - gamma; //doesn't seem to hurt calculating it like this*/
  
+		//TODO: lots of assumptions here! Make it proper
 		auto n = (B - A).cross3d(C - A);
-		auto v0 = ((B - P).cross3d(C - P)).dot<3>(n) / n.dot<3>(n);
-		auto v1 = ((C - P).cross3d(A - P)).dot<3>(n) / n.dot<3>(n);
-		auto v2 = ((A - P).cross3d(B - P)).dot<3>(n) / n.dot<3>(n);
-		ret[0] = v0.resized<4>();
-		ret[1] = v1.resized<4>();
-		ret[2] = v2.resized<4>();
+		auto v0 = ((B - P).cross3d(C - P)).dot(n) / n.dot(n);
+		auto v1 = ((C - P).cross3d(A - P)).dot(n) / n.dot(n);
+		auto v2 = ((A - P).cross3d(B - P)).dot(n) / n.dot(n);
+		ret[0] = v0;
+		ret[1] = v1;
+		ret[2] = v2;
 	}
 
 	/*
