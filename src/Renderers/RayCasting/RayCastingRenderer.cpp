@@ -54,7 +54,7 @@ float rayTriangleIntersectionT(Vec4f rayOrigin, Vec4f rayDir, Vec4f triA, Vec4f 
 //Checks 16 rays for intersection with 1 triangle, returning mask of rays hitting the triangle.
 //Intersection T is written out retT. The values of T are undefined for non-intersecting rays
 //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
-mask16d raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x16& retT)
+mask16d raysTriangleIntersectionTs(const Vec3_f32x16& rayOrigins, const Vec3_f32x16& rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x16& retT)
 {
 	constexpr float epsilon = std::numeric_limits<float>::epsilon();
 	constexpr float eps = std::numeric_limits<float>::epsilon();
@@ -78,7 +78,7 @@ mask16d raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, 
 	if (!activeRays) return 0; // Ray is parallel to triangle
 
 	float32x16 inv_det = float32x16(1.f) / det;
-	Vec3_f32x16 s = rayOrigins - triA;
+	Vec3_f32x16 s = rayOrigins - Vec3_f32x16(triA.x, triA.y, triA.z);
 	float32x16 u = inv_det * s.dot<3>(ray_cross_e2);
 
 	activeRays &= u >= -eps & (u - 1) <= eps;
@@ -101,7 +101,7 @@ mask16d raysTriangleIntersectionTs(Vec4_f32x16 rayOrigins, Vec4_f32x16 rayDirs, 
 //Checks 8 rays for intersection with 1 triangle, returning mask of rays hitting the triangle.
 //Intersection T is written out retT. The values of T are undefined for non-intersecting rays
 //https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
-mask8d raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x8& retT)
+mask8d raysTriangleIntersectionTs(const Vec3_f32x8& rayOrigins, const Vec3_f32x8& rayDirs, Vec4f triA, Vec4f triB, Vec4f triC, float32x8& retT)
 {
 	constexpr float epsilon = std::numeric_limits<float>::epsilon();
 	const f32x8 eps = std::numeric_limits<float>::epsilon();
@@ -125,7 +125,7 @@ mask8d raysTriangleIntersectionTs(Vec4_f32x8 rayOrigins, Vec4_f32x8 rayDirs, Vec
 	if (!activeRays) return 0; // Ray is parallel to triangle
 
 	float32x8 inv_det = float32x8(1.f) / det;
-	Vec3_f32x8 s = rayOrigins - triA;
+	Vec3_f32x8 s = rayOrigins - Vec3_f32x8(triA.x, triA.y, triA.z);
 	float32x8 u = inv_det * s.dot<3>(ray_cross_e2);
 
 	activeRays &= u >= -eps & ((u - 1) <= eps);
@@ -266,9 +266,13 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 
 	std::vector<Threadpool::TaskHandle> tasks;
 	Threadpool::Task tsk;
-	Vec4_f32x16 rayOrigins = camPos;
-	Vec4f lightDir = { 0.4, 0.5, 0.2, 0 };
-	lightDir /= lightDir.len();
+	Vec4_f32x16 rayOrigins(camPos.x, camPos.y, camPos.z, camPos.w);
+	Vec4_f32x16 lightDir;
+	{
+		Vec4f _lightDir = { 0.4, 0.5, 0.2, 0 };
+		_lightDir /= _lightDir.len();
+		lightDir = Vec4_f32x16(_lightDir.x, _lightDir.y, _lightDir.z, _lightDir.w);
+	}
 	float32x16 ambientLightIntensity = 0.1;
 	int threadCount = Threadpool::instance->getWorkerCount();
 	for (int yStart = 0; yStart < bufH; yStart += 4)
@@ -284,7 +288,7 @@ void RayCastingRenderer::renderFrame(const GameSettings& settings)
 			{
 				float32x16 progressX = x / float(bufH);
 				float32x16 progressY = y / float(bufH);
-				Vec4_f32x16 rayDirs = Vec4_f32x16(forward) * settings.cameraPlane_zDist + Vec4_f32x16(down) * (progressY - 0.5) + Vec4_f32x16(right) * (progressX - widthToHeightRatio * 0.5);
+				Vec4_f32x16 rayDirs = Vec4_f32x16(forward.x, forward.y, forward.z, forward.w) * settings.cameraPlane_zDist + Vec4_f32x16(down.x, down.y, down.z, down.w) * (progressY - 0.5) + Vec4_f32x16(right.x, right.y, right.z, right.w) * (progressX - widthToHeightRatio * 0.5);
 				rayDirs /= rayDirs.len<3>();
 
 				TraceResults hits = this->traceRays(rayOrigins, rayDirs, bounds, false, threadIndexFake);
@@ -352,15 +356,20 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 			uint32_t modelIndex = content->modelIndex;
 			const Triangle& triangle = this->sceneModels[modelIndex].triangles[triangleIndex];
 			float32x16 t;
-			mask16d raysHittingThisTriangle = activeRays & raysTriangleIntersectionTs(rayOrigins, rayDirs, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
+			mask16d raysHittingThisTriangle = activeRays & raysTriangleIntersectionTs(rayOrigins.resized<3>(), rayDirs.resized<3>(), triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, t);
 			triangleIntersectionTestsLive += std::popcount((uint32_t)raysHittingThisTriangle);
 			triangleIntersectionTests += 16;
 			if (!raysHittingThisTriangle) continue;
 
 			std::array<float32x16, 3> worldBarycentrics;
-			calculateBarycentricCoordinates3D<Vec4_f32x16>(rayOrigins + rayDirs * t, triangle.tv[0].space, triangle.tv[1].space, triangle.tv[2].space, worldBarycentrics);
+			{
+				Vec4_f32x16 tv[3];
+				for (int i = 0; i < 3; ++i) tv[i] = Vec4_f32x16(triangle.tv[i].space.x, triangle.tv[i].space.y, triangle.tv[i].space.z, triangle.tv[i].space.w);
+				calculateBarycentricCoordinates3D<Vec4_f32x16>(rayOrigins + rayDirs * t, tv[0], tv[1], tv[2], worldBarycentrics);
+			}
+			
 			Vec4_f32x16 uv(0.f, 0.f, 0.f, 0.f);
-			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse) * worldBarycentrics[i];
+			for (int i = 0; i < 3; ++i) uv += Vec4_f32x16(triangle.tv[i].diffuse.x, triangle.tv[i].diffuse.y, triangle.tv[i].diffuse.z, triangle.tv[i].diffuse.w) * worldBarycentrics[i];
 
 			const auto& texture = this->textureManager.getTextureByHandle(this->sceneModels[modelIndex].textureIndex);
 			//auto accessor = texture.getGatherAccessor(uv.x, uv.y, raysHittingThisTriangle); //todo: add t < ret.t?
@@ -375,7 +384,7 @@ RayCasting::TraceResults RayCastingRenderer::traceRays(Vec4_f32x16 rayOrigins, V
 				ret.modelIndices = mask_mov(ret.modelIndices, toOverride, int32x16(modelIndex));
 				ret.triangleIndices = mask_mov(ret.triangleIndices, toOverride, int32x16(triangleIndex));
 				Vec4_f32x16 normals(0.f, 0.f, 0.f, 0.f);
-				for (int i = 0; i < 3; ++i) normals += Vec4_f32x16(triangle.tv[i].normal) * worldBarycentrics[i];
+				for (int i = 0; i < 3; ++i) normals += Vec4_f32x16(triangle.tv[i].normal.x, triangle.tv[i].normal.y, triangle.tv[i].normal.z, triangle.tv[i].normal.w) * worldBarycentrics[i];
 				normals /= normals.len<3>();
 
 				for (int k = 0; k < 3; ++k)

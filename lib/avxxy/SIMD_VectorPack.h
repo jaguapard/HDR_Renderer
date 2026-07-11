@@ -187,7 +187,7 @@ namespace AVXXY_NAMESPACE
 		}
 
 		//Returns a 3D cross product of two vector packs. SIMD_Vector at index 3 and above are ignored and do not affect the output
-		SIMD_VectorPack<V, 3> cross3d(const SIMD_VectorPack<V, Dim>& other)
+		SIMD_VectorPack<V, 3> cross3d(const SIMD_VectorPack<V, Dim>& other) const
 			requires (Dim >= 3)
 		{
 			return {

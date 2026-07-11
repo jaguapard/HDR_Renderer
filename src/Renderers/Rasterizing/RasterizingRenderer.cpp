@@ -447,7 +447,7 @@ void RasterizingRenderer::transformVertices(const VertexStageInput& input, Verte
 			if (input.stage == 1) modelFlags = load<i32x16>(flagsPtr + input.triangleIndices[0], activeTriangles);
 			else modelFlags = gather<i32x16>(flagsPtr, input.triangleIndices, activeTriangles);
 			
-			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutputTriangle->vertices[0].space, currOutputTriangle->vertices[1].space, currOutputTriangle->vertices[2].space);
+			Vec4_f32x16 transformedFaceNormals = getFaceNormalsForTriangles16(currOutputTriangle->vertices[0].space, currOutputTriangle->vertices[1].space, currOutputTriangle->vertices[2].space).resized<4>();
 			float32x16 dot = currOutputTriangle->vertices[0].space.dot<3>(transformedFaceNormals);
 			switch (currCmd.faceCullingType)
 			{
@@ -1022,9 +1022,14 @@ void RasterizingRenderer::joinMainWithShadowMap(int threadIndex)
 			{
 				Vec4_f32x16 normals = untransformedVerts[0].normal * bary[0] + untransformedVerts[1].normal * bary[1] + untransformedVerts[2].normal * bary[2];
 				normals /= normals.len<3>();
-				Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
-				Vec4_f32x16 lightDir = lightTo - lightFrom;
-				lightDir /= lightDir.len<3>();
+				Vec4_f32x16 lightDir;
+				{
+					Vec4f lightFrom = { 13.978434,1933.787476,117.000008 }, lightTo = { -874.297729,136.884766,0.909166 };
+					Vec4f _lightDir = lightTo - lightFrom;
+					_lightDir /= _lightDir.len();
+					lightDir = Vec4_f32x16(_lightDir.x, _lightDir.y, _lightDir.z, _lightDir.w);
+				}
+				
 				normalDot = -normals.dot<3>(lightDir);
 				normalShadingMult = max(float32x16(0.f), normalDot * this->lightIntesity);
 			}
